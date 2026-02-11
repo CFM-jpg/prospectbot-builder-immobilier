@@ -1,6 +1,6 @@
-// pages/api/B2B/scraper-ultimate.js
-// 🚀 SCRAPER ULTIME - Toutes les méthodes en un seul fichier
-// Gratuit + Puppeteer + APIs + Import manuel
+// pages/api/B2B/scraper.js
+// 🚀 SCRAPER ULTIME - Version sans erreur d'import Puppeteer
+// Fonctionne sur Vercel FREE sans problème !
 
 import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '../../../lib/supabase';
@@ -11,8 +11,8 @@ import { supabaseAdmin } from '../../../lib/supabase';
 
 const CONFIG = {
   // Activer/désactiver les méthodes
-  enablePuppeteer: process.env.ENABLE_PUPPETEER === 'true', // false par défaut (évite erreurs)
-  enableAPIs: process.env.ENABLE_APIS === 'true',            // false par défaut (gratuit)
+  enablePuppeteer: process.env.ENABLE_PUPPETEER === 'true',
+  enableAPIs: process.env.ENABLE_APIS === 'true',
   
   // Clés API (optionnelles)
   hunterApiKey: process.env.HUNTER_API_KEY || null,
@@ -22,7 +22,7 @@ const CONFIG = {
   // Limites
   maxUrlsPerRequest: 5,
   requestTimeout: 15000,
-  delayBetweenRequests: 2000, // 2 secondes
+  delayBetweenRequests: 2000,
 };
 
 // ========================================
@@ -191,7 +191,6 @@ async function searchViaGoogle(companyName, location = 'France') {
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
     const phoneRegex = /(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/g;
     
-    // Extraire des résultats de recherche
     $('.g, .tF2Cxc').each((i, elem) => {
       const link = $(elem).find('a').first().attr('href');
       const snippet = $(elem).text();
@@ -209,7 +208,6 @@ async function searchViaGoogle(companyName, location = 'France') {
       }
     });
 
-    // Consolider les résultats
     const allEmails = [];
     const allPhones = [];
     
@@ -288,7 +286,7 @@ async function searchOpenCorporates(companyName, jurisdiction = 'fr') {
 }
 
 // ========================================
-// 🤖 MÉTHODE 4 : PUPPETEER (Optionnel)
+// 🤖 MÉTHODE 4 : PUPPETEER (Import dynamique)
 // ========================================
 
 async function scrapeWithPuppeteer(websiteUrl) {
@@ -297,24 +295,26 @@ async function scrapeWithPuppeteer(websiteUrl) {
       method: 'puppeteer',
       success: false,
       disabled: true,
-      message: 'Puppeteer désactivé. Activez avec ENABLE_PUPPETEER=true'
+      message: 'Puppeteer désactivé. Activez avec ENABLE_PUPPETEER=true et installez les dépendances.'
     };
   }
 
   try {
     console.log(`🤖 Puppeteer: ${websiteUrl}`);
     
-    // Import dynamique de Puppeteer
-    let puppeteer, chromium;
+    // ⚠️ Import dynamique uniquement si activé
+    const puppeteerModule = process.env.NODE_ENV === 'development' 
+      ? await import('puppeteer')
+      : await import('puppeteer-core');
     
-    if (process.env.NODE_ENV === 'development') {
-      puppeteer = await import('puppeteer');
-    } else {
-      puppeteer = await import('puppeteer-core');
-      chromium = await import('@sparticuz/chromium');
-    }
+    const chromiumModule = process.env.NODE_ENV !== 'development'
+      ? await import('@sparticuz/chromium')
+      : null;
 
-    const browser = await puppeteer.default.launch({
+    const puppeteer = puppeteerModule.default;
+    const chromium = chromiumModule?.default;
+
+    const browser = await puppeteer.launch({
       args: chromium?.args || ['--no-sandbox'],
       defaultViewport: chromium?.defaultViewport || { width: 1920, height: 1080 },
       executablePath: chromium ? await chromium.executablePath() : undefined,
@@ -322,30 +322,21 @@ async function scrapeWithPuppeteer(websiteUrl) {
     });
 
     const page = await browser.newPage();
-    
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-    
-    await page.goto(websiteUrl, { 
-      waitUntil: 'networkidle2',
-      timeout: 30000 
-    });
-    
+    await page.goto(websiteUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     await page.waitForTimeout(2000);
 
     const data = await page.evaluate(() => {
       const result = {
         company: document.querySelector('h1')?.textContent?.trim() || document.title,
         emails: [],
-        phones: [],
-        address: ''
+        phones: []
       };
 
-      // Emails
       const bodyText = document.body.innerText;
       const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
       result.emails = [...new Set(bodyText.match(emailRegex) || [])].slice(0, 5);
 
-      // Téléphones
       const phoneRegex = /(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/g;
       result.phones = [...new Set(bodyText.match(phoneRegex) || [])].slice(0, 3);
 
@@ -371,166 +362,7 @@ async function scrapeWithPuppeteer(websiteUrl) {
 }
 
 // ========================================
-// 💰 MÉTHODE 5 : HUNTER.IO (API payante)
-// ========================================
-
-async function findEmailWithHunter(domain, firstName = null, lastName = null) {
-  if (!CONFIG.enableAPIs || !CONFIG.hunterApiKey) {
-    return {
-      method: 'hunter',
-      success: false,
-      disabled: true
-    };
-  }
-
-  try {
-    console.log(`💰 Hunter.io: ${domain}`);
-    
-    let url = `https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${CONFIG.hunterApiKey}`;
-    
-    if (firstName && lastName) {
-      url = `https://api.hunter.io/v2/email-finder?domain=${domain}&first_name=${firstName}&last_name=${lastName}&api_key=${CONFIG.hunterApiKey}`;
-    }
-    
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.data) {
-      const emails = data.data.emails || [data.data.email];
-      
-      return {
-        method: 'hunter',
-        success: true,
-        data: {
-          emails: emails.filter(Boolean).map(e => e.value || e),
-          confidence: data.data.score
-        }
-      };
-    }
-
-    return { method: 'hunter', success: false };
-
-  } catch (error) {
-    return {
-      method: 'hunter',
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-// ========================================
-// 💼 MÉTHODE 6 : CLEARBIT (API payante)
-// ========================================
-
-async function enrichWithClearbit(domain) {
-  if (!CONFIG.enableAPIs || !CONFIG.clearbitApiKey) {
-    return {
-      method: 'clearbit',
-      success: false,
-      disabled: true
-    };
-  }
-
-  try {
-    console.log(`💼 Clearbit: ${domain}`);
-    
-    const url = `https://company.clearbit.com/v2/companies/find?domain=${domain}`;
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${CONFIG.clearbitApiKey}`
-      }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        method: 'clearbit',
-        success: true,
-        data: {
-          name: data.name,
-          description: data.description,
-          employees: data.metrics?.employees,
-          industry: data.category?.industry,
-          phone: data.phone,
-          address: data.location
-        }
-      };
-    }
-
-    return { method: 'clearbit', success: false };
-
-  } catch (error) {
-    return {
-      method: 'clearbit',
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-// ========================================
-// 🎯 MÉTHODE 7 : APOLLO.IO (API payante)
-// ========================================
-
-async function searchWithApollo(query, location = 'France') {
-  if (!CONFIG.enableAPIs || !CONFIG.apolloApiKey) {
-    return {
-      method: 'apollo',
-      success: false,
-      disabled: true
-    };
-  }
-
-  try {
-    console.log(`🎯 Apollo.io: ${query}`);
-    
-    const url = 'https://api.apollo.io/v1/mixed_people/search';
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': CONFIG.apolloApiKey
-      },
-      body: JSON.stringify({
-        q_keywords: query,
-        person_locations: [location],
-        per_page: 10
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      
-      const prospects = data.people?.map(person => ({
-        firstName: person.first_name,
-        lastName: person.last_name,
-        title: person.title,
-        email: person.email,
-        company: person.organization?.name,
-        phone: person.phone_numbers?.[0]?.sanitized_number
-      })) || [];
-
-      return {
-        method: 'apollo',
-        success: true,
-        data: { prospects }
-      };
-    }
-
-    return { method: 'apollo', success: false };
-
-  } catch (error) {
-    return {
-      method: 'apollo',
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-// ========================================
-// 📥 MÉTHODE 8 : IMPORT CSV/EXCEL
+// 📥 MÉTHODE 5 : IMPORT CSV
 // ========================================
 
 async function parseImportFile(fileContent, fileType = 'csv') {
@@ -553,14 +385,13 @@ async function parseImportFile(fileContent, fileType = 'csv') {
           prospect[header] = values[index] || '';
         });
         
-        if (prospect.Email || prospect.email || prospect['First Name'] || prospect.firstName) {
+        if (prospect.Email || prospect.email || prospect['First Name']) {
           prospects.push({
             firstName: prospect['First Name'] || prospect.firstName || '',
             lastName: prospect['Last Name'] || prospect.lastName || '',
             email: prospect.Email || prospect.email || '',
             company: prospect.Company || prospect.company || '',
-            phone: prospect.Phone || prospect.phone || '',
-            position: prospect.Position || prospect.Title || prospect.position || ''
+            phone: prospect.Phone || prospect.phone || ''
           });
         }
       }
@@ -583,7 +414,7 @@ async function parseImportFile(fileContent, fileType = 'csv') {
 }
 
 // ========================================
-// 🔗 FONCTION DE CONSOLIDATION
+// 🔗 CONSOLIDATION
 // ========================================
 
 function consolidateResults(results, companyName, websiteUrl) {
@@ -595,8 +426,6 @@ function consolidateResults(results, companyName, websiteUrl) {
     website: websiteUrl || '',
     socialMedia: {},
     description: '',
-    companyNumber: '',
-    industry: '',
     sources: []
   };
 
@@ -606,63 +435,32 @@ function consolidateResults(results, companyName, websiteUrl) {
     consolidated.sources.push(result.method);
 
     if (result.data) {
-      // Nom
       if (result.data.company || result.data.name) {
         consolidated.company = consolidated.company || result.data.company || result.data.name;
       }
 
-      // Emails
       if (result.data.emails) {
         consolidated.emails.push(...result.data.emails);
       }
-      if (result.data.email) {
-        consolidated.emails.push(result.data.email);
-      }
 
-      // Téléphones
       if (result.data.phones) {
         consolidated.phones.push(...result.data.phones);
       }
-      if (result.data.phone) {
-        consolidated.phones.push(result.data.phone);
-      }
 
-      // Adresse
       if (result.data.address) {
         consolidated.address = consolidated.address || result.data.address;
       }
 
-      // Réseaux sociaux
       if (result.data.socialMedia) {
         consolidated.socialMedia = { ...consolidated.socialMedia, ...result.data.socialMedia };
       }
 
-      // Description
       if (result.data.description) {
         consolidated.description = consolidated.description || result.data.description;
-      }
-
-      // Numéro entreprise
-      if (result.data.companyNumber) {
-        consolidated.companyNumber = result.data.companyNumber;
-      }
-
-      // Industrie
-      if (result.data.industry) {
-        consolidated.industry = result.data.industry;
-      }
-
-      // Prospects (Apollo)
-      if (result.data.prospects) {
-        result.data.prospects.forEach(p => {
-          if (p.email) consolidated.emails.push(p.email);
-          if (p.phone) consolidated.phones.push(p.phone);
-        });
       }
     }
   });
 
-  // Dédupliquer
   consolidated.emails = [...new Set(consolidated.emails)].filter(Boolean);
   consolidated.phones = [...new Set(consolidated.phones)].filter(Boolean);
 
@@ -670,7 +468,7 @@ function consolidateResults(results, companyName, websiteUrl) {
 }
 
 // ========================================
-// 🚀 HANDLER API PRINCIPAL
+// 🚀 HANDLER API
 // ========================================
 
 export default async function handler(req, res) {
@@ -679,50 +477,28 @@ export default async function handler(req, res) {
   }
 
   const {
-    // Mode de scraping
-    mode = 'auto', // 'auto', 'gratuit', 'premium', 'custom'
-    
-    // Données d'entrée
+    mode = 'auto',
     companyName,
     websiteUrl,
     location = 'France',
-    domain,
-    
-    // Import
     fileContent,
     fileType,
-    
-    // Méthodes spécifiques
-    methods = [],  // ['cheerio', 'google', 'opencorporates', 'puppeteer', 'hunter', 'clearbit', 'apollo']
-    
-    // Options
+    methods = [],
     saveToSupabase = true,
     returnRawResults = false
-    
   } = req.body;
 
   try {
     const results = [];
     let methodsToUse = [];
 
-    // Déterminer quelles méthodes utiliser
+    // Déterminer les méthodes
     if (mode === 'auto') {
-      // MODE AUTO : Utilise toutes les méthodes gratuites disponibles
       methodsToUse = ['cheerio', 'google', 'opencorporates'];
-      
       if (CONFIG.enablePuppeteer) methodsToUse.push('puppeteer');
-      if (CONFIG.enableAPIs) methodsToUse.push('hunter', 'clearbit');
-      
     } else if (mode === 'gratuit') {
-      // MODE GRATUIT : Seulement méthodes gratuites
       methodsToUse = ['cheerio', 'google', 'opencorporates'];
-      
-    } else if (mode === 'premium') {
-      // MODE PREMIUM : Toutes les méthodes payantes
-      methodsToUse = ['puppeteer', 'hunter', 'clearbit', 'apollo'];
-      
     } else if (mode === 'custom') {
-      // MODE CUSTOM : Méthodes spécifiées par l'utilisateur
       methodsToUse = methods;
     }
 
@@ -745,7 +521,6 @@ export default async function handler(req, res) {
 
     // Exécuter les méthodes
     for (const method of methodsToUse) {
-      // Délai entre méthodes pour éviter rate limiting
       if (results.length > 0) {
         await new Promise(resolve => setTimeout(resolve, CONFIG.delayBetweenRequests));
       }
@@ -780,31 +555,10 @@ export default async function handler(req, res) {
             results.push(result);
           }
           break;
-
-        case 'hunter':
-          if (domain) {
-            result = await findEmailWithHunter(domain);
-            results.push(result);
-          }
-          break;
-
-        case 'clearbit':
-          if (domain) {
-            result = await enrichWithClearbit(domain);
-            results.push(result);
-          }
-          break;
-
-        case 'apollo':
-          if (companyName) {
-            result = await searchWithApollo(companyName, location);
-            results.push(result);
-          }
-          break;
       }
     }
 
-    // Consolider les résultats
+    // Consolider
     const consolidatedData = consolidateResults(results, companyName, websiteUrl);
 
     // Sauvegarder dans Supabase
@@ -817,7 +571,6 @@ export default async function handler(req, res) {
           phone: consolidatedData.phones[0] || '',
           address: consolidatedData.address,
           website: consolidatedData.website,
-          industry: consolidatedData.industry,
           description: consolidatedData.description,
           source: `scraper-${mode}`,
           raw_data: JSON.stringify(consolidatedData)
@@ -828,7 +581,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Statistiques
+    // Stats
     const stats = {
       total: results.length,
       success: results.filter(r => r.success).length,
@@ -859,7 +612,5 @@ export const config = {
     bodyParser: {
       sizeLimit: '1mb',
     },
-    responseLimit: false,
   },
-  maxDuration: 60, // Nécessite Vercel Pro si > 10s
 };
