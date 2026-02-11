@@ -1,108 +1,164 @@
-import { createClient } from '@supabase/supabase-js';
+// pages/api/immobilier/match-auto.js
+// API Matching Automatique - Version Supabase
+
+import { supabaseAdmin } from '../../../lib/supabase';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    // 1. Récupérer tous les acheteurs actifs
+    const { data: acheteurs, error: errorAcheteurs } = await supabaseAdmin
+      .from('acheteurs')
+      .select('*')
+      .eq('statut', 'actif');
 
-    // Récupérer tous les biens disponibles
-    const { data: biens, error: biensError } = await supabase
-      .from('biens_immobiliers')
+    if (errorAcheteurs) throw errorAcheteurs;
+
+    // 2. Récupérer tous les biens disponibles
+    const { data: biens, error: errorBiens } = await supabaseAdmin
+      .from('biens')
       .select('*')
       .eq('statut', 'disponible');
 
-    if (biensError) throw biensError;
+    if (errorBiens) throw errorBiens;
 
-    // Récupérer tous les acheteurs
-    const { data: acheteurs, error: acheteursError } = await supabase
-      .from('acheteurs_immobilier')
-      .select('*');
+    let nouveauxMatchs = 0;
+    const matchsCreated = [];
 
-    if (acheteursError) throw acheteursError;
-
-    let nouveauxMatches = 0;
-
-    // Pour chaque acheteur, trouver les biens compatibles
-    for (const acheteur of acheteurs) {
-      for (const bien of biens) {
+    // 3. Pour chaque acheteur, chercher les matchs
+    for (const acheteur of acheteurs || []) {
+      for (const bien of biens || []) {
         // Vérifier si le match existe déjà
-        const { data: matchExistant } = await supabase
-          .from('matches_immobilier')
+        const { data: matchExistant } = await supabaseAdmin
+          .from('matches')
           .select('id')
           .eq('acheteur_id', acheteur.id)
           .eq('bien_id', bien.id)
           .single();
 
-        if (matchExistant) continue; // Skip si match existe déjà
+        if (matchExistant) continue;
 
-        // Calculer le score de compatibilité
-        let score = 0;
+        // Calculer le score de matching
+        const score = calculerScore(acheteur, bien);
 
-        // Compatibilité de prix (40 points max)
-        if (bien.prix <= acheteur.budget_max) {
-          const ratio = bien.prix / acheteur.budget_max;
-          score += Math.round(40 * (1 - Math.abs(ratio - 0.9))); // Bonus si proche de 90% du budget
-        }
+        // Si le score est suffisant (>= 60%), créer le match
+        if (score >= 60) {
+          const nouveauMatch = {
+            acheteur_id: acheteur.id,
+            bien_id: bien.id,
+            score: score,
+            statut: 'nouveau',
+            acheteur_nom: acheteur.nom,
+            acheteur_email: acheteur.email,
+            bien_reference: bien.reference,
+            bien_adresse: bien.adresse,
+            bien_prix: bien.prix,
+            bien_type: bien.type,
+            email_envoye: false,
+            created_at: new Date().toISOString()
+          };
 
-        // Compatibilité de ville (30 points max)
-        if (bien.ville?.toLowerCase() === acheteur.ville_recherchee?.toLowerCase()) {
-          score += 30;
-        }
+          const { data, error } = await supabaseAdmin
+            .from('matches')
+            .insert([nouveauMatch])
+            .select()
+            .single();
 
-        // Compatibilité de type (20 points max)
-        if (bien.type?.toLowerCase() === acheteur.type_bien?.toLowerCase()) {
-          score += 20;
-        }
-
-        // Compatibilité de surface (10 points max)
-        if (acheteur.surface_min && bien.surface >= acheteur.surface_min) {
-          score += 10;
-        }
-
-        // Créer le match si le score est >= 50%
-        if (score >= 50) {
-          const { error: insertError } = await supabase
-            .from('matches_immobilier')
-            .insert({
-              acheteur_id: acheteur.id,
-              bien_id: bien.id,
-              acheteur_nom: acheteur.nom,
-              acheteur_email: acheteur.email,
-              acheteur_telephone: acheteur.telephone,
-              bien_titre: bien.titre,
-              bien_prix: bien.prix,
-              bien_surface: bien.surface,
-              bien_ville: bien.ville,
-              bien_type: bien.type,
-              score_compatibilite: score,
-              statut: 'nouveau'
-            });
-
-          if (!insertError) {
-            nouveauxMatches++;
+          if (!error && data) {
+            nouveauxMatchs++;
+            matchsCreated.push(data);
           }
         }
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      nouveauxMatches,
-      message: `${nouveauxMatches} nouveaux matchs créés`
+      message: `Matching terminé`,
+      stats: {
+        acheteursAnalyses: acheteurs?.length || 0,
+        biensAnalyses: biens?.length || 0,
+        nouveauxMatchs: nouveauxMatchs
+      },
+      matchs: matchsCreated
     });
 
   } catch (error) {
-    console.error('Erreur matching auto:', error);
-    res.status(500).json({ 
+    console.error('Erreur matching automatique:', error);
+    return res.status(500).json({
       success: false,
-      error: 'Erreur serveur',
-      details: error.message 
+      error: 'Erreur lors du matching automatique',
+      details: error.message
     });
   }
+}
+
+// Fonction de calcul du score de matching
+function calculerScore(acheteur, bien) {
+  let score = 0;
+
+  // 1. Budget (30%)
+  if (bien.prix <= acheteur.budget_max) {
+    score += 30;
+  } else if (bien.prix <= acheteur.budget_max * 1.1) {
+    score += 15; // Dépassement léger acceptable
+  }
+
+  // 2. Type de bien (20%)
+  if (acheteur.type_bien) {
+    const typesSouhaites = Array.isArray(acheteur.type_bien) 
+      ? acheteur.type_bien 
+      : [acheteur.type_bien];
+    
+    if (typesSouhaites.includes(bien.type)) {
+      score += 20;
+    }
+  } else {
+    score += 20; // Pas de préférence = compatible
+  }
+
+  // 3. Localisation (20%)
+  if (acheteur.villes) {
+    const villesSouhaitees = Array.isArray(acheteur.villes) 
+      ? acheteur.villes 
+      : [acheteur.villes];
+    
+    const matchVille = villesSouhaitees.some(ville => 
+      bien.ville?.toLowerCase().includes(ville.toLowerCase()) ||
+      ville.toLowerCase().includes(bien.ville?.toLowerCase())
+    );
+    
+    if (matchVille) {
+      score += 20;
+    }
+  } else {
+    score += 20; // Pas de préférence = compatible
+  }
+
+  // 4. Surface (15%)
+  if (acheteur.surface_min && acheteur.surface_max) {
+    if (bien.surface >= acheteur.surface_min && bien.surface <= acheteur.surface_max) {
+      score += 15;
+    } else if (bien.surface >= acheteur.surface_min * 0.9) {
+      score += 7;
+    }
+  } else {
+    score += 15; // Pas de critère = compatible
+  }
+
+  // 5. Nombre de pièces (15%)
+  if (acheteur.pieces_min) {
+    if (bien.pieces >= acheteur.pieces_min) {
+      score += 15;
+    } else if (bien.pieces >= acheteur.pieces_min - 1) {
+      score += 7;
+    }
+  } else {
+    score += 15; // Pas de critère = compatible
+  }
+
+  return Math.round(score);
 }

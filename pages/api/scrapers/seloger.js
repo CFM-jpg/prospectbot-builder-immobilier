@@ -1,18 +1,15 @@
 // pages/api/scrapers/seloger.js
-// API Scraper - SeLoger
+// API Scraper - SeLoger - Version Supabase
 
-import { connectToDatabase } from '../../../lib/mongodb';
+import { supabaseAdmin } from '../../../lib/supabase';
 import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
-  // Vérification de la méthode
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const { db } = await connectToDatabase();
-    
     // Paramètres de recherche
     const { 
       ville = 'rennes-35000', 
@@ -46,24 +43,18 @@ export default async function handler(req, res) {
     const annonces = [];
     
     // ATTENTION: Les sélecteurs SeLoger peuvent changer !
-    // Ceci est un exemple, à adapter selon la structure HTML réelle
     $('.c-pa-list article').each((index, element) => {
       try {
         const $annonce = $(element);
         
-        // Extraction des données
         const titre = $annonce.find('.c-pa-link').text().trim();
         const prix = extrairePrix($annonce.find('.c-pa-price').text());
         const lien = $annonce.find('.c-pa-link').attr('href');
         const ville = $annonce.find('.c-pa-city').text().trim();
         const image = $annonce.find('img').attr('src') || $annonce.find('img').attr('data-src');
-        
-        // Extraction des caractéristiques
         const caracteristiques = $annonce.find('.c-pa-criteria').text();
         const surface = extraireSurface(caracteristiques);
         const pieces = extrairePieces(caracteristiques);
-        
-        // Description
         const description = $annonce.find('.c-pa-description').text().trim();
 
         if (titre && prix) {
@@ -80,8 +71,8 @@ export default async function handler(req, res) {
             lien: lien ? `https://www.seloger.com${lien}` : null,
             image: image,
             type: determinerType(titre + ' ' + caracteristiques),
-            dateScrap: new Date(),
-            statut: 'disponible'
+            statut: 'disponible',
+            created_at: new Date().toISOString()
           });
         }
       } catch (error) {
@@ -92,26 +83,33 @@ export default async function handler(req, res) {
     // Sauvegarder les nouvelles annonces
     let nouvellesAnnonces = 0;
     for (const annonce of annonces) {
-      const existe = await db.collection('biens').findOne({ 
-        reference: annonce.reference 
-      });
+      const { data: existe } = await supabaseAdmin
+        .from('biens')
+        .select('id')
+        .eq('reference', annonce.reference)
+        .single();
       
       if (!existe) {
-        await db.collection('biens').insertOne(annonce);
-        nouvellesAnnonces++;
+        const { error } = await supabaseAdmin
+          .from('biens')
+          .insert([annonce]);
+        
+        if (!error) {
+          nouvellesAnnonces++;
+        }
       }
     }
 
     // Logger le scraping
-    await db.collection('scraper_logs').insertOne({
+    await supabaseAdmin.from('scraper_logs').insert([{
       source: 'seloger',
-      date: new Date(),
+      date: new Date().toISOString(),
       parametres: { ville, prixMin, prixMax, surfaceMin, type },
       resultat: {
         annoncesTouvees: annonces.length,
         nouvellesAnnonces: nouvellesAnnonces
       }
-    });
+    }]);
 
     return res.status(200).json({
       success: true,
@@ -125,16 +123,17 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Erreur scraping SeLoger:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
+      success: false,
       error: 'Erreur lors du scraping',
-      details: error.message 
+      details: error.message
     });
   }
 }
 
 // Construction de l'URL SeLoger
 function construireURLSeLoger({ ville, prixMin, prixMax, surfaceMin, type }) {
-  const typeCode = type === 'appartement' ? '2' : '1'; // 1=maison, 2=appart
+  const typeCode = type === 'appartement' ? '2' : '1';
   const baseURL = 'https://www.seloger.com/list.htm';
   
   const params = new URLSearchParams({
@@ -173,7 +172,6 @@ function extrairePieces(texte) {
 // Extraction du nom de ville
 function extraireVille(texte) {
   if (!texte) return texte;
-  // Retirer le code postal s'il est présent
   return texte.replace(/\(\d{5}\)/g, '').trim();
 }
 

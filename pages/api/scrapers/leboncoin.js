@@ -1,19 +1,16 @@
 // pages/api/scrapers/leboncoin.js
-// API Scraper - Le Bon Coin
+// API Scraper - Le Bon Coin - Version Supabase
 
-import { connectToDatabase } from '../../../lib/mongodb';
+import { supabaseAdmin } from '../../../lib/supabase';
 import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
-  // Vérification de la méthode
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const { db } = await connectToDatabase();
-    
-    // Paramètres de recherche (peuvent être passés en query params)
+    // Paramètres de recherche
     const { 
       ville = 'rennes', 
       rayon = 20, 
@@ -45,19 +42,15 @@ export default async function handler(req, res) {
     const annonces = [];
     
     // ATTENTION: Les sélecteurs Le Bon Coin peuvent changer !
-    // Ceci est un exemple, à adapter selon la structure HTML réelle
     $('[data-qa-id="aditem_container"]').each((index, element) => {
       try {
         const $annonce = $(element);
         
-        // Extraction des données
         const titre = $annonce.find('[data-qa-id="aditem_title"]').text().trim();
         const prix = extrairePrix($annonce.find('[data-qa-id="aditem_price"]').text());
         const lien = $annonce.find('a').attr('href');
         const ville = $annonce.find('[data-qa-id="aditem_location"]').text().trim();
         const image = $annonce.find('img').attr('src');
-        
-        // Extraction de la surface (si disponible)
         const description = $annonce.find('[data-qa-id="aditem_description"]').text();
         const surface = extraireSurface(description);
         const pieces = extrairePieces(titre + ' ' + description);
@@ -76,8 +69,8 @@ export default async function handler(req, res) {
             lien: lien ? `https://www.leboncoin.fr${lien}` : null,
             image: image,
             type: determinerType(titre),
-            dateScrap: new Date(),
-            statut: 'disponible'
+            statut: 'disponible',
+            created_at: new Date().toISOString()
           });
         }
       } catch (error) {
@@ -85,30 +78,37 @@ export default async function handler(req, res) {
       }
     });
 
-    // Sauvegarder les nouvelles annonces dans la base de données
+    // Sauvegarder les nouvelles annonces dans Supabase
     let nouvellesAnnonces = 0;
     for (const annonce of annonces) {
       // Vérifier si l'annonce existe déjà
-      const existe = await db.collection('biens').findOne({ 
-        reference: annonce.reference 
-      });
+      const { data: existe } = await supabaseAdmin
+        .from('biens')
+        .select('id')
+        .eq('reference', annonce.reference)
+        .single();
       
       if (!existe) {
-        await db.collection('biens').insertOne(annonce);
-        nouvellesAnnonces++;
+        const { error } = await supabaseAdmin
+          .from('biens')
+          .insert([annonce]);
+        
+        if (!error) {
+          nouvellesAnnonces++;
+        }
       }
     }
 
     // Logger le scraping
-    await db.collection('scraper_logs').insertOne({
+    await supabaseAdmin.from('scraper_logs').insert([{
       source: 'leboncoin',
-      date: new Date(),
+      date: new Date().toISOString(),
       parametres: { ville, rayon, prixMin, prixMax, type },
       resultat: {
         annoncesTouvees: annonces.length,
         nouvellesAnnonces: nouvellesAnnonces
       }
-    });
+    }]);
 
     return res.status(200).json({
       success: true,
@@ -122,9 +122,10 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Erreur scraping Le Bon Coin:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
+      success: false,
       error: 'Erreur lors du scraping',
-      details: error.message 
+      details: error.message
     });
   }
 }
@@ -133,9 +134,9 @@ export default async function handler(req, res) {
 function construireURLLeBonCoin({ ville, rayon, prixMin, prixMax, type }) {
   const baseURL = 'https://www.leboncoin.fr/recherche';
   const params = new URLSearchParams({
-    category: type === 'appartement' ? '10' : '9', // 9=maison, 10=appart
+    category: type === 'appartement' ? '10' : '9',
     locations: ville,
-    searchRadius: rayon * 1000, // Convertir en mètres
+    searchRadius: rayon * 1000,
     price: `${prixMin}-${prixMax}`
   });
   

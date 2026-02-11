@@ -1,130 +1,132 @@
-import { createClient } from '@supabase/supabase-js';
+// pages/api/immobilier/import-biens.js
+// API Import de biens - Version Supabase
 
-/**
- * API : Import de biens immobiliers
- * POST /api/immobilier/import-biens
- * 
- * Body attendu :
- * {
- *   biens: [
- *     {
- *       titre: string,
- *       description: string,
- *       prix: number,
- *       surface: number,
- *       ville: string,
- *       code_postal: string,
- *       type: string (appartement, maison, terrain),
- *       nb_pieces: number,
- *       statut: string (disponible, vendu, reserve)
- *     }
- *   ]
- * }
- */
+import { supabaseAdmin } from '../../../lib/supabase';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  // Vérification du secret CRON (sécurité)
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({
-      success: false,
-      error: 'Non autorisé'
-    });
+    return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
     const { biens } = req.body;
 
-    if (!biens || !Array.isArray(biens)) {
+    if (!Array.isArray(biens) || biens.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Format invalide. Attendu: { biens: [...] }'
+        error: 'Le champ "biens" doit être un tableau non vide'
       });
     }
 
     let biensImportes = 0;
-    let biensErreurs = 0;
-    const erreurs = [];
+    let biensExistants = 0;
+    let erreursImport = 0;
+    const resultats = [];
 
     for (const bien of biens) {
       try {
-        // Vérifier si le bien existe déjà (par titre et ville)
-        const { data: existant } = await supabase
-          .from('biens_immobiliers')
+        // Validation basique
+        if (!bien.reference) {
+          erreursImport++;
+          resultats.push({
+            reference: bien.reference || 'N/A',
+            statut: 'erreur',
+            message: 'Référence manquante'
+          });
+          continue;
+        }
+
+        // Vérifier si le bien existe déjà
+        const { data: existant } = await supabaseAdmin
+          .from('biens')
           .select('id')
-          .eq('titre', bien.titre)
-          .eq('ville', bien.ville)
+          .eq('reference', bien.reference)
           .single();
 
         if (existant) {
-          // Mettre à jour le bien existant
-          const { error: updateError } = await supabase
-            .from('biens_immobiliers')
-            .update({
-              description: bien.description,
-              prix: bien.prix,
-              surface: bien.surface,
-              code_postal: bien.code_postal,
-              type: bien.type,
-              nb_pieces: bien.nb_pieces,
-              statut: bien.statut || 'disponible',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existant.id);
-
-          if (updateError) throw updateError;
-        } else {
-          // Créer un nouveau bien
-          const { error: insertError } = await supabase
-            .from('biens_immobiliers')
-            .insert({
-              titre: bien.titre,
-              description: bien.description,
-              prix: bien.prix,
-              surface: bien.surface,
-              ville: bien.ville,
-              code_postal: bien.code_postal,
-              type: bien.type,
-              nb_pieces: bien.nb_pieces,
-              statut: bien.statut || 'disponible'
-            });
-
-          if (insertError) throw insertError;
+          biensExistants++;
+          resultats.push({
+            reference: bien.reference,
+            statut: 'existant',
+            message: 'Bien déjà existant'
+          });
+          continue;
         }
 
+        // Préparer les données du bien
+        const bienData = {
+          reference: bien.reference,
+          type: bien.type || 'autre',
+          titre: bien.titre || bien.reference,
+          adresse: bien.adresse || '',
+          ville: bien.ville || '',
+          code_postal: bien.code_postal || bien.codePostal || '',
+          prix: bien.prix || 0,
+          surface: bien.surface || null,
+          pieces: bien.pieces || null,
+          chambres: bien.chambres || null,
+          description: bien.description || '',
+          source: bien.source || 'import',
+          lien: bien.lien || null,
+          image: bien.image || null,
+          photos: bien.photos || [],
+          statut: bien.statut || 'disponible',
+          dpe: bien.dpe || null,
+          ges: bien.ges || null,
+          etage: bien.etage || null,
+          ascenseur: bien.ascenseur || false,
+          balcon: bien.balcon || false,
+          terrasse: bien.terrasse || false,
+          jardin: bien.jardin || false,
+          parking: bien.parking || false,
+          cave: bien.cave || false,
+          created_at: new Date().toISOString()
+        };
+
+        // Insérer le bien
+        const { data, error } = await supabaseAdmin
+          .from('biens')
+          .insert([bienData])
+          .select()
+          .single();
+
+        if (error) throw error;
+
         biensImportes++;
+        resultats.push({
+          reference: bien.reference,
+          statut: 'importé',
+          id: data.id,
+          message: 'Bien importé avec succès'
+        });
 
       } catch (error) {
-        biensErreurs++;
-        erreurs.push({
-          bien: bien.titre,
-          erreur: error.message
+        erreursImport++;
+        resultats.push({
+          reference: bien.reference,
+          statut: 'erreur',
+          message: error.message
         });
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      biensImportes,
-      biensErreurs,
-      total: biens.length,
-      erreurs: erreurs.length > 0 ? erreurs : undefined
+      message: 'Import terminé',
+      stats: {
+        total: biens.length,
+        biensImportes: biensImportes,
+        biensExistants: biensExistants,
+        erreursImport: erreursImport
+      },
+      resultats: resultats
     });
 
   } catch (error) {
     console.error('Erreur import biens:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      error: 'Erreur serveur',
+      error: 'Erreur lors de l\'import des biens',
       details: error.message
     });
   }

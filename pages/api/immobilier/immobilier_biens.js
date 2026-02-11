@@ -1,29 +1,34 @@
-// pages/api/immobilier/matches.js
-// API Matches - Version Supabase
+// pages/api/immobilier/biens.js
+// API Biens - Version Supabase
 
 import { supabaseAdmin } from '../../../lib/supabase';
 
 export default async function handler(req, res) {
-  // GET - Récupérer la liste des matches
+  // GET - Récupérer la liste des biens
   if (req.method === 'GET') {
     try {
-      const { statut, acheteurId, bienId } = req.query;
+      const { statut, type, villeRecherche, prixMin, prixMax } = req.query;
 
-      let query = supabaseAdmin.from('matches').select('*');
+      let query = supabaseAdmin.from('biens').select('*');
 
       // Filtres optionnels
       if (statut) {
         query = query.eq('statut', statut);
       }
-      if (acheteurId) {
-        query = query.eq('acheteur_id', acheteurId);
+      if (type) {
+        query = query.eq('type', type);
       }
-      if (bienId) {
-        query = query.eq('bien_id', bienId);
+      if (villeRecherche) {
+        query = query.ilike('ville', `%${villeRecherche}%`);
+      }
+      if (prixMin) {
+        query = query.gte('prix', parseInt(prixMin));
+      }
+      if (prixMax) {
+        query = query.lte('prix', parseInt(prixMax));
       }
 
-      // Tri par score décroissant puis par date
-      query = query.order('score', { ascending: false });
+      // Tri par date de création (plus récents en premier)
       query = query.order('created_at', { ascending: false });
 
       const { data, error } = await query;
@@ -37,49 +42,48 @@ export default async function handler(req, res) {
       });
 
     } catch (error) {
-      console.error('Erreur récupération matches:', error);
+      console.error('Erreur récupération biens:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération des matches',
+        error: 'Erreur lors de la récupération des biens',
         details: error.message
       });
     }
   }
 
-  // POST - Créer un nouveau match
+  // POST - Créer un nouveau bien
   else if (req.method === 'POST') {
     try {
-      const matchData = req.body;
+      const bienData = req.body;
 
       // Validation basique
-      if (!matchData.acheteur_id || !matchData.bien_id) {
+      if (!bienData.reference || !bienData.type || !bienData.prix) {
         return res.status(400).json({
           success: false,
-          error: 'acheteur_id et bien_id requis'
+          error: 'Données manquantes (reference, type, prix requis)'
         });
       }
 
-      // Vérifier si le match existe déjà
+      // Vérifier si la référence existe déjà
       const { data: existant } = await supabaseAdmin
-        .from('matches')
+        .from('biens')
         .select('id')
-        .eq('acheteur_id', matchData.acheteur_id)
-        .eq('bien_id', matchData.bien_id)
+        .eq('reference', bienData.reference)
         .single();
 
       if (existant) {
         return res.status(409).json({
           success: false,
-          error: 'Ce match existe déjà'
+          error: 'Un bien avec cette référence existe déjà'
         });
       }
 
-      // Créer le match
+      // Créer le bien
       const { data, error } = await supabaseAdmin
-        .from('matches')
+        .from('biens')
         .insert([{
-          ...matchData,
-          statut: matchData.statut || 'nouveau',
+          ...bienData,
+          statut: bienData.statut || 'disponible',
           created_at: new Date().toISOString()
         }])
         .select()
@@ -90,20 +94,20 @@ export default async function handler(req, res) {
       return res.status(201).json({
         success: true,
         data: data,
-        message: 'Match créé avec succès'
+        message: 'Bien créé avec succès'
       });
 
     } catch (error) {
-      console.error('Erreur création match:', error);
+      console.error('Erreur création bien:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erreur lors de la création du match',
+        error: 'Erreur lors de la création du bien',
         details: error.message
       });
     }
   }
 
-  // PUT - Mettre à jour un match
+  // PUT - Mettre à jour un bien
   else if (req.method === 'PUT') {
     try {
       const { id, ...updateData } = req.body;
@@ -111,12 +115,12 @@ export default async function handler(req, res) {
       if (!id) {
         return res.status(400).json({
           success: false,
-          error: 'ID du match manquant'
+          error: 'ID du bien manquant'
         });
       }
 
       const { data, error } = await supabaseAdmin
-        .from('matches')
+        .from('biens')
         .update({
           ...updateData,
           updated_at: new Date().toISOString()
@@ -130,20 +134,20 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: true,
         data: data,
-        message: 'Match mis à jour avec succès'
+        message: 'Bien mis à jour avec succès'
       });
 
     } catch (error) {
-      console.error('Erreur mise à jour match:', error);
+      console.error('Erreur mise à jour bien:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erreur lors de la mise à jour du match',
+        error: 'Erreur lors de la mise à jour du bien',
         details: error.message
       });
     }
   }
 
-  // DELETE - Supprimer un match
+  // DELETE - Supprimer un bien
   else if (req.method === 'DELETE') {
     try {
       const { id } = req.query;
@@ -151,12 +155,12 @@ export default async function handler(req, res) {
       if (!id) {
         return res.status(400).json({
           success: false,
-          error: 'ID du match manquant'
+          error: 'ID du bien manquant'
         });
       }
 
       const { error } = await supabaseAdmin
-        .from('matches')
+        .from('biens')
         .delete()
         .eq('id', id);
 
@@ -164,14 +168,14 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         success: true,
-        message: 'Match supprimé avec succès'
+        message: 'Bien supprimé avec succès'
       });
 
     } catch (error) {
-      console.error('Erreur suppression match:', error);
+      console.error('Erreur suppression bien:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erreur lors de la suppression du match',
+        error: 'Erreur lors de la suppression du bien',
         details: error.message
       });
     }

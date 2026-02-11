@@ -1,17 +1,14 @@
 // pages/api/scrapers/bienici.js
-// API Scraper - Bien'ici
+// API Scraper - Bien'ici - Version Supabase
 
-import { connectToDatabase } from '../../../lib/mongodb';
+import { supabaseAdmin } from '../../../lib/supabase';
 
 export default async function handler(req, res) {
-  // Vérification de la méthode
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const { db } = await connectToDatabase();
-    
     // Paramètres de recherche
     const { 
       ville = 'rennes', 
@@ -54,7 +51,7 @@ export default async function handler(req, res) {
             prix: ad.price || null,
             adresse: ad.address || '',
             ville: ad.city || ville,
-            codePostal: ad.postalCode || '',
+            code_postal: ad.postalCode || '',
             surface: ad.surfaceArea || null,
             pieces: ad.roomsQuantity || null,
             chambres: ad.bedroomsQuantity || null,
@@ -63,13 +60,11 @@ export default async function handler(req, res) {
             image: ad.photos && ad.photos[0] ? ad.photos[0].url : null,
             photos: ad.photos ? ad.photos.map(p => p.url) : [],
             type: determinerType(ad.propertyType),
-            dateScrap: new Date(),
             statut: 'disponible',
-            // Informations supplémentaires
             dpe: ad.energyClassification || null,
             ges: ad.greenhouseGasClassification || null,
-            charges: ad.charges || null,
-            etage: ad.floor || null
+            etage: ad.floor || null,
+            created_at: new Date().toISOString()
           });
         } catch (error) {
           console.error('Erreur traitement annonce Bien\'ici:', error);
@@ -80,26 +75,33 @@ export default async function handler(req, res) {
     // Sauvegarder les nouvelles annonces
     let nouvellesAnnonces = 0;
     for (const annonce of annonces) {
-      const existe = await db.collection('biens').findOne({ 
-        reference: annonce.reference 
-      });
+      const { data: existe } = await supabaseAdmin
+        .from('biens')
+        .select('id')
+        .eq('reference', annonce.reference)
+        .single();
       
       if (!existe) {
-        await db.collection('biens').insertOne(annonce);
-        nouvellesAnnonces++;
+        const { error } = await supabaseAdmin
+          .from('biens')
+          .insert([annonce]);
+        
+        if (!error) {
+          nouvellesAnnonces++;
+        }
       }
     }
 
     // Logger le scraping
-    await db.collection('scraper_logs').insertOne({
+    await supabaseAdmin.from('scraper_logs').insert([{
       source: 'bienici',
-      date: new Date(),
+      date: new Date().toISOString(),
       parametres: { ville, prixMin, prixMax, surfaceMin, type },
       resultat: {
         annoncesTouvees: annonces.length,
         nouvellesAnnonces: nouvellesAnnonces
       }
-    });
+    }]);
 
     return res.status(200).json({
       success: true,
@@ -113,9 +115,10 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Erreur scraping Bien\'ici:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
+      success: false,
       error: 'Erreur lors du scraping',
-      details: error.message 
+      details: error.message
     });
   }
 }
