@@ -1,290 +1,454 @@
-// pages/immobilier.js
-// Dashboard Immobilier - Version Supabase
-
 import { useState, useEffect } from 'react';
-import Head from 'next/head';
+import { useRouter } from 'next/router';
 
-export default function DashboardImmobilier() {
-  const [stats, setStats] = useState(null);
-  const [biens, setBiens] = useState([]);
-  const [acheteurs, setAcheteurs] = useState([]);
-  const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('stats');
+export default function ImmobilierDashboard() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [prospects, setProspects] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [stats, setStats] = useState({
+    totalProspects: 0,
+    activeListings: 0,
+    emailsSent: 0,
+    responseRate: 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [selectedProspects, setSelectedProspects] = useState([]);
+
+  // Formulaires
+  const [scraperForm, setScraperForm] = useState({
+    url: '',
+    location: '',
+    propertyType: 'all'
+  });
+  const [emailForm, setEmailForm] = useState({
+    subject: '',
+    message: '',
+    senderName: 'ProspectBot Immobilier',
+    senderEmail: 'contact@prospectbot.com'
+  });
 
   // Charger les données au montage
   useEffect(() => {
-    chargerDonnees();
+    loadDashboardData();
   }, []);
 
-  async function chargerDonnees() {
-    setLoading(true);
+  const loadDashboardData = async () => {
     try {
-      // Charger les stats
-      const statsRes = await fetch('/api/immobilier/stats');
-      const statsData = await statsRes.json();
-      setStats(statsData.data);
+      // Charger les prospects depuis l'API
+      const prospectsRes = await fetch('/api/B2B/chatbot-conversations');
+      if (prospectsRes.ok) {
+        const data = await prospectsRes.json();
+        setProspects(data.conversations || []);
+        setStats(prev => ({ ...prev, totalProspects: data.conversations?.length || 0 }));
+      }
 
-      // Charger les biens
-      const biensRes = await fetch('/api/immobilier/biens');
-      const biensData = await biensRes.json();
-      setBiens(biensData.data || []);
-
-      // Charger les acheteurs
-      const acheteursRes = await fetch('/api/immobilier/acheteurs');
-      const acheteursData = await acheteursRes.json();
-      setAcheteurs(acheteursData.data || []);
-
-      // Charger les matches
-      const matchesRes = await fetch('/api/immobilier/matches');
-      const matchesData = await matchesRes.json();
-      setMatches(matchesData.data || []);
-
+      // Charger les campagnes email
+      const campaignsRes = await fetch('/api/B2B/email-automation');
+      if (campaignsRes.ok) {
+        const data = await campaignsRes.json();
+        setCampaigns(data.campaigns || []);
+      }
     } catch (error) {
       console.error('Erreur chargement données:', error);
+    }
+  };
+
+  const handleScrape = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/B2B/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: scraperForm.url,
+          filters: {
+            location: scraperForm.location,
+            propertyType: scraperForm.propertyType
+          }
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ ${data.prospects?.length || 0} prospects trouvés !`);
+        loadDashboardData(); // Recharger les données
+        setScraperForm({ url: '', location: '', propertyType: 'all' });
+      } else {
+        alert(`❌ Erreur: ${data.error}`);
+      }
+    } catch (error) {
+      alert('❌ Erreur réseau: ' + error.message);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  // Lancer le matching automatique
-  async function lancerMatching() {
-    try {
-      const res = await fetch('/api/immobilier/match-auto', {
-        method: 'POST'
-      });
-      const data = await res.json();
-     alert(`${data.stats?.nouveauxMatchs || 0} nouveaux matchs créés !`);
-      chargerDonnees(); // Recharger les données
-    } catch (error) {
-      console.error('Erreur matching:', error);
-      alert('Erreur lors du matching');
+  const handleSendEmail = async (e) => {
+    e.preventDefault();
+    
+    if (selectedProspects.length === 0) {
+      alert('⚠️ Sélectionnez au moins un prospect');
+      return;
     }
-  }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement...</p>
-        </div>
-      </div>
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/B2B/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: selectedProspects,
+          subject: emailForm.subject,
+          htmlContent: emailForm.message,
+          senderName: emailForm.senderName,
+          senderEmail: emailForm.senderEmail
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ ${data.sent} emails envoyés !`);
+        setEmailForm({ subject: '', message: '', senderName: 'ProspectBot Immobilier', senderEmail: 'contact@prospectbot.com' });
+        setSelectedProspects([]);
+      } else {
+        alert(`❌ Erreur: ${data.error}`);
+      }
+    } catch (error) {
+      alert('❌ Erreur réseau: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleProspectSelection = (email) => {
+    setSelectedProspects(prev =>
+      prev.includes(email)
+        ? prev.filter(e => e !== email)
+        : [...prev, email]
     );
-  }
+  };
+
+  const selectAllProspects = () => {
+    if (selectedProspects.length === prospects.length) {
+      setSelectedProspects([]);
+    } else {
+      setSelectedProspects(prospects.map(p => p.email || p.lead_email).filter(Boolean));
+    }
+  };
 
   return (
-    <>
-      <Head>
-        <title>Dashboard Immobilier</title>
-      </Head>
-
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <header className="bg-white shadow">
-          <div className="max-w-7xl mx-auto px-4 py-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold text-gray-900">
-                🏡 Dashboard Immobilier
-              </h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      {/* Header */}
+      <header className="bg-gray-800/50 backdrop-blur-lg border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
               <button
-                onClick={lancerMatching}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                onClick={() => router.push('/')}
+                className="text-gray-400 hover:text-white transition-colors"
               >
-                ⚡ Lancer le matching
+                ← Retour
               </button>
+              <h1 className="text-2xl font-bold text-white">🏠 ProspectBot Immobilier</h1>
             </div>
-          </div>
-        </header>
-
-        {/* Stats Cards */}
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-6 rounded-lg shadow">
-              <div className="text-sm text-gray-600">Biens disponibles</div>
-              <div className="text-3xl font-bold text-blue-600">
-                {stats?.totalBiens || 0}
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <div className="text-sm text-gray-600">Acheteurs actifs</div>
-              <div className="text-3xl font-bold text-green-600">
-                {stats?.totalAcheteurs || 0}
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <div className="text-sm text-gray-600">Matchs actifs</div>
-              <div className="text-3xl font-bold text-purple-600">
-                {stats?.totalMatches || 0}
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <div className="text-sm text-gray-600">Taux de matching</div>
-              <div className="text-3xl font-bold text-orange-600">
-                {stats?.tauxMatching || 0}%
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="bg-white rounded-lg shadow">
-            <div className="border-b border-gray-200">
-              <nav className="flex -mb-px">
-                {['stats', 'biens', 'acheteurs', 'matches'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-6 py-3 text-sm font-medium ${
-                      activeTab === tab
-                        ? 'border-b-2 border-blue-600 text-blue-600'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {tab === 'stats' && '📊 Statistiques'}
-                    {tab === 'biens' && '🏠 Biens'}
-                    {tab === 'acheteurs' && '👥 Acheteurs'}
-                    {tab === 'matches' && '🎯 Matches'}
-                  </button>
-                ))}
-              </nav>
-            </div>
-
-            <div className="p-6">
-              {/* Onglet Stats */}
-              {activeTab === 'stats' && (
-                <div className="space-y-4">
-                  <h2 className="text-xl font-semibold mb-4">📊 Statistiques détaillées</h2>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50 p-4 rounded">
-                      <div className="text-sm text-gray-600">Prix moyen des biens</div>
-                      <div className="text-2xl font-bold">
-                        {stats?.prixMoyen?.toLocaleString('fr-FR')} €
-                      </div>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded">
-                      <div className="text-sm text-gray-600">Budget moyen acheteurs</div>
-                      <div className="text-2xl font-bold">
-                        {stats?.budgetMoyen?.toLocaleString('fr-FR')} €
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Onglet Biens */}
-              {activeTab === 'biens' && (
-                <div>
-                  <h2 className="text-xl font-semibold mb-4">🏠 Liste des biens ({biens.length})</h2>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Référence</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ville</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Surface</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {biens.slice(0, 10).map((bien) => (
-                          <tr key={bien.id}>
-                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{bien.reference}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{bien.type}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{bien.ville}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{bien.prix?.toLocaleString('fr-FR')} €</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{bien.surface} m²</td>
-                            <td className="px-6 py-4 text-sm">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                bien.statut === 'disponible' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {bien.statut}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Onglet Acheteurs */}
-              {activeTab === 'acheteurs' && (
-                <div>
-                  <h2 className="text-xl font-semibold mb-4">👥 Liste des acheteurs ({acheteurs.length})</h2>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Budget max</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type recherché</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {acheteurs.slice(0, 10).map((acheteur) => (
-                          <tr key={acheteur.id}>
-                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{acheteur.nom}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{acheteur.email}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{acheteur.budget_max?.toLocaleString('fr-FR')} €</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{acheteur.type_bien}</td>
-                            <td className="px-6 py-4 text-sm">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                acheteur.statut === 'actif' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {acheteur.statut}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Onglet Matches */}
-              {activeTab === 'matches' && (
-                <div>
-                  <h2 className="text-xl font-semibold mb-4">🎯 Matches ({matches.length})</h2>
-                  <div className="space-y-4">
-                    {matches.slice(0, 10).map((match) => (
-                      <div key={match.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="font-semibold text-lg">{match.acheteur_nom}</div>
-                            <div className="text-sm text-gray-600">{match.acheteur_email}</div>
-                            <div className="mt-2">
-                              <div className="text-sm font-medium">🏠 {match.bien_reference}</div>
-                              <div className="text-sm text-gray-600">{match.bien_adresse}</div>
-                              <div className="text-sm font-semibold">{match.bien_prix?.toLocaleString('fr-FR')} €</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-green-600">{match.score}%</div>
-                            <div className="text-xs text-gray-500">compatibilité</div>
-                            <span className={`mt-2 inline-block px-2 py-1 rounded-full text-xs ${
-                              match.statut === 'nouveau' ? 'bg-blue-100 text-blue-800' : 
-                              match.statut === 'contacte' ? 'bg-yellow-100 text-yellow-800' : 
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              {match.statut}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div className="flex items-center space-x-4">
+              <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">
+                ● En ligne
+              </span>
             </div>
           </div>
         </div>
+      </header>
+
+      {/* Navigation Tabs */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <div className="flex space-x-2 bg-gray-800/30 backdrop-blur-sm p-1 rounded-lg">
+          {[
+            { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
+            { id: 'scraper', label: '🔍 Scraper', icon: '🔍' },
+            { id: 'prospects', label: '👥 Prospects', icon: '👥' },
+            { id: 'email', label: '📧 Email', icon: '📧' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
-    </>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {[
+                { label: 'Prospects', value: stats.totalProspects, icon: '👥', color: 'blue' },
+                { label: 'Annonces actives', value: stats.activeListings, icon: '🏠', color: 'green' },
+                { label: 'Emails envoyés', value: stats.emailsSent, icon: '📧', color: 'purple' },
+                { label: 'Taux réponse', value: `${stats.responseRate}%`, icon: '📈', color: 'orange' }
+              ].map((stat, i) => (
+                <div key={i} className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">{stat.label}</p>
+                      <p className="text-3xl font-bold text-white mt-2">{stat.value}</p>
+                    </div>
+                    <div className={`text-4xl bg-${stat.color}-500/20 p-3 rounded-lg`}>
+                      {stat.icon}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Recent Activity */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Recent Prospects */}
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
+                <h3 className="text-xl font-bold text-white mb-4">📋 Derniers prospects</h3>
+                <div className="space-y-3">
+                  {prospects.slice(0, 5).map((prospect, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                      <div>
+                        <p className="text-white font-medium">{prospect.lead_email || 'Email non renseigné'}</p>
+                        <p className="text-gray-400 text-sm">{prospect.message || 'Aucun message'}</p>
+                      </div>
+                      <span className="text-xs text-gray-500">{new Date(prospect.created_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                  {prospects.length === 0 && (
+                    <p className="text-gray-500 text-center py-4">Aucun prospect pour le moment</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Recent Campaigns */}
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
+                <h3 className="text-xl font-bold text-white mb-4">📧 Campagnes email</h3>
+                <div className="space-y-3">
+                  {campaigns.slice(0, 5).map((campaign, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                      <div>
+                        <p className="text-white font-medium">{campaign.name || 'Campagne sans nom'}</p>
+                        <p className="text-gray-400 text-sm">{campaign.status || 'En attente'}</p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        campaign.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {campaign.status || 'Inactif'}
+                      </span>
+                    </div>
+                  ))}
+                  {campaigns.length === 0 && (
+                    <p className="text-gray-500 text-center py-4">Aucune campagne active</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scraper Tab */}
+        {activeTab === 'scraper' && (
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
+            <h2 className="text-2xl font-bold text-white mb-6">🔍 Scraper de prospects immobiliers</h2>
+            <form onSubmit={handleScrape} className="space-y-6">
+              <div>
+                <label className="block text-gray-300 mb-2">URL du site à scraper</label>
+                <input
+                  type="url"
+                  value={scraperForm.url}
+                  onChange={(e) => setScraperForm({...scraperForm, url: e.target.value})}
+                  placeholder="https://www.seloger.com/immobilier/..."
+                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-300 mb-2">Localisation</label>
+                  <input
+                    type="text"
+                    value={scraperForm.location}
+                    onChange={(e) => setScraperForm({...scraperForm, location: e.target.value})}
+                    placeholder="Paris, Lyon, Marseille..."
+                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 mb-2">Type de bien</label>
+                  <select
+                    value={scraperForm.propertyType}
+                    onChange={(e) => setScraperForm({...scraperForm, propertyType: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="all">Tous</option>
+                    <option value="apartment">Appartement</option>
+                    <option value="house">Maison</option>
+                    <option value="land">Terrain</option>
+                    <option value="commercial">Commercial</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? '🔄 Scraping en cours...' : '🚀 Lancer le scraping'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Prospects Tab */}
+        {activeTab === 'prospects' && (
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">👥 Liste des prospects</h2>
+              <button
+                onClick={selectAllProspects}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                {selectedProspects.length === prospects.length ? '❌ Tout désélectionner' : '✅ Tout sélectionner'}
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {prospects.map((prospect, i) => {
+                const email = prospect.email || prospect.lead_email;
+                return (
+                  <div key={i} className="flex items-center p-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedProspects.includes(email)}
+                      onChange={() => toggleProspectSelection(email)}
+                      className="w-5 h-5 mr-4 accent-blue-600"
+                    />
+                    <div className="flex-1">
+                      <p className="text-white font-medium">{email || 'Email non renseigné'}</p>
+                      <p className="text-gray-400 text-sm">{prospect.message || prospect.conversation_history || 'Aucun message'}</p>
+                    </div>
+                    <span className="text-xs text-gray-500">{new Date(prospect.created_at).toLocaleDateString()}</span>
+                  </div>
+                );
+              })}
+              {prospects.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 text-lg">Aucun prospect trouvé</p>
+                  <p className="text-gray-600 mt-2">Utilisez le scraper pour trouver des prospects</p>
+                </div>
+              )}
+            </div>
+
+            {selectedProspects.length > 0 && (
+              <div className="mt-6 p-4 bg-blue-600/20 border border-blue-600 rounded-lg">
+                <p className="text-blue-400 font-medium">
+                  ✅ {selectedProspects.length} prospect{selectedProspects.length > 1 ? 's' : ''} sélectionné{selectedProspects.length > 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Email Tab */}
+        {activeTab === 'email' && (
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
+            <h2 className="text-2xl font-bold text-white mb-6">📧 Envoyer un email aux prospects</h2>
+            
+            {selectedProspects.length === 0 && (
+              <div className="mb-6 p-4 bg-yellow-600/20 border border-yellow-600 rounded-lg">
+                <p className="text-yellow-400">⚠️ Sélectionnez d'abord des prospects dans l'onglet "Prospects"</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSendEmail} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-300 mb-2">Nom de l'expéditeur</label>
+                  <input
+                    type="text"
+                    value={emailForm.senderName}
+                    onChange={(e) => setEmailForm({...emailForm, senderName: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 mb-2">Email de l'expéditeur</label>
+                  <input
+                    type="email"
+                    value={emailForm.senderEmail}
+                    onChange={(e) => setEmailForm({...emailForm, senderEmail: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 mb-2">Sujet de l'email</label>
+                <input
+                  type="text"
+                  value={emailForm.subject}
+                  onChange={(e) => setEmailForm({...emailForm, subject: e.target.value})}
+                  placeholder="Ex: Nouvelle opportunité immobilière"
+                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 mb-2">Message (HTML supporté)</label>
+                <textarea
+                  value={emailForm.message}
+                  onChange={(e) => setEmailForm({...emailForm, message: e.target.value})}
+                  placeholder="<p>Bonjour,</p><p>Nous avons une nouvelle opportunité...</p>"
+                  rows={10}
+                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono text-sm"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-700/30 rounded-lg">
+                <div>
+                  <p className="text-white font-medium">Destinataires sélectionnés</p>
+                  <p className="text-gray-400 text-sm">{selectedProspects.length} prospect{selectedProspects.length > 1 ? 's' : ''}</p>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || selectedProspects.length === 0}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? '📤 Envoi...' : `📧 Envoyer à ${selectedProspects.length} prospect${selectedProspects.length > 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+      </div>
+    </div>
   );
 }
