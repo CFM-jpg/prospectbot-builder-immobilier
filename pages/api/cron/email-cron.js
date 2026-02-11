@@ -1,10 +1,5 @@
-// pages/api/email-cron.js
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// pages/api/cron/email-cron.js
+import { supabaseAdmin } from '../../../lib/supabase';
 
 // Configuration Brevo
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
@@ -25,7 +20,7 @@ export default async function handler(req, res) {
 
   try {
     // 1. Récupérer tous les emails en attente
-    const { data: pendingEmails, error: fetchError } = await supabase
+    const { data: pendingEmails, error: fetchError } = await supabaseAdmin
       .from('email_queue')
       .select(`
         *,
@@ -119,7 +114,7 @@ export default async function handler(req, res) {
         console.log(`✅ Email sent to ${emailJob.prospect.email}`);
 
         // Marquer l'email comme envoyé dans la queue
-        await supabase
+        await supabaseAdmin
           .from('email_queue')
           .update({
             status: 'sent',
@@ -128,7 +123,7 @@ export default async function handler(req, res) {
           .eq('id', emailJob.id);
 
         // Logger l'envoi
-        await supabase
+        await supabaseAdmin
           .from('email_logs')
           .insert([{
             campaign_id: emailJob.campaign_id,
@@ -172,7 +167,7 @@ export default async function handler(req, res) {
 // ========== HELPER FUNCTIONS ==========
 
 async function markEmailAsError(emailId, errorMessage) {
-  await supabase
+  await supabaseAdmin
     .from('email_queue')
     .update({
       status: 'error',

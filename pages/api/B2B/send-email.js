@@ -1,5 +1,4 @@
-// api/send-email.js - Vercel Serverless Function pour Brevo 
-// Force redeploy - env vars loaded
+// pages/api/B2B/send-email.js
 export default async function handler(req, res) {
   // Configuration CORS
   res.setHeader('Access-Control-Allow-Credentials', true);

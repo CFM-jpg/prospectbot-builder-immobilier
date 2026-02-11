@@ -1,10 +1,5 @@
-// pages/api/email-automation.js
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY // ⚠️ Utilisez la clé SERVICE ROLE, pas ANON
-);
+// pages/api/B2B/email-automation.js
+import { supabaseAdmin } from '../../../lib/supabase';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -63,7 +58,7 @@ export default async function handler(req, res) {
 
 // ========== FONCTIONS CAMPAGNES ==========
 async function listCampaigns(req, res) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('email_campaigns')
     .select('*')
     .order('created_at', { ascending: false });
@@ -83,7 +78,7 @@ async function createCampaign(req, res) {
     return res.status(400).json({ error: 'Titre requis' });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('email_campaigns')
     .insert([{
       title,
@@ -109,7 +104,7 @@ async function updateCampaignStatus(req, res) {
     return res.status(400).json({ error: 'campaign_id et status requis' });
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('email_campaigns')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', campaign_id);
@@ -126,7 +121,7 @@ async function deleteCampaign(req, res) {
     return res.status(400).json({ error: 'campaign_id requis' });
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('email_campaigns')
     .delete()
     .eq('id', campaign_id);
@@ -138,7 +133,7 @@ async function deleteCampaign(req, res) {
 
 // ========== FONCTIONS TEMPLATES ==========
 async function listTemplates(req, res) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('email_templates')
     .select('*')
     .order('created_at', { ascending: false });
@@ -161,7 +156,7 @@ async function createTemplate(req, res) {
   // Extraire les variables du template
   const variables = extractVariables(body + ' ' + subject);
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('email_templates')
     .insert([{
       name,
@@ -187,7 +182,7 @@ async function deleteTemplate(req, res) {
     return res.status(400).json({ error: 'template_id requis' });
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('email_templates')
     .delete()
     .eq('id', template_id);
@@ -205,7 +200,7 @@ async function listSequences(req, res) {
     return res.status(400).json({ error: 'campaign_id requis' });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('email_sequences')
     .select(`
       *,
@@ -230,7 +225,7 @@ async function addSequence(req, res) {
   }
 
   // Trouver le prochain ordre
-  const { data: existingSequences } = await supabase
+  const { data: existingSequences } = await supabaseAdmin
     .from('email_sequences')
     .select('sequence_order')
     .eq('campaign_id', campaign_id)
@@ -241,7 +236,7 @@ async function addSequence(req, res) {
     ? existingSequences[0].sequence_order + 1 
     : 1;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('email_sequences')
     .insert([{
       campaign_id,
@@ -270,7 +265,7 @@ async function deleteSequence(req, res) {
     return res.status(400).json({ error: 'sequence_id requis' });
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('email_sequences')
     .delete()
     .eq('id', sequence_id);
@@ -282,7 +277,7 @@ async function deleteSequence(req, res) {
 
 // ========== FONCTIONS STATS ==========
 async function getStats(req, res) {
-  const { data: logs, error } = await supabase
+  const { data: logs, error } = await supabaseAdmin
     .from('email_logs')
     .select('status, opened_at, clicked_at, bounced_at');
 
