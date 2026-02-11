@@ -54,7 +54,7 @@ export default function DashboardImmobilier() {
         method: 'POST'
       });
       const data = await res.json();
-      alert(`${data.stats?.nouveauxMatchs || 0} nouveaux matchs créés !`);
+     alert(`${data.stats?.nouveauxMatchs || 0} nouveaux matchs créés !`);
       chargerDonnees(); // Recharger les données
     } catch (error) {
       console.error('Erreur matching:', error);
