@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
+import { useAuth } from '../lib/useAuth';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -47,6 +49,8 @@ const NAV_ITEMS = [
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ImmobilierDashboard() {
+  const { agent, logout } = useAuth();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [biens, setBiens] = useState([]);
   const [acheteurs, setAcheteurs] = useState([]);
@@ -297,6 +301,12 @@ export default function ImmobilierDashboard() {
           text-transform: uppercase;
         }
         .sidebar-nav { padding: 16px 12px; flex: 1; }
+        .sidebar-footer { padding: 14px 12px; border-top: 1px solid var(--border); }
+        .agent-info { padding: 10px 12px; background: var(--surface2); border-radius: 8px; margin-bottom: 8px; }
+        .agent-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .agent-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; }
+        .logout-btn:hover { color: #f04444; border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.05); }
         .nav-item {
           display: flex;
           align-items: center;
@@ -577,9 +587,10 @@ export default function ImmobilierDashboard() {
           border-radius: 10px;
           padding: 20px;
           margin-bottom: 12px;
-          transition: border-color 0.15s;
+          transition: border-color 0.15s, transform 0.15s;
+          cursor: pointer;
         }
-        .bien-card:hover { border-color: var(--border-hover); }
+        .bien-card:hover { border-color: var(--accent); transform: translateY(-1px); }
         .bien-top { display: flex; justify-content: space-between; align-items: flex-start; }
         .bien-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
         .bien-meta { font-size: 12.5px; color: var(--text-muted); }
@@ -732,6 +743,17 @@ export default function ImmobilierDashboard() {
               </button>
             ))}
           </nav>
+          {agent && (
+            <div className="sidebar-footer">
+              <div className="agent-info">
+                <div className="agent-name">{agent.name}</div>
+                <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
+              </div>
+              <button className="logout-btn" onClick={logout}>
+                <span>←</span> Déconnexion
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Main */}
@@ -781,7 +803,7 @@ export default function ImmobilierDashboard() {
                   {biens.length === 0
                     ? <div className="empty"><strong>Aucune annonce</strong>Lancez un scraping pour commencer</div>
                     : biens.slice(0, 5).map((bien, i) => (
-                      <div key={i} className="list-item">
+                      <div key={i} className="list-item" style={{ cursor: 'pointer' }} onClick={() => router.push(`/biens/${bien.id}`)}>
                         <div>
                           <div className="list-item-main">{bien.titre?.slice(0, 40) || 'Sans titre'}</div>
                           <div className="list-item-sub">{bien.ville} · {bien.type}</div>
@@ -950,7 +972,7 @@ export default function ImmobilierDashboard() {
               {filteredBiens.length === 0
                 ? <div className="empty"><strong>Aucune annonce</strong>Utilisez la recherche pour importer des biens</div>
                 : filteredBiens.map((bien, i) => (
-                  <div key={i} className="bien-card">
+                  <div key={i} className="bien-card" onClick={() => router.push(`/biens/${bien.id}`)}>
                     <div className="bien-top">
                       <div style={{ flex: 1 }}>
                         <div className="bien-title">{bien.titre || 'Sans titre'}</div>
@@ -969,11 +991,7 @@ export default function ImmobilierDashboard() {
                       </div>
                       <div style={{ marginLeft: 20, textAlign: 'right', flexShrink: 0 }}>
                         <div className="bien-price">{bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : '—'}</div>
-                        {bien.lien && (
-                          <a href={bien.lien} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', marginTop: 8, display: 'inline-block' }}>
-                            Voir l'annonce
-                          </a>
-                        )}
+                        <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>Voir le détail →</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                           {new Date(bien.created_at).toLocaleDateString('fr-FR')}
                         </div>

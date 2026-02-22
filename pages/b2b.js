@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useAuth } from '../lib/useAuth';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ const WORKFLOW_ACTIONS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function B2BDashboard() {
+  const { agent, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
 
@@ -283,7 +285,12 @@ export default function B2BDashboard() {
         .sidebar-logo h1 { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--accent); letter-spacing: -0.3px; }
         .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
         .sidebar-nav { padding: 16px 12px; flex: 1; }
-        .sidebar-footer { padding: 16px 12px; border-top: 1px solid var(--border); }
+        .sidebar-footer { padding: 14px 12px; border-top: 1px solid var(--border); }
+        .agent-info { padding: 10px 12px; background: var(--surface2); border-radius: 8px; margin-bottom: 8px; }
+        .agent-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .agent-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; }
+        .logout-btn:hover { color: #f04444; border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.05); }
 
         .nav-item {
           display: flex; align-items: center; padding: 9px 12px;
@@ -433,9 +440,17 @@ export default function B2BDashboard() {
             ))}
           </nav>
           <div className="sidebar-footer">
-            <button className="back-btn" onClick={() => window.location.href = '/'}>
-              ← Accueil
-            </button>
+            {agent && (
+              <>
+                <div className="agent-info">
+                  <div className="agent-name">{agent.name}</div>
+                  <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
+                </div>
+                <button className="logout-btn" onClick={logout}>
+                  <span>←</span> Déconnexion
+                </button>
+              </>
+            )}
           </div>
         </aside>
 
