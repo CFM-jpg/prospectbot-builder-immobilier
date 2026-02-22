@@ -271,42 +271,114 @@ export default function ImmobilierDashboard() {
         {/* ===== DASHBOARD TAB ===== */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
+
+            {/* Stats réelles depuis Supabase */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {[
-                { label: 'Prospects', value: stats.totalProspects, icon: '👥', color: 'blue' },
-                { label: 'Annonces actives', value: stats.activeListings, icon: '🏠', color: 'green' },
-                { label: 'Emails envoyés', value: stats.emailsSent, icon: '📧', color: 'purple' },
-                { label: 'Taux réponse', value: `${stats.responseRate}%`, icon: '📈', color: 'orange' }
-              ].map((stat, i) => (
-                <div key={i} className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-all">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm">{stat.label}</p>
-                      <p className="text-3xl font-bold text-white mt-2">{stat.value}</p>
-                    </div>
-                    <div className="text-4xl p-3 rounded-lg bg-gray-700/50">{stat.icon}</div>
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-blue-600/50 transition-all cursor-pointer" onClick={() => setActiveTab('biens')}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Annonces scrapées</p>
+                    <p className="text-3xl font-bold text-white mt-2">{biens.length}</p>
+                    <p className="text-gray-500 text-xs mt-1">
+                      {biens.filter(b => {
+                        const d = new Date(b.created_at);
+                        const now = new Date();
+                        return (now - d) < 7 * 24 * 60 * 60 * 1000;
+                      }).length} cette semaine
+                    </p>
                   </div>
+                  <div className="text-4xl p-3 rounded-lg bg-blue-500/20">🏠</div>
                 </div>
-              ))}
+              </div>
+
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-green-600/50 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Prix moyen</p>
+                    <p className="text-3xl font-bold text-white mt-2">
+                      {biens.length > 0
+                        ? Math.round(biens.filter(b => b.prix).reduce((s, b) => s + b.prix, 0) / biens.filter(b => b.prix).length).toLocaleString('fr-FR') + ' €'
+                        : '—'}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-1">sur {biens.filter(b => b.prix).length} biens avec prix</p>
+                  </div>
+                  <div className="text-4xl p-3 rounded-lg bg-green-500/20">💰</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-purple-600/50 transition-all cursor-pointer" onClick={() => setActiveTab('prospects')}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Prospects</p>
+                    <p className="text-3xl font-bold text-white mt-2">{prospects.length}</p>
+                    <p className="text-gray-500 text-xs mt-1">contacts qualifiés</p>
+                  </div>
+                  <div className="text-4xl p-3 rounded-lg bg-purple-500/20">👥</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-orange-600/50 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Sources actives</p>
+                    <p className="text-3xl font-bold text-white mt-2">
+                      {[...new Set(biens.map(b => b.source).filter(Boolean))].length}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-1">
+                      {[...new Set(biens.map(b => b.source).filter(Boolean))].join(', ') || '—'}
+                    </p>
+                  </div>
+                  <div className="text-4xl p-3 rounded-lg bg-orange-500/20">📡</div>
+                </div>
+              </div>
             </div>
 
+            {/* Répartition par type de bien */}
+            {biens.length > 0 && (
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
+                <h3 className="text-lg font-bold text-white mb-4">📊 Répartition des biens</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {['maison', 'appartement', 'terrain', 'autre'].map(type => {
+                    const count = biens.filter(b => b.type === type).length;
+                    const pct = biens.length > 0 ? Math.round((count / biens.length) * 100) : 0;
+                    const icons = { maison: '🏡', appartement: '🏢', terrain: '🌿', autre: '🏪' };
+                    return (
+                      <div key={type} className="bg-gray-700/30 rounded-lg p-4 text-center cursor-pointer hover:bg-gray-700/50 transition-colors" onClick={() => { setBiensFilter({...biensFilter, type}); setActiveTab('biens'); }}>
+                        <p className="text-2xl mb-1">{icons[type]}</p>
+                        <p className="text-white font-bold text-xl">{count}</p>
+                        <p className="text-gray-400 text-sm capitalize">{type}</p>
+                        <div className="mt-2 bg-gray-600 rounded-full h-1.5">
+                          <div className="bg-blue-500 h-1.5 rounded-full" style={{width: pct + '%'}}></div>
+                        </div>
+                        <p className="text-gray-500 text-xs mt-1">{pct}%</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Derniers biens scrapés + derniers prospects */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
-                <h3 className="text-xl font-bold text-white mb-4">📋 Derniers prospects</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-bold text-white">🏠 Derniers biens</h3>
+                  <button onClick={() => setActiveTab('biens')} className="text-blue-400 text-sm hover:text-blue-300 transition-colors">Voir tout →</button>
+                </div>
                 <div className="space-y-3">
-                  {prospects.slice(0, 5).map((prospect, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
-                      <div>
-                        <p className="text-white font-medium">{prospect.lead_email || 'Email non renseigné'}</p>
-                        <p className="text-gray-400 text-sm">{prospect.message || 'Aucun message'}</p>
+                  {biens.slice(0, 4).map((bien, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{bien.titre || 'Sans titre'}</p>
+                        <p className="text-gray-400 text-sm">📍 {bien.ville || '—'} • {bien.type || '—'}</p>
                       </div>
-                      <span className="text-xs text-gray-500">{new Date(prospect.created_at).toLocaleDateString()}</span>
+                      <p className="text-white font-bold ml-4 shrink-0">{bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : 'NC'}</p>
                     </div>
                   ))}
-                  {prospects.length === 0 && (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500">Aucun prospect pour le moment</p>
-                      <button onClick={() => setActiveTab('scraper')} className="mt-3 px-4 py-2 bg-blue-600/30 text-blue-400 rounded-lg text-sm hover:bg-blue-600/50 transition-colors">
+                  {biens.length === 0 && (
+                    <div className="text-center py-6">
+                      <p className="text-gray-500">Aucun bien scraped</p>
+                      <button onClick={() => setActiveTab('scraper')} className="mt-2 px-4 py-2 bg-blue-600/30 text-blue-400 rounded-lg text-sm hover:bg-blue-600/50 transition-colors">
                         → Lancer un scraping
                       </button>
                     </div>
@@ -315,25 +387,29 @@ export default function ImmobilierDashboard() {
               </div>
 
               <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
-                <h3 className="text-xl font-bold text-white mb-4">📧 Campagnes email</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-bold text-white">👥 Derniers prospects</h3>
+                  <button onClick={() => setActiveTab('prospects')} className="text-blue-400 text-sm hover:text-blue-300 transition-colors">Voir tout →</button>
+                </div>
                 <div className="space-y-3">
-                  {campaigns.slice(0, 5).map((campaign, i) => (
+                  {prospects.slice(0, 4).map((prospect, i) => (
                     <div key={i} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
                       <div>
-                        <p className="text-white font-medium">{campaign.name || 'Campagne sans nom'}</p>
-                        <p className="text-gray-400 text-sm">{campaign.status || 'En attente'}</p>
+                        <p className="text-white font-medium">{prospect.lead_email || prospect.email || 'Email non renseigné'}</p>
+                        <p className="text-gray-400 text-sm">{prospect.message || 'Aucun message'}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs ${campaign.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                        {campaign.status || 'Inactif'}
-                      </span>
+                      <span className="text-xs text-gray-500 shrink-0 ml-2">{new Date(prospect.created_at).toLocaleDateString()}</span>
                     </div>
                   ))}
-                  {campaigns.length === 0 && (
-                    <p className="text-gray-500 text-center py-4">Aucune campagne active</p>
+                  {prospects.length === 0 && (
+                    <div className="text-center py-6">
+                      <p className="text-gray-500">Aucun prospect pour le moment</p>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
+
           </div>
         )}
 
