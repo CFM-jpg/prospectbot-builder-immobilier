@@ -45,6 +45,8 @@ export default function ImmobilierDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [prospects, setProspects] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [biens, setBiens] = useState([]);
+  const [biensFilter, setBiensFilter] = useState({ type: 'all', search: '' });
   const [stats, setStats] = useState({
     totalProspects: 0,
     activeListings: 0,
@@ -91,6 +93,12 @@ export default function ImmobilierDashboard() {
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
         setCampaigns(data.campaigns || []);
+      }
+      const biensRes = await fetch('/api/immobilier/biens');
+      if (biensRes.ok) {
+        const data = await biensRes.json();
+        setBiens(data.data || []);
+        setStats(prev => ({ ...prev, activeListings: data.total || 0 }));
       }
     } catch (error) {
       console.error('Erreur chargement données:', error);
@@ -238,6 +246,7 @@ export default function ImmobilierDashboard() {
           {[
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'scraper', label: '🔍 Scraper' },
+            { id: 'biens', label: '🏠 Biens' },
             { id: 'prospects', label: '👥 Prospects' },
             { id: 'email', label: '📧 Email' }
           ].map(tab => (
@@ -497,6 +506,97 @@ export default function ImmobilierDashboard() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ===== BIENS TAB ===== */}
+        {activeTab === 'biens' && (
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white">🏠 Biens immobiliers</h2>
+                <p className="text-gray-400 text-sm mt-1">{biens.length} annonce{biens.length > 1 ? "s" : ""} dans la base</p>
+              </div>
+              <button onClick={() => setActiveTab("scraper")} className="px-4 py-2 bg-blue-600/30 text-blue-400 rounded-lg hover:bg-blue-600/50 transition-colors text-sm">
+                + Nouveau scraping
+              </button>
+            </div>
+
+            {/* Filtres */}
+            <div className="flex space-x-4 mb-6">
+              <input
+                type="text"
+                placeholder="Rechercher par ville, titre..."
+                value={biensFilter.search}
+                onChange={(e) => setBiensFilter({...biensFilter, search: e.target.value})}
+                className="flex-1 px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+              <select
+                value={biensFilter.type}
+                onChange={(e) => setBiensFilter({...biensFilter, type: e.target.value})}
+                className="px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="all">Tous les types</option>
+                <option value="maison">🏡 Maison</option>
+                <option value="appartement">🏢 Appartement</option>
+                <option value="terrain">🌿 Terrain</option>
+                <option value="autre">Autre</option>
+              </select>
+            </div>
+
+            {/* Liste des biens */}
+            <div className="space-y-4">
+              {biens
+                .filter(b => {
+                  const matchType = biensFilter.type === "all" || b.type === biensFilter.type;
+                  const matchSearch = !biensFilter.search || 
+                    b.titre?.toLowerCase().includes(biensFilter.search.toLowerCase()) ||
+                    b.ville?.toLowerCase().includes(biensFilter.search.toLowerCase());
+                  return matchType && matchSearch;
+                })
+                .map((bien, i) => (
+                  <div key={i} className="p-5 bg-gray-700/30 rounded-xl border border-gray-600 hover:border-gray-500 transition-all">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs font-medium">
+                            {bien.type || 'Autre'}
+                          </span>
+                          <span className="px-2 py-0.5 bg-gray-600/50 text-gray-400 rounded text-xs">
+                            {bien.source || 'inconnu'}
+                          </span>
+                        </div>
+                        <h3 className="text-white font-semibold text-lg">{bien.titre || 'Sans titre'}</h3>
+                        <p className="text-gray-400 text-sm mt-1">📍 {bien.ville || bien.adresse || 'Localisation inconnue'}</p>
+                        {bien.description && (
+                          <p className="text-gray-500 text-sm mt-2 line-clamp-2">{bien.description.slice(0, 120)}...</p>
+                        )}
+                        <div className="flex items-center space-x-4 mt-3">
+                          {bien.surface && <span className="text-gray-300 text-sm">📐 {bien.surface} m²</span>}
+                          {bien.pieces && <span className="text-gray-300 text-sm">🚪 {bien.pieces} pièces</span>}
+                          <span className="text-gray-500 text-xs">{new Date(bien.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-2xl font-bold text-white">{bien.prix ? bien.prix.toLocaleString("fr-FR") + " €" : "Prix NC"}</p>
+                        {bien.lien && (
+                          <a href={bien.lien} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block px-3 py-1 bg-blue-600/30 text-blue-400 rounded text-sm hover:bg-blue-600/50 transition-colors">
+                            Voir l'annonce →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              {biens.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 text-lg">Aucun bien dans la base</p>
+                  <button onClick={() => setActiveTab("scraper")} className="mt-4 px-6 py-2 bg-blue-600/30 text-blue-400 rounded-lg hover:bg-blue-600/50 transition-colors">
+                    → Lancer un scraping
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
