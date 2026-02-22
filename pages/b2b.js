@@ -1,872 +1,795 @@
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import Head from 'next/head';
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Vue d\'ensemble' },
+  { id: 'chatbot', label: 'Chatbot' },
+  { id: 'campaigns', label: 'Campagnes email' },
+  { id: 'email-sender', label: 'Envoi email' },
+  { id: 'scraper', label: 'Scraper web' },
+  { id: 'workflows', label: 'Workflows' },
+];
+
+const WORKFLOW_TRIGGERS = [
+  { value: 'new_prospect', label: 'Nouveau prospect' },
+  { value: 'email_opened', label: 'Email ouvert' },
+  { value: 'link_clicked', label: 'Lien cliqué' },
+  { value: 'form_submitted', label: 'Formulaire soumis' },
+  { value: 'chatbot_conversation', label: 'Conversation chatbot' },
+];
+
+const WORKFLOW_ACTIONS = [
+  { type: 'send_email', label: 'Envoyer un email' },
+  { type: 'wait', label: 'Délai d\'attente' },
+  { type: 'tag_prospect', label: 'Ajouter un tag' },
+  { type: 'notify_team', label: 'Notifier l\'équipe' },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function B2BDashboard() {
-  const router = useRouter();
-  const [activeSection, setActiveSection] = useState('dashboard');
-  const [chatbots, setChatbots] = useState([]);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [loading, setLoading] = useState(false);
+
   const [conversations, setConversations] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+
   const [stats, setStats] = useState({
     prospects: 0,
     leads: 0,
     emailsSent: 0,
-    conversions: 0
-  });
-  const [loading, setLoading] = useState(false);
-
-  // Formulaires
-  const [chatbotForm, setChatbotForm] = useState({
-    name: '',
-    greeting: '',
-    targetAudience: ''
-  });
-  const [emailCampaignForm, setEmailCampaignForm] = useState({
-    name: '',
-    subject: '',
-    content: '',
-    targetList: []
+    conversions: 0,
   });
 
-  // États pour le scraper
-  const [scraperForm, setScraperForm] = useState({
-    url: '',
-    selector: ''
-  });
-  const [scrapedData, setScrapedData] = useState([]);
+  // Chatbot form
+  const [chatbotForm, setChatbotForm] = useState({ name: '', greeting: '', targetAudience: '' });
+  const [chatbotStatus, setChatbotStatus] = useState(null);
 
-  // États pour les workflows
-  const [workflowForm, setWorkflowForm] = useState({
-    name: '',
-    trigger: 'new_prospect',
-    actions: []
-  });
-  const [workflows, setWorkflows] = useState([]);
+  // Campaign form
+  const [campaignForm, setCampaignForm] = useState({ name: '', subject: '', content: '' });
+  const [campaignStatus, setCampaignStatus] = useState(null);
 
-  // États pour l'envoi d'emails
-  const [emailForm, setEmailForm] = useState({
-    recipients: [],
-    subject: '',
-    content: ''
-  });
+  // Email sender
+  const [emailForm, setEmailForm] = useState({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' });
   const [selectedProspects, setSelectedProspects] = useState([]);
+  const [emailStatus, setEmailStatus] = useState(null);
 
-  // Charger les données au montage
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  // Scraper
+  const [scraperForm, setScraperForm] = useState({ url: '', selector: '' });
+  const [scrapedEmails, setScrapedEmails] = useState([]);
+  const [scraperStatus, setScraperStatus] = useState(null);
 
-  const loadDashboardData = async () => {
+  // Workflows
+  const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect', actions: [] });
+  const [workflows, setWorkflows] = useState([]);
+  const [workflowStatus, setWorkflowStatus] = useState(null);
+
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
     try {
-      // Charger les conversations chatbot
-      const convRes = await fetch('/api/B2B/chatbot-conversations');
+      const [convRes, campRes] = await Promise.all([
+        fetch('/api/B2B/chatbot-conversations'),
+        fetch('/api/B2B/email-automation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'list_campaigns' }) }),
+      ]);
       if (convRes.ok) {
-        const data = await convRes.json();
-        setConversations(data.conversations || []);
-        setStats(prev => ({
-          ...prev,
-          prospects: data.conversations?.length || 0,
-          leads: data.conversations?.filter(c => c.lead_email).length || 0
-        }));
+        const d = await convRes.json();
+        const convs = d.conversations || [];
+        setConversations(convs);
+        setStats(prev => ({ ...prev, prospects: convs.length, leads: convs.filter(c => c.lead_email || c.visitor_email).length }));
       }
-
-      // Charger les campagnes email
-      const campaignRes = await fetch('/api/B2B/email-automation');
-      if (campaignRes.ok) {
-        const data = await campaignRes.json();
-        setCampaigns(data.campaigns || []);
-        setStats(prev => ({
-          ...prev,
-          emailsSent: data.campaigns?.reduce((sum, c) => sum + (c.sent_count || 0), 0) || 0
-        }));
+      if (campRes.ok) {
+        const d = await campRes.json();
+        const camps = d.campaigns || [];
+        setCampaigns(camps);
+        setStats(prev => ({ ...prev, emailsSent: camps.reduce((s, c) => s + (c.sent_count || 0), 0) }));
       }
-    } catch (error) {
-      console.error('Erreur chargement données:', error);
-    }
+    } catch (err) { console.error(err); }
   };
+
+  // ── Chatbot ────────────────────────────────────────────────────────────────
 
   const handleCreateChatbot = async (e) => {
     e.preventDefault();
     setLoading(true);
-
+    setChatbotStatus(null);
     try {
-      const response = await fetch('/api/B2B/chatbot', {
+      const res = await fetch('/api/B2B/chatbot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: chatbotForm.greeting,
-          conversationId: `chatbot-${Date.now()}`
-        })
+          name: chatbotForm.name,
+          welcomeMessage: chatbotForm.greeting,
+          questions: [{ text: chatbotForm.targetAudience || 'Comment puis-je vous aider ?' }],
+        }),
       });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert('✅ Chatbot créé avec succès !');
+      const data = await res.json();
+      if (res.ok) {
+        setChatbotStatus({ success: true });
         setChatbotForm({ name: '', greeting: '', targetAudience: '' });
-        loadDashboardData();
       } else {
-        alert(`❌ Erreur: ${data.error}`);
+        setChatbotStatus({ success: false, error: data.error });
       }
-    } catch (error) {
-      alert('❌ Erreur réseau: ' + error.message);
+    } catch (err) {
+      setChatbotStatus({ success: false, error: err.message });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateEmailCampaign = async (e) => {
+  // ── Campaigns ──────────────────────────────────────────────────────────────
+
+  const handleCreateCampaign = async (e) => {
     e.preventDefault();
     setLoading(true);
-
+    setCampaignStatus(null);
     try {
-      const response = await fetch('/api/B2B/email-automation', {
+      const res = await fetch('/api/B2B/email-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaignName: emailCampaignForm.name,
-          recipients: emailCampaignForm.targetList,
-          subject: emailCampaignForm.subject,
-          htmlContent: emailCampaignForm.content
-        })
+        body: JSON.stringify({ action: 'create_campaign', title: campaignForm.name, description: campaignForm.content }),
       });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert('✅ Campagne email créée !');
-        setEmailCampaignForm({ name: '', subject: '', content: '', targetList: [] });
-        loadDashboardData();
+      const data = await res.json();
+      if (res.ok) {
+        setCampaignStatus({ success: true });
+        setCampaignForm({ name: '', subject: '', content: '' });
+        loadAll();
       } else {
-        alert(`❌ Erreur: ${data.error}`);
+        setCampaignStatus({ success: false, error: data.error });
       }
-    } catch (error) {
-      alert('❌ Erreur réseau: ' + error.message);
+    } catch (err) {
+      setCampaignStatus({ success: false, error: err.message });
     } finally {
       setLoading(false);
     }
   };
+
+  // ── Email Sender ───────────────────────────────────────────────────────────
 
   const handleSendEmail = async (e) => {
     e.preventDefault();
     setLoading(true);
-
-    const recipients = selectedProspects.length > 0 
-      ? selectedProspects 
-      : emailForm.recipients.split(',').map(e => e.trim()).filter(Boolean);
-
-    if (recipients.length === 0) {
-      alert('⚠️ Veuillez sélectionner au moins un destinataire');
-      setLoading(false);
-      return;
-    }
-
+    setEmailStatus(null);
+    const recipients = selectedProspects.length > 0
+      ? selectedProspects.map(email => ({ email }))
+      : emailForm.recipients.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
+    if (recipients.length === 0) { setEmailStatus({ success: false, error: 'Aucun destinataire' }); setLoading(false); return; }
     try {
-      const response = await fetch('/api/B2B/send-email', {
+      const res = await fetch('/api/B2B/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipients,
           subject: emailForm.subject,
-          htmlContent: emailForm.content,
-          senderName: 'ProspectBot',
-          senderEmail: 'contact@prospectbot.com'
-        })
+          template: emailForm.content,
+          senderName: emailForm.senderName,
+          senderEmail: emailForm.senderEmail,
+        }),
       });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert(`✅ ${data.sent} emails envoyés avec succès !`);
-        setEmailForm({ recipients: [], subject: '', content: '' });
+      const data = await res.json();
+      if (res.ok) {
+        setEmailStatus({ success: true, sent: data.sent });
+        setEmailForm({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' });
         setSelectedProspects([]);
-        setStats(prev => ({
-          ...prev,
-          emailsSent: prev.emailsSent + data.sent
-        }));
       } else {
-        alert(`❌ Erreur: ${data.error}`);
+        setEmailStatus({ success: false, error: data.error });
       }
-    } catch (error) {
-      alert('❌ Erreur réseau: ' + error.message);
+    } catch (err) {
+      setEmailStatus({ success: false, error: err.message });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleScraping = async (e) => {
+  const toggleProspect = (email) => {
+    setSelectedProspects(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
+  };
+
+  // ── Scraper ────────────────────────────────────────────────────────────────
+
+  const handleScrape = async (e) => {
     e.preventDefault();
     setLoading(true);
-
+    setScraperStatus(null);
+    setScrapedEmails([]);
     try {
-      const response = await fetch('/api/B2B/scraper', {
+      const res = await fetch('/api/B2B/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: scraperForm.url,
-          selector: scraperForm.selector
-        })
+        body: JSON.stringify({ url: scraperForm.url, selector: scraperForm.selector }),
       });
-
-      const data = await response.json();
-      
-      if (response.ok && data.emails) {
-        setScrapedData(data.emails);
-        alert(`✅ ${data.emails.length} emails extraits avec succès !`);
+      const data = await res.json();
+      if (res.ok) {
+        setScrapedEmails(data.emails || []);
+        setScraperStatus({ success: true, count: (data.emails || []).length });
       } else {
-        alert('❌ Aucune donnée extraite');
+        setScraperStatus({ success: false, error: data.error || 'Erreur lors du scraping' });
       }
-    } catch (error) {
-      alert('❌ Erreur lors du scraping: ' + error.message);
+    } catch (err) {
+      setScraperStatus({ success: false, error: err.message });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddScrapedProspects = async () => {
-    if (scrapedData.length === 0) return;
-    
-    setLoading(true);
-    try {
-      let addedCount = 0;
-      
-      for (const email of scrapedData) {
-        const response = await fetch('/api/B2B/chatbot-conversations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            lead_email: email,
-            message: 'Prospect ajouté via scraping',
-            source: 'web_scraping'
-          })
-        });
+  // ── Workflows ──────────────────────────────────────────────────────────────
 
-        if (response.ok) addedCount++;
-      }
-
-      alert(`✅ ${addedCount} prospects ajoutés à la base de données !`);
-      setScrapedData([]);
-      setScraperForm({ url: '', selector: '' });
-      loadDashboardData();
-    } catch (error) {
-      alert('❌ Erreur lors de l\'ajout des prospects');
-    } finally {
-      setLoading(false);
-    }
+  const addAction = (type) => {
+    setWorkflowForm(prev => ({ ...prev, actions: [...prev.actions, { id: Date.now(), type }] }));
   };
 
-  const handleCreateWorkflow = async (e) => {
+  const removeAction = (id) => {
+    setWorkflowForm(prev => ({ ...prev, actions: prev.actions.filter(a => a.id !== id) }));
+  };
+
+  const handleCreateWorkflow = (e) => {
     e.preventDefault();
-    
-    const newWorkflow = {
-      id: Date.now(),
-      name: workflowForm.name,
-      trigger: workflowForm.trigger,
-      actions: workflowForm.actions,
-      active: true,
-      created_at: new Date().toISOString()
-    };
-
-    setWorkflows([...workflows, newWorkflow]);
+    if (workflowForm.actions.length === 0) return;
+    setWorkflows(prev => [...prev, { ...workflowForm, id: Date.now(), active: true }]);
+    setWorkflowStatus({ success: true });
     setWorkflowForm({ name: '', trigger: 'new_prospect', actions: [] });
-    alert('✅ Workflow créé avec succès !');
+    setTimeout(() => setWorkflowStatus(null), 3000);
   };
 
-  const handleAddWorkflowAction = (actionType) => {
-    const action = {
-      id: Date.now(),
-      type: actionType,
-      params: {}
-    };
-    
-    setWorkflowForm({
-      ...workflowForm,
-      actions: [...workflowForm.actions, action]
-    });
-  };
-
-  const handleRemoveWorkflowAction = (actionId) => {
-    setWorkflowForm({
-      ...workflowForm,
-      actions: workflowForm.actions.filter(a => a.id !== actionId)
-    });
-  };
-
-  const handleToggleProspect = (email) => {
-    setSelectedProspects(prev => 
-      prev.includes(email)
-        ? prev.filter(e => e !== email)
-        : [...prev, email]
-    );
-  };
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-full w-64 bg-gray-800/50 backdrop-blur-lg border-r border-gray-700">
-        <div className="p-6">
-          <div className="flex items-center space-x-3 mb-8">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
-              PB
-            </div>
-            <div>
-              <h1 className="text-white font-bold">ProspectBot</h1>
-              <p className="text-gray-400 text-xs">B2B Edition</p>
-            </div>
-          </div>
+    <>
+      <Head>
+        <title>B2B Dashboard</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+      </Head>
 
-          <nav className="space-y-2">
-            {[
-              { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-              { id: 'chatbot', label: 'Chatbot Builder', icon: '🤖' },
-              { id: 'email-auto', label: 'Email Auto', icon: '📧' },
-              { id: 'email-sender', label: 'Email Sender', icon: '✉️' },
-              { id: 'scraper', label: 'Web Scraper', icon: '🔍' },
-              { id: 'workflows', label: 'Workflows', icon: '⚡' }
-            ].map(item => (
+      <style>{`
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'DM Sans', sans-serif; background: #0f0f11; color: #e8e8e8; min-height: 100vh; }
+
+        :root {
+          --bg: #0f0f11;
+          --surface: #17171a;
+          --surface2: #1f1f24;
+          --border: rgba(255,255,255,0.07);
+          --border-hover: rgba(255,255,255,0.14);
+          --text: #e8e8e8;
+          --text-muted: #6b6b78;
+          --text-dim: #a0a0ae;
+          --accent: #7c6af7;
+          --accent-dim: rgba(124,106,247,0.12);
+          --accent-border: rgba(124,106,247,0.3);
+          --green: #3ecf8e;
+          --green-dim: rgba(62,207,142,0.1);
+          --red: #f04444;
+          --red-dim: rgba(240,68,68,0.1);
+          --blue: #5b8dee;
+          --blue-dim: rgba(91,141,238,0.1);
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 2px; }
+
+        .layout { display: flex; min-height: 100vh; }
+
+        .sidebar {
+          width: 220px; flex-shrink: 0;
+          background: var(--surface); border-right: 1px solid var(--border);
+          display: flex; flex-direction: column;
+          position: sticky; top: 0; height: 100vh; overflow-y: auto;
+        }
+        .sidebar-logo { padding: 28px 20px 20px; border-bottom: 1px solid var(--border); }
+        .sidebar-logo h1 { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--accent); letter-spacing: -0.3px; }
+        .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .sidebar-nav { padding: 16px 12px; flex: 1; }
+        .sidebar-footer { padding: 16px 12px; border-top: 1px solid var(--border); }
+
+        .nav-item {
+          display: flex; align-items: center; padding: 9px 12px;
+          border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 400;
+          color: var(--text-muted); transition: all 0.15s; margin-bottom: 2px;
+          border: none; background: none; width: 100%; text-align: left;
+        }
+        .nav-item:hover { color: var(--text); background: var(--surface2); }
+        .nav-item.active { color: var(--accent); background: var(--accent-dim); font-weight: 500; }
+        .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: 10px; opacity: 0.5; }
+        .nav-item.active .nav-dot { opacity: 1; }
+
+        .back-btn {
+          display: block; width: 100%; padding: 9px 12px;
+          font-size: 12.5px; color: var(--text-muted); background: none;
+          border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+          text-align: left; transition: all 0.15s;
+        }
+        .back-btn:hover { color: var(--text); border-color: var(--border-hover); }
+
+        .main { flex: 1; overflow-y: auto; padding: 40px 48px; max-width: 1100px; }
+        .page-header { margin-bottom: 36px; }
+        .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: var(--text); letter-spacing: -0.5px; }
+        .page-subtitle { font-size: 13.5px; color: var(--text-muted); margin-top: 6px; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 36px; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 20px; transition: border-color 0.15s; }
+        .stat-card:hover { border-color: var(--border-hover); }
+        .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 500; }
+        .stat-value { font-size: 30px; font-family: 'DM Serif Display', serif; color: var(--text); margin-top: 8px; letter-spacing: -1px; }
+        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .card-title { font-size: 14px; font-weight: 500; color: var(--text); }
+        .card-link { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
+        .card-link:hover { opacity: 0.8; }
+
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .list-item:last-child { border-bottom: none; }
+        .list-item-main { font-size: 13.5px; color: var(--text); font-weight: 500; }
+        .list-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .list-item-right { text-align: right; font-size: 13px; color: var(--text); font-weight: 500; }
+        .list-item-right small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; }
+
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .badge-accent { background: var(--accent-dim); color: var(--accent); }
+        .badge-green { background: var(--green-dim); color: var(--green); }
+        .badge-neutral { background: var(--surface2); color: var(--text-muted); }
+        .badge-red { background: var(--red-dim); color: var(--red); }
+
+        label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
+        input[type="text"], input[type="email"], input[type="url"], select, textarea {
+          width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+          padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif;
+          outline: none; transition: border-color 0.15s;
+        }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent-border); }
+        input::placeholder, textarea::placeholder { color: var(--text-muted); }
+        select option { background: #1f1f24; }
+        textarea { resize: vertical; line-height: 1.6; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group { margin-bottom: 16px; }
+
+        .btn {
+          display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+          padding: 10px 20px; border-radius: 8px; font-size: 13.5px; font-weight: 500;
+          font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-secondary { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--border-hover); color: var(--text); }
+        .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+        .btn-ghost:hover { color: var(--text); border-color: var(--border-hover); }
+        .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid transparent; }
+        .btn-full { width: 100%; }
+
+        .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; border: 1px solid; }
+        .alert-success { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+        .alert-error { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+        .alert-warning { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+
+        .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 13.5px; }
+        .empty strong { display: block; font-size: 15px; color: var(--text-dim); margin-bottom: 8px; }
+
+        /* Prospects list */
+        .prospect-row { display: flex; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+        .prospect-row:hover { border-color: var(--border-hover); }
+        .prospect-row.selected { border-color: var(--accent-border); background: var(--accent-dim); }
+        .prospect-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border); margin-right: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .prospect-check.checked { background: var(--accent); border-color: var(--accent); }
+        .prospect-check.checked::after { content: ''; width: 8px; height: 5px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
+
+        /* Workflow */
+        .action-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+        .action-btn { padding: 12px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: center; }
+        .action-btn:hover { border-color: var(--accent-border); color: var(--text); }
+        .action-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: var(--text-dim); }
+
+        /* Scraper results */
+        .email-pill { display: inline-flex; align-items: center; padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; color: var(--text-dim); font-family: monospace; margin: 4px; }
+
+        /* Quick actions */
+        .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .quick-action-btn { padding: 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-size: 13.5px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.15s; text-align: left; }
+        .quick-action-btn:hover { border-color: var(--accent-border); color: var(--text); }
+        .quick-action-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+
+        .workflow-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+        @media (max-width: 900px) {
+          .sidebar { display: none; }
+          .main { padding: 24px 20px; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .two-col { grid-template-columns: 1fr; }
+          .form-grid { grid-template-columns: 1fr; }
+          .action-btns { grid-template-columns: 1fr 1fr; }
+          .quick-actions { grid-template-columns: 1fr; }
+        }
+      `}</style>
+
+      <div className="layout">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <div className="sidebar-logo">
+            <h1>B2B Pro</h1>
+            <p>Prospection</p>
+          </div>
+          <nav className="sidebar-nav">
+            {NAV_ITEMS.map(item => (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-                  activeSection === item.id
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
-                    : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
-                }`}
+                className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(item.id)}
               >
-                <span className="text-xl">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
+                <span className="nav-dot" />
+                {item.label}
               </button>
             ))}
           </nav>
-        </div>
+          <div className="sidebar-footer">
+            <button className="back-btn" onClick={() => window.location.href = '/'}>
+              ← Accueil
+            </button>
+          </div>
+        </aside>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6">
-          <button
-            onClick={() => router.push('/')}
-            className="w-full px-4 py-2 bg-gray-700/50 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors text-sm"
-          >
-            ← Retour accueil
-          </button>
-        </div>
-      </div>
+        {/* Main */}
+        <main className="main">
 
-      {/* Main Content */}
-      <div className="ml-64 p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {activeSection === 'dashboard' && '📊 Dashboard'}
-            {activeSection === 'chatbot' && '🤖 Chatbot Builder'}
-            {activeSection === 'email-auto' && '📧 Email Automation'}
-            {activeSection === 'email-sender' && '✉️ Email Sender'}
-            {activeSection === 'scraper' && '🔍 Web Scraper'}
-            {activeSection === 'workflows' && '⚡ Workflows'}
-          </h2>
-          <p className="text-gray-400">
-            {activeSection === 'dashboard' && 'Vue d\'ensemble de vos performances'}
-            {activeSection === 'chatbot' && 'Créez et gérez vos chatbots intelligents'}
-            {activeSection === 'email-auto' && 'Automatisez vos campagnes email'}
-            {activeSection === 'email-sender' && 'Envoyez des emails personnalisés'}
-            {activeSection === 'scraper' && 'Extrayez des emails depuis n\'importe quel site web'}
-            {activeSection === 'workflows' && 'Créez des automatisations personnalisées'}
-          </p>
-        </div>
+          {/* ── Dashboard ── */}
+          {activeTab === 'dashboard' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Vue d'ensemble</h2>
+                <p className="page-subtitle">Performances de prospection B2B</p>
+              </div>
 
-        {/* Dashboard */}
-        {activeSection === 'dashboard' && (
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {[
-                { label: 'Prospects', value: stats.prospects, icon: '👥', color: 'blue' },
-                { label: 'Leads qualifiés', value: stats.leads, icon: '🎯', color: 'green' },
-                { label: 'Emails envoyés', value: stats.emailsSent, icon: '📧', color: 'purple' },
-                { label: 'Conversions', value: stats.conversions, icon: '💰', color: 'orange' }
-              ].map((stat, i) => (
-                <div key={i} className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-all">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm">{stat.label}</p>
-                      <p className="text-3xl font-bold text-white mt-2">{stat.value}</p>
-                    </div>
-                    <div className="text-4xl">{stat.icon}</div>
+              <div className="stats-grid">
+                {[
+                  { label: 'Prospects', value: stats.prospects, sub: 'conversations entrantes' },
+                  { label: 'Leads qualifiés', value: stats.leads, sub: 'avec email identifié' },
+                  { label: 'Emails envoyés', value: stats.emailsSent, sub: 'via Brevo' },
+                  { label: 'Workflows actifs', value: workflows.length, sub: 'automatisations' },
+                ].map((s, i) => (
+                  <div key={i} className="stat-card">
+                    <div className="stat-label">{s.label}</div>
+                    <div className="stat-value">{s.value}</div>
+                    <div className="stat-sub">{s.sub}</div>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Conversations récentes */}
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
-                <h3 className="text-xl font-bold text-white mb-4">🤖 Conversations récentes</h3>
-                <div className="space-y-3">
-                  {conversations.slice(0, 5).map((conv, i) => (
-                    <div key={i} className="p-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white font-medium">{conv.lead_email || 'Visiteur anonyme'}</span>
-                        <span className="text-xs text-gray-500">{new Date(conv.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <p className="text-gray-400 text-sm line-clamp-2">{conv.message || 'Pas de message'}</p>
-                    </div>
-                  ))}
-                  {conversations.length === 0 && (
-                    <p className="text-gray-500 text-center py-4">Aucune conversation</p>
-                  )}
-                </div>
+                ))}
               </div>
 
-              {/* Campagnes email */}
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
-                <h3 className="text-xl font-bold text-white mb-4">📧 Campagnes email</h3>
-                <div className="space-y-3">
-                  {campaigns.slice(0, 5).map((campaign, i) => (
-                    <div key={i} className="p-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white font-medium">{campaign.name || 'Campagne sans nom'}</span>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          campaign.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-                        }`}>
-                          {campaign.status || 'Inactif'}
-                        </span>
-                      </div>
-                      <p className="text-gray-400 text-sm">{campaign.subject || 'Aucun sujet'}</p>
-                    </div>
-                  ))}
-                  {campaigns.length === 0 && (
-                    <p className="text-gray-500 text-center py-4">Aucune campagne</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
-              <h3 className="text-xl font-bold text-white mb-4">⚡ Actions rapides</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button
-                  onClick={() => setActiveSection('chatbot')}
-                  className="p-4 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg text-white font-medium hover:from-blue-700 hover:to-blue-800 transition-all"
-                >
-                  🤖 Nouveau chatbot
-                </button>
-                <button
-                  onClick={() => setActiveSection('email-auto')}
-                  className="p-4 bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg text-white font-medium hover:from-purple-700 hover:to-purple-800 transition-all"
-                >
-                  📧 Nouvelle campagne
-                </button>
-                <button
-                  onClick={() => setActiveSection('workflows')}
-                  className="p-4 bg-gradient-to-r from-green-600 to-green-700 rounded-lg text-white font-medium hover:from-green-700 hover:to-green-800 transition-all"
-                >
-                  ⚡ Nouveau workflow
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Chatbot Builder */}
-        {activeSection === 'chatbot' && (
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
-            <form onSubmit={handleCreateChatbot} className="space-y-6">
-              <div>
-                <label className="block text-gray-300 mb-2">Nom du chatbot</label>
-                <input
-                  type="text"
-                  value={chatbotForm.name}
-                  onChange={(e) => setChatbotForm({...chatbotForm, name: e.target.value})}
-                  placeholder="Ex: Assistant commercial"
-                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2">Message de bienvenue</label>
-                <textarea
-                  value={chatbotForm.greeting}
-                  onChange={(e) => setChatbotForm({...chatbotForm, greeting: e.target.value})}
-                  placeholder="Bonjour ! Comment puis-je vous aider aujourd'hui ?"
-                  rows={4}
-                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2">Public cible</label>
-                <input
-                  type="text"
-                  value={chatbotForm.targetAudience}
-                  onChange={(e) => setChatbotForm({...chatbotForm, targetAudience: e.target.value})}
-                  placeholder="Ex: Professionnels B2B, PME..."
-                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50"
-              >
-                {loading ? '⏳ Création...' : '🚀 Créer le chatbot'}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Email Automation */}
-        {activeSection === 'email-auto' && (
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
-            <form onSubmit={handleCreateEmailCampaign} className="space-y-6">
-              <div>
-                <label className="block text-gray-300 mb-2">Nom de la campagne</label>
-                <input
-                  type="text"
-                  value={emailCampaignForm.name}
-                  onChange={(e) => setEmailCampaignForm({...emailCampaignForm, name: e.target.value})}
-                  placeholder="Ex: Offre de lancement"
-                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2">Sujet de l'email</label>
-                <input
-                  type="text"
-                  value={emailCampaignForm.subject}
-                  onChange={(e) => setEmailCampaignForm({...emailCampaignForm, subject: e.target.value})}
-                  placeholder="Découvrez notre nouvelle solution..."
-                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2">Contenu (HTML supporté)</label>
-                <textarea
-                  value={emailCampaignForm.content}
-                  onChange={(e) => setEmailCampaignForm({...emailCampaignForm, content: e.target.value})}
-                  placeholder="<p>Bonjour,</p><p>Nous avons le plaisir de vous présenter...</p>"
-                  rows={10}
-                  className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-mono text-sm"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50"
-              >
-                {loading ? '⏳ Création...' : '🚀 Créer la campagne'}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Email Sender */}
-        {activeSection === 'email-sender' && (
-          <div className="space-y-6">
-            {/* Liste des prospects */}
-            {conversations.length > 0 && (
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
-                <h3 className="text-xl font-bold text-white mb-4">
-                  👥 Sélectionner des prospects ({selectedProspects.length} sélectionné{selectedProspects.length > 1 ? 's' : ''})
-                </h3>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {conversations.map((conv, i) => (
-                    conv.lead_email && (
-                      <div 
-                        key={i}
-                        onClick={() => handleToggleProspect(conv.lead_email)}
-                        className={`p-3 rounded-lg cursor-pointer transition-all ${
-                          selectedProspects.includes(conv.lead_email)
-                            ? 'bg-purple-600/30 border border-purple-500'
-                            : 'bg-gray-700/30 hover:bg-gray-700/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-white">{conv.lead_email}</span>
-                          <input
-                            type="checkbox"
-                            checked={selectedProspects.includes(conv.lead_email)}
-                            onChange={() => {}}
-                            className="w-5 h-5"
-                          />
+              <div className="two-col">
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title">Conversations récentes</span>
+                    <button className="card-link" onClick={() => setActiveTab('chatbot')}>Voir tout</button>
+                  </div>
+                  {conversations.length === 0
+                    ? <div className="empty"><strong>Aucune conversation</strong>Les leads de votre chatbot apparaîtront ici</div>
+                    : conversations.slice(0, 5).map((c, i) => (
+                      <div key={i} className="list-item">
+                        <div>
+                          <div className="list-item-main">{c.visitor_email || c.lead_email || 'Visiteur anonyme'}</div>
+                          <div className="list-item-sub">{c.qualification_reason || 'Non catégorisé'}</div>
+                        </div>
+                        <div className="list-item-right">
+                          <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>
+                            {c.qualified ? 'Qualifié' : 'Froid'}
+                          </span>
+                          <small>{new Date(c.created_at).toLocaleDateString('fr-FR')}</small>
                         </div>
                       </div>
-                    )
-                  ))}
+                    ))
+                  }
+                </div>
+
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title">Campagnes email</span>
+                    <button className="card-link" onClick={() => setActiveTab('campaigns')}>Voir tout</button>
+                  </div>
+                  {campaigns.length === 0
+                    ? <div className="empty"><strong>Aucune campagne</strong>Créez votre première séquence email</div>
+                    : campaigns.slice(0, 5).map((c, i) => (
+                      <div key={i} className="list-item">
+                        <div>
+                          <div className="list-item-main">{c.title || c.name || 'Campagne sans nom'}</div>
+                          <div className="list-item-sub">{c.campaign_type || 'manuel'}</div>
+                        </div>
+                        <div className="list-item-right">
+                          <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>
+                            {c.status === 'active' ? 'Actif' : c.status || 'Brouillon'}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  }
                 </div>
               </div>
-            )}
 
-            {/* Formulaire d'envoi */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
-              <form onSubmit={handleSendEmail} className="space-y-6">
-                <div>
-                  <label className="block text-gray-300 mb-2">
-                    Destinataires (emails séparés par des virgules)
-                  </label>
-                  <input
-                    type="text"
-                    value={emailForm.recipients}
-                    onChange={(e) => setEmailForm({...emailForm, recipients: e.target.value})}
-                    placeholder="contact@example.com, user@domain.com"
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                    disabled={selectedProspects.length > 0}
-                  />
-                  {selectedProspects.length > 0 && (
-                    <p className="text-sm text-purple-400 mt-2">
-                      {selectedProspects.length} prospect(s) sélectionné(s) ci-dessus
-                    </p>
-                  )}
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">Actions rapides</span>
                 </div>
-
-                <div>
-                  <label className="block text-gray-300 mb-2">Sujet</label>
-                  <input
-                    type="text"
-                    value={emailForm.subject}
-                    onChange={(e) => setEmailForm({...emailForm, subject: e.target.value})}
-                    placeholder="Votre sujet ici..."
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 mb-2">Contenu (HTML supporté)</label>
-                  <textarea
-                    value={emailForm.content}
-                    onChange={(e) => setEmailForm({...emailForm, content: e.target.value})}
-                    placeholder="<p>Bonjour,</p><p>Je vous contacte au sujet de...</p>"
-                    rows={10}
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-mono text-sm"
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50"
-                >
-                  {loading ? '⏳ Envoi...' : `📨 Envoyer ${selectedProspects.length > 0 ? `à ${selectedProspects.length} prospect(s)` : 'l\'email'}`}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Web Scraper */}
-        {activeSection === 'scraper' && (
-          <div className="space-y-6">
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
-              <form onSubmit={handleScraping} className="space-y-6">
-                <div>
-                  <label className="block text-gray-300 mb-2">URL du site à scraper</label>
-                  <input
-                    type="url"
-                    value={scraperForm.url}
-                    onChange={(e) => setScraperForm({...scraperForm, url: e.target.value})}
-                    placeholder="https://example.com"
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 mb-2">
-                    Sélecteur CSS (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={scraperForm.selector}
-                    onChange={(e) => setScraperForm({...scraperForm, selector: e.target.value})}
-                    placeholder=".contact-email, #email-address..."
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                  <p className="text-sm text-gray-500 mt-2">
-                    Si vide, le scraper cherchera tous les emails sur la page
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50"
-                >
-                  {loading ? '⏳ Extraction...' : '🔍 Lancer le scraping'}
-                </button>
-              </form>
-            </div>
-
-            {/* Résultats du scraping */}
-            {scrapedData.length > 0 && (
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-green-600">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-white">
-                    ✅ {scrapedData.length} email{scrapedData.length > 1 ? 's' : ''} extrait{scrapedData.length > 1 ? 's' : ''}
-                  </h3>
-                  <button
-                    onClick={handleAddScrapedProspects}
-                    disabled={loading}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all disabled:opacity-50"
-                  >
-                    {loading ? '⏳ Ajout...' : '➕ Ajouter à la base'}
+                <div className="quick-actions">
+                  <button className="quick-action-btn" onClick={() => setActiveTab('chatbot')}>
+                    <div className="quick-action-label">Chatbot</div>
+                    Créer un chatbot
+                  </button>
+                  <button className="quick-action-btn" onClick={() => setActiveTab('campaigns')}>
+                    <div className="quick-action-label">Email</div>
+                    Nouvelle campagne
+                  </button>
+                  <button className="quick-action-btn" onClick={() => setActiveTab('workflows')}>
+                    <div className="quick-action-label">Automation</div>
+                    Configurer un workflow
                   </button>
                 </div>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {scrapedData.map((email, i) => (
-                    <div key={i} className="p-3 bg-gray-700/30 rounded-lg">
-                      <span className="text-white font-mono">📧 {email}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
-            )}
-          </div>
-        )}
+            </>
+          )}
 
-        {/* Workflows */}
-        {activeSection === 'workflows' && (
-          <div className="space-y-6">
-            {/* Formulaire de création */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700">
-              <form onSubmit={handleCreateWorkflow} className="space-y-6">
-                <div>
-                  <label className="block text-gray-300 mb-2">Nom du workflow</label>
-                  <input
-                    type="text"
-                    value={workflowForm.name}
-                    onChange={(e) => setWorkflowForm({...workflowForm, name: e.target.value})}
-                    placeholder="Ex: Nurturing automatique nouveaux leads"
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                    required
-                  />
+          {/* ── Chatbot ── */}
+          {activeTab === 'chatbot' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Chatbot</h2>
+                <p className="page-subtitle">Créez et gérez vos chatbots de qualification</p>
+              </div>
+              <div className="two-col" style={{ alignItems: 'flex-start' }}>
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom: 20 }}>Créer un chatbot</div>
+                  {chatbotStatus?.success && <div className="alert alert-success">Chatbot créé avec succès</div>}
+                  {chatbotStatus?.error && <div className="alert alert-error">{chatbotStatus.error}</div>}
+                  <form onSubmit={handleCreateChatbot}>
+                    <div className="form-group"><label>Nom *</label><input type="text" value={chatbotForm.name} onChange={e => setChatbotForm({ ...chatbotForm, name: e.target.value })} placeholder="Assistant commercial" required /></div>
+                    <div className="form-group"><label>Message de bienvenue *</label><textarea value={chatbotForm.greeting} onChange={e => setChatbotForm({ ...chatbotForm, greeting: e.target.value })} placeholder="Bonjour ! Comment puis-je vous aider ?" rows={4} required /></div>
+                    <div className="form-group"><label>Public cible</label><input type="text" value={chatbotForm.targetAudience} onChange={e => setChatbotForm({ ...chatbotForm, targetAudience: e.target.value })} placeholder="PME, professionnels B2B…" /></div>
+                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                      {loading ? <><span className="spinner" /> Création…</> : 'Créer le chatbot'}
+                    </button>
+                  </form>
                 </div>
 
-                <div>
-                  <label className="block text-gray-300 mb-2">Déclencheur</label>
-                  <select
-                    value={workflowForm.trigger}
-                    onChange={(e) => setWorkflowForm({...workflowForm, trigger: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="new_prospect">Nouveau prospect</option>
-                    <option value="email_opened">Email ouvert</option>
-                    <option value="link_clicked">Lien cliqué</option>
-                    <option value="form_submitted">Formulaire soumis</option>
-                    <option value="chatbot_conversation">Conversation chatbot</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 mb-4">Actions du workflow</label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <button
-                      type="button"
-                      onClick={() => handleAddWorkflowAction('send_email')}
-                      className="p-3 bg-blue-600/20 border border-blue-600 rounded-lg text-blue-400 hover:bg-blue-600/30 transition-all"
-                    >
-                      📧 Envoyer email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAddWorkflowAction('wait')}
-                      className="p-3 bg-orange-600/20 border border-orange-600 rounded-lg text-orange-400 hover:bg-orange-600/30 transition-all"
-                    >
-                      ⏱️ Attendre
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAddWorkflowAction('tag_prospect')}
-                      className="p-3 bg-green-600/20 border border-green-600 rounded-lg text-green-400 hover:bg-green-600/30 transition-all"
-                    >
-                      🏷️ Ajouter tag
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAddWorkflowAction('notify_team')}
-                      className="p-3 bg-purple-600/20 border border-purple-600 rounded-lg text-purple-400 hover:bg-purple-600/30 transition-all"
-                    >
-                      🔔 Notifier équipe
-                    </button>
-                  </div>
-
-                  {/* Liste des actions */}
-                  {workflowForm.actions.length > 0 && (
-                    <div className="space-y-2">
-                      {workflowForm.actions.map((action, i) => (
-                        <div key={action.id} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
-                          <span className="text-white">
-                            {i + 1}. {
-                              action.type === 'send_email' ? '📧 Envoyer un email' :
-                              action.type === 'wait' ? '⏱️ Attendre' :
-                              action.type === 'tag_prospect' ? '🏷️ Ajouter un tag' :
-                              action.type === 'notify_team' ? '🔔 Notifier l\'équipe' :
-                              action.type
-                            }
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveWorkflowAction(action.id)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            ✕
-                          </button>
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom: 20 }}>Conversations reçues</div>
+                  {conversations.length === 0
+                    ? <div className="empty"><strong>Aucune conversation</strong>Les interactions avec votre chatbot apparaîtront ici</div>
+                    : conversations.map((c, i) => (
+                      <div key={i} className="list-item">
+                        <div>
+                          <div className="list-item-main">{c.visitor_email || c.lead_email || 'Anonyme'}</div>
+                          <div className="list-item-sub">{c.qualification_reason || '—'}</div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {workflowForm.actions.length === 0 && (
-                    <p className="text-gray-500 text-center py-4">Aucune action ajoutée</p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={workflowForm.actions.length === 0}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50"
-                >
-                  ⚡ Créer le workflow
-                </button>
-              </form>
-            </div>
-
-            {/* Liste des workflows créés */}
-            {workflows.length > 0 && (
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
-                <h3 className="text-xl font-bold text-white mb-4">
-                  📋 Workflows actifs ({workflows.length})
-                </h3>
-                <div className="space-y-3">
-                  {workflows.map((workflow, i) => (
-                    <div key={workflow.id} className="p-4 bg-gray-700/30 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white font-medium">{workflow.name}</span>
-                        <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">
-                          Actif
+                        <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>
+                          {c.qualified ? 'Qualifié' : 'Froid'}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-400">
-                        <p>Déclencheur: {workflow.trigger}</p>
-                        <p>{workflow.actions.length} action(s)</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  }
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </>
+          )}
+
+          {/* ── Campaigns ── */}
+          {activeTab === 'campaigns' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Campagnes email</h2>
+                <p className="page-subtitle">Automatisez vos séquences de prospection</p>
+              </div>
+              <div className="two-col" style={{ alignItems: 'flex-start' }}>
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom: 20 }}>Nouvelle campagne</div>
+                  {campaignStatus?.success && <div className="alert alert-success">Campagne créée</div>}
+                  {campaignStatus?.error && <div className="alert alert-error">{campaignStatus.error}</div>}
+                  <form onSubmit={handleCreateCampaign}>
+                    <div className="form-group"><label>Nom *</label><input type="text" value={campaignForm.name} onChange={e => setCampaignForm({ ...campaignForm, name: e.target.value })} placeholder="Offre de lancement" required /></div>
+                    <div className="form-group"><label>Sujet de l'email *</label><input type="text" value={campaignForm.subject} onChange={e => setCampaignForm({ ...campaignForm, subject: e.target.value })} placeholder="Découvrez notre solution…" required /></div>
+                    <div className="form-group"><label>Contenu</label><textarea value={campaignForm.content} onChange={e => setCampaignForm({ ...campaignForm, content: e.target.value })} placeholder="Rédigez votre email ici (HTML supporté)…" rows={8} /></div>
+                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                      {loading ? <><span className="spinner" /> Création…</> : 'Créer la campagne'}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom: 20 }}>Campagnes actives</div>
+                  {campaigns.length === 0
+                    ? <div className="empty"><strong>Aucune campagne</strong>Créez votre première séquence</div>
+                    : campaigns.map((c, i) => (
+                      <div key={i} className="list-item">
+                        <div>
+                          <div className="list-item-main">{c.title || c.name}</div>
+                          <div className="list-item-sub">{c.campaign_type || 'manuel'} · {new Date(c.created_at).toLocaleDateString('fr-FR')}</div>
+                        </div>
+                        <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>
+                          {c.status === 'active' ? 'Actif' : 'Brouillon'}
+                        </span>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Email Sender ── */}
+          {activeTab === 'email-sender' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Envoi d'emails</h2>
+                <p className="page-subtitle">Contactez vos prospects directement</p>
+              </div>
+              <div className="two-col" style={{ alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                      {selectedProspects.length > 0 ? `${selectedProspects.length} sélectionné${selectedProspects.length > 1 ? 's' : ''}` : 'Leads qualifiés'}
+                    </span>
+                  </div>
+                  {conversations.filter(c => c.visitor_email || c.lead_email).length === 0
+                    ? <div className="empty"><strong>Aucun lead</strong>Les leads avec email apparaîtront ici</div>
+                    : conversations.filter(c => c.visitor_email || c.lead_email).map((c, i) => {
+                      const email = c.visitor_email || c.lead_email;
+                      const selected = selectedProspects.includes(email);
+                      return (
+                        <div key={i} className={`prospect-row ${selected ? 'selected' : ''}`} onClick={() => toggleProspect(email)}>
+                          <div className={`prospect-check ${selected ? 'checked' : ''}`} />
+                          <div>
+                            <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text)' }}>{email}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.qualification_reason || '—'}</div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom: 20 }}>Composer</div>
+                  {emailStatus?.success && <div className="alert alert-success">{emailStatus.sent} email{emailStatus.sent > 1 ? 's' : ''} envoyé{emailStatus.sent > 1 ? 's' : ''}</div>}
+                  {emailStatus?.error && <div className="alert alert-error">{emailStatus.error}</div>}
+                  <form onSubmit={handleSendEmail}>
+                    <div className="form-grid" style={{ marginBottom: 16 }}>
+                      <div><label>Expéditeur (nom)</label><input type="text" value={emailForm.senderName} onChange={e => setEmailForm({ ...emailForm, senderName: e.target.value })} required /></div>
+                      <div><label>Expéditeur (email)</label><input type="email" value={emailForm.senderEmail} onChange={e => setEmailForm({ ...emailForm, senderEmail: e.target.value })} required /></div>
+                    </div>
+                    {selectedProspects.length === 0 && (
+                      <div className="form-group">
+                        <label>Destinataires (séparés par virgule)</label>
+                        <input type="text" value={emailForm.recipients} onChange={e => setEmailForm({ ...emailForm, recipients: e.target.value })} placeholder="contact@exemple.com, autre@exemple.com" />
+                      </div>
+                    )}
+                    <div className="form-group"><label>Sujet</label><input type="text" value={emailForm.subject} onChange={e => setEmailForm({ ...emailForm, subject: e.target.value })} placeholder="Objet de votre message" required /></div>
+                    <div className="form-group"><label>Message</label><textarea value={emailForm.content} onChange={e => setEmailForm({ ...emailForm, content: e.target.value })} placeholder="Rédigez votre message…" rows={7} required /></div>
+                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                      {loading ? <><span className="spinner" /> Envoi…</> : `Envoyer${selectedProspects.length > 0 ? ` à ${selectedProspects.length} destinataire${selectedProspects.length > 1 ? 's' : ''}` : ''}`}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Scraper ── */}
+          {activeTab === 'scraper' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Scraper web</h2>
+                <p className="page-subtitle">Extrayez des contacts depuis n'importe quel site</p>
+              </div>
+              <div className="card">
+                {scraperStatus?.success && (
+                  <div className="alert alert-success">{scraperStatus.count} email{scraperStatus.count > 1 ? 's' : ''} extrait{scraperStatus.count > 1 ? 's' : ''}</div>
+                )}
+                {scraperStatus?.error && <div className="alert alert-error">{scraperStatus.error}</div>}
+                <form onSubmit={handleScrape}>
+                  <div className="form-group"><label>URL du site *</label><input type="url" value={scraperForm.url} onChange={e => setScraperForm({ ...scraperForm, url: e.target.value })} placeholder="https://example.com/contact" required /></div>
+                  <div className="form-group">
+                    <label>Sélecteur CSS <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optionnel)</span></label>
+                    <input type="text" value={scraperForm.selector} onChange={e => setScraperForm({ ...scraperForm, selector: e.target.value })} placeholder=".email, #contact-email…" />
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Sans sélecteur, tous les emails de la page sont extraits automatiquement</p>
+                  </div>
+                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                    {loading ? <><span className="spinner" /> Extraction…</> : 'Lancer l\'extraction'}
+                  </button>
+                </form>
+
+                {scrapedEmails.length > 0 && (
+                  <div style={{ marginTop: 28 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <span className="card-title">{scrapedEmails.length} email{scrapedEmails.length > 1 ? 's' : ''} trouvé{scrapedEmails.length > 1 ? 's' : ''}</span>
+                      <button className="btn btn-secondary" onClick={() => setActiveTab('email-sender')}>
+                        Envoyer un email à ces contacts
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                      {scrapedEmails.map((email, i) => (
+                        <span key={i} className="email-pill">{email}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── Workflows ── */}
+          {activeTab === 'workflows' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Workflows</h2>
+                <p className="page-subtitle">Automatisez vos séquences de prospection</p>
+              </div>
+              <div className="two-col" style={{ alignItems: 'flex-start' }}>
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom: 20 }}>Créer un workflow</div>
+                  {workflowStatus?.success && <div className="alert alert-success">Workflow créé</div>}
+                  <form onSubmit={handleCreateWorkflow}>
+                    <div className="form-group"><label>Nom *</label><input type="text" value={workflowForm.name} onChange={e => setWorkflowForm({ ...workflowForm, name: e.target.value })} placeholder="Nurturing nouveaux leads" required /></div>
+                    <div className="form-group">
+                      <label>Déclencheur</label>
+                      <select value={workflowForm.trigger} onChange={e => setWorkflowForm({ ...workflowForm, trigger: e.target.value })}>
+                        {WORKFLOW_TRIGGERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Actions</label>
+                      <div className="action-btns">
+                        {WORKFLOW_ACTIONS.map(a => (
+                          <button key={a.type} type="button" className="action-btn" onClick={() => addAction(a.type)}>
+                            + {a.label}
+                          </button>
+                        ))}
+                      </div>
+                      {workflowForm.actions.length === 0
+                        ? <p style={{ fontSize: 12.5, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Aucune action ajoutée</p>
+                        : workflowForm.actions.map((a, i) => (
+                          <div key={a.id} className="action-item">
+                            <span>{i + 1}. {WORKFLOW_ACTIONS.find(wa => wa.type === a.type)?.label || a.type}</span>
+                            <button type="button" onClick={() => removeAction(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                          </div>
+                        ))
+                      }
+                    </div>
+                    <button type="submit" className="btn btn-primary btn-full" disabled={workflowForm.actions.length === 0}>
+                      Créer le workflow
+                    </button>
+                  </form>
+                </div>
+
+                <div>
+                  <div className="card-title" style={{ marginBottom: 14, fontSize: 13 }}>Workflows actifs</div>
+                  {workflows.length === 0
+                    ? <div className="empty"><strong>Aucun workflow</strong>Configurez votre première automatisation</div>
+                    : workflows.map((w, i) => (
+                      <div key={i} className="workflow-card">
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{w.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                            {WORKFLOW_TRIGGERS.find(t => t.value === w.trigger)?.label} · {w.actions.length} action{w.actions.length > 1 ? 's' : ''}
+                          </div>
+                        </div>
+                        <span className="badge badge-green">Actif</span>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </>
+          )}
+
+        </main>
       </div>
-    </div>
+    </>
   );
 }
