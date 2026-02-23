@@ -11,6 +11,6 @@ export default function handler(req, res) {
 
   return res.status(200).json({
     authenticated: true,
-    agent: { email: session.email, name: session.name, role: session.role },
+    agent: { email: session.email, name: session.name, role: session.role, plan: session.plan },
   });
 }
