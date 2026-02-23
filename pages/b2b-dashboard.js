@@ -4,6 +4,20 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../lib/useAuth';
 
+// ─── useAuth B2B — redirige vers /b2b-login ───────────────────────────────────
+function useB2BAuth() {
+  const auth = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!auth.loading && !auth.agent) {
+      router.push('/b2b-login');
+    }
+  }, [auth.loading, auth.agent]);
+
+  return auth;
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
@@ -98,7 +112,7 @@ function OnboardingB2B({ agentName, onComplete }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function B2BDashboard() {
-  const { agent, logout } = useAuth();
+  const { agent, logout } = useB2BAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);

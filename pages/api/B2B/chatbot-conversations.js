@@ -2,6 +2,27 @@
 import { supabaseAdmin } from '../../../lib/supabase';
 
 export default async function handler(req, res) {
+  // GET — lister les conversations
+  if (req.method === 'GET') {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('chatbot_conversations')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      return res.status(200).json({
+        success: true,
+        conversations: data || []
+      });
+    } catch (error) {
+      console.error('Erreur GET conversations:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
