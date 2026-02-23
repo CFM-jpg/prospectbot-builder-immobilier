@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '../lib/useAuth';
+import { canAccess } from '../lib/planConfig';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -832,12 +833,61 @@ function PublicationDashboard() {
   );
 }
 
+// ─── UpgradeGate ──────────────────────────────────────────────────────────────
+
+const PLAN_LABELS = { gratuit: 'Gratuit', pro: 'Pro', agence: 'Agence' };
+
+function UpgradeGate({ planRequired, plan, featureLabel }) {
+  const requiredLabel = PLAN_LABELS[planRequired] || planRequired;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      minHeight: 340, padding: 40, textAlign: 'center', gap: 20,
+    }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: '50%',
+        background: 'rgba(201,169,110,0.08)', border: '1px solid rgba(201,169,110,0.2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c9a96e" strokeWidth="1.5">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div>
+        <p style={{ color: 'var(--text)', fontSize: 16, fontWeight: 500, margin: '0 0 8px' }}>
+          {featureLabel}
+        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+          Cette fonctionnalité est réservée au plan <strong style={{ color: '#c9a96e' }}>{requiredLabel}</strong>.
+          {' '}Votre plan actuel : <strong style={{ color: 'var(--text-dim)' }}>{PLAN_LABELS[plan] || plan}</strong>.
+        </p>
+      </div>
+      <a
+        href="/#tarifs"
+        style={{
+          display: 'inline-block', padding: '10px 24px',
+          background: 'linear-gradient(135deg, #c9a96e, #a07840)',
+          color: '#fff', borderRadius: 8, fontSize: 13,
+          fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.04em',
+          textDecoration: 'none', fontWeight: 600,
+        }}
+      >
+        Voir les offres
+      </a>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ImmobilierDashboard() {
-  const { agent, logout } = useAuth();
+  const { agent, logout, plan, isPro, isAgence } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Helper : peut accéder à une feature ?
+  const can = (feature) => canAccess(feature, plan, agent?.role);
   const [biens, setBiens] = useState([]);
   const [acheteurs, setAcheteurs] = useState([]);
   const [matches, setMatches] = useState([]);
@@ -1142,6 +1192,21 @@ export default function ImmobilierDashboard() {
                 <div className="agent-name">{agent.name}</div>
                 <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
               </div>
+              <div style={{
+                display: 'inline-block',
+                padding: '3px 10px',
+                borderRadius: 20,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                marginBottom: 8,
+                background: plan === 'agence' ? 'rgba(201,169,110,0.15)' : plan === 'pro' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)',
+                color: plan === 'agence' ? '#c9a96e' : plan === 'pro' ? '#3ecf8e' : '#6b6b78',
+                border: `1px solid ${plan === 'agence' ? 'rgba(201,169,110,0.3)' : plan === 'pro' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
+              }}>
+                {plan === 'agence' ? 'Agence' : plan === 'pro' ? 'Pro' : 'Gratuit'}
+              </div>
               <button className="help-btn" onClick={() => setShowOnboardingAgent(true)}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 Revoir le tutoriel
@@ -1388,6 +1453,9 @@ export default function ImmobilierDashboard() {
           {/* ── Matches ── */}
           {activeTab === 'matches' && (
             <>
+              {!can('matchAuto') ? (
+                <UpgradeGate planRequired="pro" plan={plan} featureLabel="Correspondances automatiques" />
+              ) : (
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div>
                   <h2 className="page-title">Correspondances</h2>
@@ -1421,6 +1489,8 @@ export default function ImmobilierDashboard() {
                   </div>
                 ))
               }
+              </>
+              )}
             </>
           )}
 
@@ -1485,7 +1555,11 @@ export default function ImmobilierDashboard() {
           )}
 
           {/* ── Publication ── */}
-          {activeTab === 'publication' && <PublicationDashboard />}
+          {activeTab === 'publication' && (
+            can('publicationMultiSites')
+              ? <PublicationDashboard />
+              : <UpgradeGate planRequired="pro" plan={plan} featureLabel="Publication multi-sites & génération IA" />
+          )}
 
         </main>
       </div>

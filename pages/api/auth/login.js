@@ -2,7 +2,7 @@
 
 import { verifyCredentials, createSessionToken, setSessionCookie } from '../../../lib/auth';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
@@ -13,13 +13,12 @@ export default function handler(req, res) {
     return res.status(400).json({ error: 'Email et mot de passe requis' });
   }
 
-  const agent = verifyCredentials(email, password);
+  const agent = await verifyCredentials(email, password);
 
   if (!agent) {
     // Délai artificiel pour éviter le brute-force timing
-    return setTimeout(() => {
-      res.status(401).json({ error: 'Identifiants incorrects' });
-    }, 400);
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return res.status(401).json({ error: 'Identifiants incorrects' });
   }
 
   const token = createSessionToken(agent);
@@ -27,6 +26,6 @@ export default function handler(req, res) {
 
   return res.status(200).json({
     success: true,
-    agent: { email: agent.email, name: agent.name, role: agent.role },
+    agent: { email: agent.email, name: agent.name, role: agent.role, plan: agent.plan },
   });
 }
