@@ -1,7 +1,7 @@
 // pages/api/B2B/scraper.js
 
 export const config = {
-  maxDuration: 30, // Extend Vercel timeout to 30s pour ScraperAPI
+  maxDuration: 30,
 };
 
 export default async function handler(req, res) {
@@ -22,26 +22,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const scraperApiKey = process.env.SCRAPER_API_KEY;
-
-    let fetchUrl;
-    let usingProxy = false;
-
-    if (scraperApiKey) {
-      fetchUrl = `https://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&render=false`;
-      usingProxy = true;
-    } else {
-      fetchUrl = url;
-    }
+    const jinaUrl = `https://r.jina.ai/${url}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-    const response = await fetch(fetchUrl, {
+    const response = await fetch(jinaUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+        'Accept': 'text/plain',
+        'X-No-Cache': 'true',
       },
       signal: controller.signal,
     });
@@ -55,17 +44,18 @@ export default async function handler(req, res) {
       });
     }
 
-    const html = await response.text();
+    const text = await response.text();
 
-    // Extraction emails par regex
+    // Extraction emails par regex sur le texte propre retourné par Jina
     const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
-    const allMatches = html.match(emailRegex) || [];
+    const allMatches = text.match(emailRegex) || [];
 
     const blacklist = [
       'example.com', 'test.com', 'domain.com', 'email.com',
       'sentry.io', 'wix.com', 'wordpress.com', 'jquery',
       'w3.org', 'schema.org', 'google.com', 'facebook.com',
       'twitter.com', 'linkedin.com', 'instagram.com',
+      'jina.ai',
       '.png', '.jpg', '.gif', '.svg', '.css', '.js', '.woff',
     ];
 
@@ -90,8 +80,8 @@ export default async function handler(req, res) {
       count: emails.length,
       url,
       debug: {
-        proxy: usingProxy,
-        htmlLength: html.length,
+        via: 'jina.ai',
+        textLength: text.length,
         rawEmailsFound: allMatches.length,
         afterFilter: emails.length,
       },
