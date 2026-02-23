@@ -31,12 +31,17 @@ export default async function handler(req, res) {
       fetchUrl = url;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     const response = await fetch(fetchUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
-      timeout: 15000,
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return res.status(400).json({ error: `Impossible d'accéder à la page (${response.status})` });
@@ -80,8 +85,11 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Erreur scraper:', error);
+    const message = error.name === 'AbortError'
+      ? 'Timeout — le site met trop de temps à répondre'
+      : error.message || 'Erreur lors du scraping';
     return res.status(500).json({
-      error: error.message || 'Erreur lors du scraping',
+      error: message,
       success: false,
     });
   }
