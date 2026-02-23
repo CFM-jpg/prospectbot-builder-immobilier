@@ -103,7 +103,6 @@ function LiveDemo() {
 
   return (
     <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 20, overflow: 'hidden', maxWidth: 720, margin: '0 auto' }}>
-      {/* Terminal header */}
       <div style={{ background: 'rgba(0,0,0,0.4)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
@@ -125,7 +124,7 @@ function LiveDemo() {
             </p>
             <button onClick={() => setStep(1)}
               style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0a0a0a', border: 'none', borderRadius: 12, padding: '13px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 40px rgba(212,168,83,0.3)' }}>
-              ▶ Lancer la démo
+              Lancer la démo
             </button>
           </div>
         )}
@@ -183,7 +182,7 @@ function LiveDemo() {
                 </div>
               </div>
             ))}
-            <button onClick={reset} style={{ marginTop: 8, background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 18px', color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>↺ Rejouer</button>
+            <button onClick={reset} style={{ marginTop: 8, background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 18px', color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Rejouer</button>
           </div>
         )}
       </div>
@@ -243,7 +242,7 @@ function FloatingCTA({ onCapture }) {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
               <svg width="28" height="28" fill="none" stroke="#3ecf8e" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12" stroke="#3ecf8e"/></svg>
             </div>
-            <p style={{ color: '#3ecf8e', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Parfait ! On vous contacte sous 24h.</p>
+            <p style={{ color: '#3ecf8e', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Parfait. On vous contacte sous 24h.</p>
           </div>
         )}
       </div>
@@ -256,7 +255,6 @@ export default function LandingPage() {
   const router = useRouter();
   const canvasRef = useRef(null);
   const [heroEmail, setHeroEmail] = useState('');
-  // ✅ MODIF — Suppression heroProfile (tabs supprimés), ajout heroSecteur
   const [heroSecteur, setHeroSecteur] = useState('');
   const [heroSent, setHeroSent] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
@@ -327,7 +325,6 @@ export default function LandingPage() {
     return () => clearInterval(t);
   }, []);
 
-  // ✅ MODIF — handleHeroSubmit simplifié (plus de heroProfile)
   const handleHeroSubmit = async (e) => {
     e.preventDefault();
     await saveLead({ email: heroEmail, secteur: heroSecteur, profile: 'agent', source: 'hero', type: 'hero_cta' });
@@ -352,14 +349,12 @@ export default function LandingPage() {
         html { scroll-behavior: smooth; }
         body { background: #080809; color: #e8e8e8; font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
 
-        /* Grain overlay */
         body::before {
           content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
           opacity: 0.4;
         }
 
-        /* Scroll reveal */
         [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity 0.7s ease, transform 0.7s ease; }
         [data-reveal][data-delay="1"] { transition-delay: 0.1s; }
         [data-reveal][data-delay="2"] { transition-delay: 0.2s; }
@@ -369,7 +364,6 @@ export default function LandingPage() {
         [data-reveal][data-delay="6"] { transition-delay: 0.6s; }
         [data-reveal].revealed { opacity: 1; transform: translateY(0); }
 
-        /* Animations */
         @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -378,7 +372,6 @@ export default function LandingPage() {
         @keyframes heroReveal { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 40px rgba(212,168,83,0.2); } 50% { box-shadow: 0 0 80px rgba(212,168,83,0.4); } }
 
-        /* Nav */
         .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 20px 48px; display: flex; align-items: center; justify-content: space-between; transition: all 0.3s; }
         .nav.scrolled { background: rgba(8,8,9,0.9); backdrop-filter: blur(12px); padding: 14px 48px; border-bottom: 1px solid rgba(255,255,255,0.06); }
         .nav-logo { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: #d4a853; letter-spacing: 1px; font-style: italic; }
@@ -388,10 +381,8 @@ export default function LandingPage() {
         .nav-cta { background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; border: none; borderRadius: 10px; padding: 9px 22px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; border-radius: 10px; transition: transform 0.2s, box-shadow 0.2s; }
         .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(212,168,83,0.35); }
 
-        /* Sections */
         section { position: relative; z-index: 2; }
 
-        /* Hero */
         .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 120px 48px 80px; text-align: center; position: relative; overflow: hidden; }
         .hero-glow { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); width: 600px; height: 600px; background: radial-gradient(ellipse, rgba(212,168,83,0.08) 0%, transparent 70%); pointer-events: none; }
         .hero-tag { display: inline-flex; align-items: center; gap: 8px; background: rgba(212,168,83,0.1); border: 1px solid rgba(212,168,83,0.25); border-radius: 30px; padding: 6px 16px; font-size: 12.5px; color: #d4a853; letter-spacing: 0.5px; margin-bottom: 28px; animation: heroReveal 0.8s 0.1s both; }
@@ -400,7 +391,6 @@ export default function LandingPage() {
         .hero-sub { font-size: 18px; color: rgba(255,255,255,0.45); line-height: 1.7; max-width: 560px; margin: 0 auto 40px; font-weight: 300; animation: heroReveal 0.8s 0.3s both; }
         .hero-form { animation: heroReveal 0.8s 0.4s both; }
 
-        /* Capture form */
         .capture-form { display: flex; flex-direction: column; gap: 10px; max-width: 460px; margin: 0 auto; }
         .capture-input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 13px 18px; color: #e8e8e8; font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
         .capture-input:focus { border-color: rgba(212,168,83,0.5); }
@@ -408,20 +398,17 @@ export default function LandingPage() {
         .capture-btn { background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; border: none; border-radius: 12px; padding: 15px 24px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; transition: transform 0.2s, box-shadow 0.2s; animation: glowPulse 3s infinite; width: 100%; }
         .capture-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(212,168,83,0.4); }
 
-        /* Stats band */
         .stats-band { padding: 60px 48px; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 900px; margin: 0 auto; text-align: center; gap: 40px; }
         .stat-num { font-family: 'Cormorant Garamond', serif; font-size: 52px; font-weight: 500; color: #d4a853; line-height: 1; }
         .stat-label { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 6px; letter-spacing: 0.3px; }
 
-        /* Section layout */
         .section { padding: 100px 48px; max-width: 1100px; margin: 0 auto; }
         .section-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #d4a853; margin-bottom: 16px; }
         .section-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(36px, 4vw, 52px); font-weight: 300; line-height: 1.15; color: #f0f0f0; margin-bottom: 20px; }
         .section-title em { font-style: italic; color: #d4a853; }
         .section-sub { font-size: 16px; color: rgba(255,255,255,0.45); line-height: 1.7; max-width: 540px; font-weight: 300; }
 
-        /* Features */
         .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
         .feature-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 28px; transition: border-color 0.3s, transform 0.3s; }
         .feature-card:hover { border-color: rgba(212,168,83,0.3); transform: translateY(-4px); }
@@ -430,7 +417,6 @@ export default function LandingPage() {
         .feature-desc { font-size: 13.5px; color: rgba(255,255,255,0.4); line-height: 1.65; }
         .feature-tag { display: inline-block; margin-top: 14px; padding: 3px 10px; background: rgba(212,168,83,0.1); border: 1px solid rgba(212,168,83,0.2); border-radius: 20px; font-size: 11px; color: #d4a853; }
 
-        /* How it works */
         .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 56px; position: relative; }
         .steps-grid::before { content: ''; position: absolute; top: 28px; left: 10%; right: 10%; height: 1px; background: linear-gradient(90deg, transparent, rgba(212,168,83,0.3), transparent); }
         .step-item { text-align: center; padding: 0 20px; }
@@ -438,7 +424,6 @@ export default function LandingPage() {
         .step-title { font-size: 14px; font-weight: 600; color: #e8e8e8; margin-bottom: 8px; }
         .step-desc { font-size: 13px; color: rgba(255,255,255,0.35); line-height: 1.6; }
 
-        /* Testimonials */
         .testimonials-section { padding: 100px 48px; background: linear-gradient(180deg, transparent, rgba(212,168,83,0.03), transparent); }
         .testimonials-inner { max-width: 800px; margin: 0 auto; }
         .testimonial-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(212,168,83,0.15); border-radius: 20px; padding: 40px 48px; position: relative; }
@@ -452,18 +437,25 @@ export default function LandingPage() {
         .t-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.15); cursor: pointer; transition: all 0.3s; }
         .t-dot.active { background: #d4a853; transform: scale(1.3); }
 
-        /* Profiles section */
         .profiles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
         .profile-card { border-radius: 16px; padding: 32px 28px; cursor: pointer; transition: all 0.3s; border: 1px solid; }
         .profile-card:hover { transform: translateY(-6px); }
 
-        /* CTA final */
+        /* ── Anti-objections section ── */
+        .trust-section { padding: 80px 48px; border-top: 1px solid rgba(255,255,255,0.05); }
+        .trust-inner { max-width: 900px; margin: 0 auto; }
+        .trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: hidden; margin-top: 48px; }
+        .trust-item { background: rgba(8,8,9,0.95); padding: 32px 28px; transition: background 0.3s; }
+        .trust-item:hover { background: rgba(212,168,83,0.04); }
+        .trust-check { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(212,168,83,0.3); margin-bottom: 16px; }
+        .trust-title { font-size: 14px; font-weight: 600; color: #e8e8e8; margin-bottom: 8px; letter-spacing: 0.2px; }
+        .trust-desc { font-size: 13px; color: rgba(255,255,255,0.38); line-height: 1.65; }
+
         .cta-section { padding: 120px 48px; text-align: center; position: relative; overflow: hidden; }
         .cta-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(212,168,83,0.06) 0%, transparent 70%); pointer-events: none; }
         .cta-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(40px, 5vw, 64px); font-weight: 300; color: #f0f0f0; margin-bottom: 20px; }
         .cta-sub { font-size: 16px; color: rgba(255,255,255,0.4); margin-bottom: 40px; max-width: 460px; margin-left: auto; margin-right: auto; line-height: 1.7; }
 
-        /* Footer */
         .footer { padding: 40px 48px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center; }
         .footer-logo { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: rgba(212,168,83,0.6); font-style: italic; }
         .footer-links { display: flex; gap: 24px; }
@@ -480,11 +472,12 @@ export default function LandingPage() {
           .steps-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
           .steps-grid::before { display: none; }
           .profiles-grid { grid-template-columns: 1fr; }
+          .trust-grid { grid-template-columns: 1fr; }
+          .trust-section { padding: 60px 24px; }
           .footer { flex-direction: column; gap: 16px; text-align: center; }
         }
       `}</style>
 
-      {/* Canvas particles */}
       <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
 
       {/* Nav */}
@@ -500,30 +493,24 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      {/* ✅ MODIF — Nouveau hero orienté résultat, sans tabs profil */}
       <section className="hero">
         <div className="hero-glow" />
         <div style={{ position: 'relative', zIndex: 2 }}>
-
-          {/* ✅ MODIF 1 — Tag de réassurance immédiate */}
           <div className="hero-tag">
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3ecf8e', display: 'inline-block' }} />
-            ✓ 340+ agents actifs · Essai gratuit 14 jours
+            340+ agents actifs · Essai gratuit 14 jours
           </div>
 
-          {/* ✅ MODIF 2 — Headline orientée résultat */}
           <h1 className="hero-title">
             Trouvez des mandats<br />
             <em>sans prospection manuelle.</em>
           </h1>
 
-          {/* ✅ MODIF 3 — Sous-headline centrée sur le bénéfice agent */}
           <p className="hero-sub">
             ProspectBot surveille LeBonCoin, SeLoger et BienIci, détecte les opportunités
             et contacte vos acheteurs automatiquement — pendant que vous vous concentrez sur vos clients.
           </p>
 
-          {/* ✅ MODIF 4 — Formulaire simplifié : email + secteur, sans tabs */}
           <div className="hero-form">
             {!heroSent ? (
               <form className="capture-form" onSubmit={handleHeroSubmit}>
@@ -552,22 +539,10 @@ export default function LandingPage() {
               </div>
             )}
 
-            {/* ✅ MODIF 5 — Ligne de réassurance plus visible et structurée */}
-            <div style={{
-              marginTop: 18,
-              display: 'flex',
-              gap: 20,
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-            }}>
-              {['✓ 14 jours gratuits', '✓ Sans carte bancaire', '✓ Mise en place en 5 min'].map((item, i) => (
-                <span key={i} style={{
-                  fontSize: 13,
-                  color: 'rgba(255,255,255,0.6)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}>
+            <div style={{ marginTop: 18, display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {['14 jours gratuits', 'Sans carte bancaire', 'Mise en place en 5 min'].map((item, i) => (
+                <span key={i} style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(212,168,83,0.7)" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                   {item}
                 </span>
               ))}
@@ -575,7 +550,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Scroll indicator */}
         <div style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.3, animation: 'float 2s ease-in-out infinite' }}>
           <div style={{ width: 1, height: 40, background: 'linear-gradient(180deg, transparent, #d4a853)' }} />
           <span style={{ fontSize: 10, letterSpacing: 2, color: '#d4a853' }}>SCROLL</span>
@@ -612,8 +586,8 @@ export default function LandingPage() {
             {[
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>), title: 'Scraping automatique', desc: 'LeBonCoin, SeLoger, BienIci scraped en temps réel. Nouvelles annonces détectées en moins de 15 minutes.', tag: 'Automatique', delay: '1' },
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>), title: 'Matching intelligent', desc: 'Algorithme de scoring 0-100% par budget, surface, localisation et critères spécifiques. Chaque acheteur reçoit uniquement les biens qui lui correspondent.', tag: 'IA', delay: '2' },
-              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>), title: 'Alertes instantanées', desc: 'Email automatique envoyé à chaque acheteur dès qu\'un bien dépasse 60% de compatibilité. Via Brevo, delivrabilité optimale.', tag: 'Brevo', delay: '3' },
-              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>), title: 'Publication multi-sites', desc: 'Rédigez une annonce, publiez-la sur LeBonCoin, SeLoger, BienIci et PAP en un clic. Texte généré par IA.', tag: 'Nouveau', delay: '4' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>), title: 'Alertes instantanées', desc: "Email automatique envoyé à chaque acheteur dès qu'un bien dépasse 60% de compatibilité. Via Brevo, delivrabilité optimale.", tag: 'Brevo', delay: '3' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>), title: 'Publication multi-sites', desc: "Rédigez une annonce, publiez-la sur LeBonCoin, SeLoger, BienIci et PAP en un clic. Texte généré par IA.", tag: 'Nouveau', delay: '4' },
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>), title: 'CRM acheteurs', desc: 'Fiche complète par acheteur : critères, budget, historique des alertes reçues, correspondances en cours.', tag: 'CRM', delay: '5' },
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>), title: 'Analytics & stats', desc: 'Tableau de bord temps réel : prix moyen du marché, taux de matching, évolution du portefeuille.', tag: 'Data', delay: '6' },
             ].map((f, i) => (
@@ -704,7 +678,7 @@ export default function LandingPage() {
               {
                 icon: (<svg width="28" height="28" fill="none" stroke="rgba(91,141,238,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>),
                 title: 'Acheteurs',
-                desc: 'Recevez une alerte dès qu\'un bien correspondant à vos critères est publié. Ne ratez plus jamais la bonne affaire.',
+                desc: "Recevez une alerte dès qu'un bien correspondant à vos critères est publié. Ne ratez plus jamais la bonne affaire.",
                 color: 'rgba(91,141,238,0.06)', border: 'rgba(91,141,238,0.2)',
                 cta: 'Créer mon alerte', delay: '2',
               },
@@ -765,6 +739,60 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── ANTI-OBJECTIONS ── */}
+      <section className="trust-section">
+        <div className="trust-inner">
+          <div style={{ textAlign: 'center' }}>
+            <div data-reveal><div className="section-tag" style={{ textAlign: 'center' }}>Confiance & sécurité</div></div>
+            <div data-reveal data-delay="1">
+              <h2 className="section-title" style={{ textAlign: 'center' }}>Conçu pour inspirer <em>la confiance.</em></h2>
+            </div>
+            <div data-reveal data-delay="2">
+              <p className="section-sub" style={{ textAlign: 'center', margin: '0 auto' }}>
+                Chaque décision de conception a été prise pour protéger vos données et simplifier votre engagement.
+              </p>
+            </div>
+          </div>
+
+          <div className="trust-grid" data-reveal data-delay="3">
+            {[
+              {
+                title: 'Sans carte bancaire',
+                desc: "L'essai de 14 jours est entièrement gratuit. Aucune information de paiement requise à l'inscription.",
+              },
+              {
+                title: 'Annulable à tout moment',
+                desc: 'Aucun engagement, aucune durée minimale. Vous résiliez en un clic depuis votre espace personnel.',
+              },
+              {
+                title: 'Conforme RGPD',
+                desc: 'Vos données sont hébergées en Europe et traitées conformément au règlement européen sur la protection des données.',
+              },
+              {
+                title: 'Données non revendues',
+                desc: "Nous ne commercialisons pas vos données ni celles de vos acheteurs. Votre portefeuille reste le vôtre.",
+              },
+              {
+                title: 'Connexion sécurisée',
+                desc: 'Toutes les communications sont chiffrées via HTTPS. Vos identifiants sont stockés avec un chiffrement fort.',
+              },
+              {
+                title: 'Support 7 jours sur 7',
+                desc: 'Une question, un problème ? Notre équipe répond sous 4 heures ouvrées, du lundi au dimanche.',
+              },
+            ].map((item, i) => (
+              <div key={i} className="trust-item">
+                <div className="trust-check">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div className="trust-title">{item.title}</div>
+                <p className="trust-desc">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA FINAL ── */}
       <section className="cta-section">
         <div className="cta-bg" />
@@ -798,7 +826,6 @@ export default function LandingPage() {
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.15)' }}>© 2025 ProspectBot</span>
       </footer>
 
-      {/* Floating CTA */}
       <FloatingCTA onCapture={handleCapture} />
     </>
   );
@@ -816,7 +843,7 @@ const TESTIMONIALS = [
   {
     quote: "La fonction de publication multi-sites est un game changer. Je remplis un formulaire, l'IA rédige le texte, et mon annonce est sur 4 sites en 3 minutes. Incroyable.",
     name: 'Julien D.',
-    role: 'Directeur d\'agence, Lyon',
+    role: "Directeur d'agence, Lyon",
     initials: 'J',
   },
   {
