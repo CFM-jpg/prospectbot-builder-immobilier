@@ -114,7 +114,9 @@ function LiveDemo() {
       <div style={{ padding: '28px 32px' }}>
         {step === 0 && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>🏗️</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+              <svg width="36" height="36" fill="none" stroke="rgba(212,168,83,0.6)" strokeWidth="1.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
+            </div>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, marginBottom: 8, fontFamily: 'DM Sans, sans-serif' }}>
               Voyez ProspectBot en action
             </p>
@@ -148,7 +150,7 @@ function LiveDemo() {
               </div>
               {matching && (
                 <div style={{ textAlign: 'center', paddingTop: 16 }}>
-                  <span style={{ color: '#d4a853', fontSize: 13, fontFamily: 'monospace' }}>⚡ Calcul des correspondances…</span>
+                  <span style={{ color: '#d4a853', fontSize: 13, fontFamily: 'monospace' }}>Calcul des correspondances…</span>
                 </div>
               )}
             </div>
@@ -158,7 +160,7 @@ function LiveDemo() {
         {step === 2 && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <span style={{ color: '#3ecf8e', fontSize: 20 }}>✓</span>
+              <svg width="16" height="16" fill="none" stroke="#3ecf8e" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
               <span style={{ color: '#3ecf8e', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{matches.length} correspondances trouvées — emails envoyés automatiquement</span>
             </div>
             {matches.map((m, i) => (
@@ -177,7 +179,7 @@ function LiveDemo() {
                   <div style={{ height: '100%', background: 'linear-gradient(90deg, #8b6914, #d4a853)', borderRadius: 2, width: `${m.score}%`, transition: 'width 1s ease' }} />
                 </div>
                 <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(212,168,83,0.8)', fontFamily: 'DM Sans, sans-serif' }}>
-                  ✉ Email envoyé à {m.acheteur.nom}
+                  — Email envoyé à {m.acheteur.nom}
                 </div>
               </div>
             ))}
@@ -223,7 +225,9 @@ function FloatingCTA({ onCapture }) {
         <button onClick={() => setDismissed(true)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
         {!sent ? (
           <>
-            <div style={{ fontSize: 22, marginBottom: 8 }}>🎯</div>
+            <div style={{ marginBottom: 8 }}>
+              <svg width="20" height="20" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
             <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', marginBottom: 6 }}>Essai gratuit 14 jours</p>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif', marginBottom: 14 }}>Rejoignez 340+ agents qui automatisent leur prospection</p>
             <form onSubmit={handleSubmit}>
@@ -236,7 +240,9 @@ function FloatingCTA({ onCapture }) {
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '10px 0' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+              <svg width="28" height="28" fill="none" stroke="#3ecf8e" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12" stroke="#3ecf8e"/></svg>
+            </div>
             <p style={{ color: '#3ecf8e', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Parfait ! On vous contacte sous 24h.</p>
           </div>
         )}
@@ -518,9 +524,9 @@ export default function LandingPage() {
           <div className="hero-form">
             <div className="profile-tabs">
               {[
-                { id: 'agent', label: '🏢 Agent immo' },
-                { id: 'acheteur', label: '🏠 Acheteur' },
-                { id: 'vendeur', label: '💰 Vendeur' },
+                { id: 'agent', label: 'Agent immo' },
+                { id: 'acheteur', label: 'Acheteur' },
+                { id: 'vendeur', label: 'Vendeur' },
               ].map(p => (
                 <button key={p.id} className={`profile-tab ${heroProfile === p.id ? 'active' : ''}`} onClick={() => setHeroProfile(p.id)}>
                   {p.label}
@@ -540,7 +546,7 @@ export default function LandingPage() {
               </form>
             ) : (
               <div style={{ padding: '16px 24px', background: 'rgba(62,207,142,0.1)', border: '1px solid rgba(62,207,142,0.3)', borderRadius: 12, display: 'inline-block', animation: 'fadeUp 0.4s ease' }}>
-                <span style={{ color: '#3ecf8e', fontSize: 15, fontWeight: 600 }}>✓ Parfait ! Redirection en cours…</span>
+                <span style={{ color: '#3ecf8e', fontSize: 15, fontWeight: 600 }}>Parfait — Redirection en cours…</span>
               </div>
             )}
 
@@ -585,15 +591,15 @@ export default function LandingPage() {
 
           <div className="features-grid">
             {[
-              { icon: '🔍', title: 'Scraping automatique', desc: 'LeBonCoin, SeLoger, BienIci scraped en temps réel. Nouvelles annonces détectées en moins de 15 minutes.', tag: 'Automatique', delay: '1' },
-              { icon: '⚡', title: 'Matching intelligent', desc: 'Algorithme de scoring 0-100% par budget, surface, localisation et critères spécifiques. Chaque acheteur reçoit uniquement les biens qui lui correspondent.', tag: 'IA', delay: '2' },
-              { icon: '✉️', title: 'Alertes instantanées', desc: 'Email automatique envoyé à chaque acheteur dès qu\'un bien dépasse 60% de compatibilité. Via Brevo, delivrabilité optimale.', tag: 'Brevo', delay: '3' },
-              { icon: '📢', title: 'Publication multi-sites', desc: 'Rédigez une annonce, publiez-la sur LeBonCoin, SeLoger, BienIci et PAP en un clic. Texte généré par IA.', tag: 'Nouveau', delay: '4' },
-              { icon: '👥', title: 'CRM acheteurs', desc: 'Fiche complète par acheteur : critères, budget, historique des alertes reçues, correspondances en cours.', tag: 'CRM', delay: '5' },
-              { icon: '📊', title: 'Analytics & stats', desc: 'Tableau de bord temps réel : prix moyen du marché, taux de matching, évolution du portefeuille.', tag: 'Data', delay: '6' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>), title: 'Scraping automatique', desc: 'LeBonCoin, SeLoger, BienIci scraped en temps réel. Nouvelles annonces détectées en moins de 15 minutes.', tag: 'Automatique', delay: '1' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>), title: 'Matching intelligent', desc: 'Algorithme de scoring 0-100% par budget, surface, localisation et critères spécifiques. Chaque acheteur reçoit uniquement les biens qui lui correspondent.', tag: 'IA', delay: '2' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>), title: 'Alertes instantanées', desc: 'Email automatique envoyé à chaque acheteur dès qu\'un bien dépasse 60% de compatibilité. Via Brevo, delivrabilité optimale.', tag: 'Brevo', delay: '3' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>), title: 'Publication multi-sites', desc: 'Rédigez une annonce, publiez-la sur LeBonCoin, SeLoger, BienIci et PAP en un clic. Texte généré par IA.', tag: 'Nouveau', delay: '4' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>), title: 'CRM acheteurs', desc: 'Fiche complète par acheteur : critères, budget, historique des alertes reçues, correspondances en cours.', tag: 'CRM', delay: '5' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>), title: 'Analytics & stats', desc: 'Tableau de bord temps réel : prix moyen du marché, taux de matching, évolution du portefeuille.', tag: 'Data', delay: '6' },
             ].map((f, i) => (
               <div key={i} className="feature-card" data-reveal data-delay={f.delay}>
-                <span className="feature-icon" style={{ animationDelay: `${i * 0.5}s` }}>{f.icon}</span>
+                <span className="feature-icon" style={{ animationDelay: `${i * 0.5}s`, display: 'block', marginBottom: 16 }}>{f.icon}</span>
                 <div className="feature-title">{f.title}</div>
                 <p className="feature-desc">{f.desc}</p>
                 <span className="feature-tag">{f.tag}</span>
@@ -670,19 +676,22 @@ export default function LandingPage() {
           <div className="profiles-grid">
             {[
               {
-                emoji: '🏢', title: 'Agents immobiliers',
+                icon: (<svg width="28" height="28" fill="none" stroke="#d4a853" strokeWidth="1.3" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>),
+                title: 'Agents immobiliers',
                 desc: 'Automatisez votre veille concurrentielle, gérez votre portefeuille acheteurs et publiez vos annonces sur tous les sites en un clic.',
                 color: 'rgba(212,168,83,0.08)', border: 'rgba(212,168,83,0.2)',
                 cta: 'Essai gratuit 14j', profile: 'agent', delay: '1',
               },
               {
-                emoji: '🏠', title: 'Acheteurs',
+                icon: (<svg width="28" height="28" fill="none" stroke="rgba(91,141,238,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>),
+                title: 'Acheteurs',
                 desc: 'Recevez une alerte dès qu\'un bien correspondant à vos critères est publié. Ne ratez plus jamais la bonne affaire.',
                 color: 'rgba(91,141,238,0.06)', border: 'rgba(91,141,238,0.2)',
                 cta: 'Créer mon alerte', profile: 'acheteur', delay: '2',
               },
               {
-                emoji: '💰', title: 'Vendeurs',
+                icon: (<svg width="28" height="28" fill="none" stroke="rgba(62,207,142,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>),
+                title: 'Vendeurs',
                 desc: 'Publiez votre bien sur LeBonCoin, SeLoger, BienIci et PAP simultanément. Annonce rédigée par IA en 2 minutes.',
                 color: 'rgba(62,207,142,0.06)', border: 'rgba(62,207,142,0.2)',
                 cta: 'Publier mon bien', profile: 'vendeur', delay: '3',
@@ -691,7 +700,7 @@ export default function LandingPage() {
               <div key={i} className="profile-card" data-reveal data-delay={p.delay}
                 style={{ background: p.color, borderColor: p.border }}
                 onClick={() => { setHeroProfile(p.profile); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                <div style={{ fontSize: 36, marginBottom: 16 }}>{p.emoji}</div>
+                <div style={{ marginBottom: 16 }}>{p.icon}</div>
                 <h3 style={{ fontSize: 18, fontWeight: 600, color: '#e8e8e8', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>{p.title}</h3>
                 <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, marginBottom: 24 }}>{p.desc}</p>
                 <button style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 20px', color: '#e8e8e8', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}>
@@ -722,7 +731,9 @@ export default function LandingPage() {
                   <div className="testimonial-role">{TESTIMONIALS[activeTestimonial].role}</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
-                  {[...Array(5)].map((_, i) => <span key={i} style={{ color: '#d4a853', fontSize: 14 }}>★</span>)}
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} width="13" height="13" viewBox="0 0 24 24" fill="#d4a853"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  ))}
                 </div>
               </div>
             </div>

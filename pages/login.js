@@ -28,7 +28,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        router.push(redirect || '/');
+        router.push(redirect || '/immobilier');
       } else {
         setError(data.error || 'Identifiants incorrects');
       }
