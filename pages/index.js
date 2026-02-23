@@ -256,7 +256,8 @@ export default function LandingPage() {
   const router = useRouter();
   const canvasRef = useRef(null);
   const [heroEmail, setHeroEmail] = useState('');
-  const [heroProfile, setHeroProfile] = useState('agent');
+  // ✅ MODIF — Suppression heroProfile (tabs supprimés), ajout heroSecteur
+  const [heroSecteur, setHeroSecteur] = useState('');
   const [heroSent, setHeroSent] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
@@ -326,9 +327,10 @@ export default function LandingPage() {
     return () => clearInterval(t);
   }, []);
 
+  // ✅ MODIF — handleHeroSubmit simplifié (plus de heroProfile)
   const handleHeroSubmit = async (e) => {
     e.preventDefault();
-    await saveLead({ email: heroEmail, profile: heroProfile, source: 'hero', type: 'hero_cta' });
+    await saveLead({ email: heroEmail, secteur: heroSecteur, profile: 'agent', source: 'hero', type: 'hero_cta' });
     setHeroSent(true);
     setCapturedLeads(l => l + 1);
     setTimeout(() => router.push('/login'), 1500);
@@ -339,8 +341,8 @@ export default function LandingPage() {
   return (
     <>
       <Head>
-        <title>ProspectBot — L'immobilier automatisé</title>
-        <meta name="description" content="ProspectBot scrape, matche et notifie vos acheteurs automatiquement. Gagnez 3h par jour." />
+        <title>ProspectBot — Trouvez des mandats sans prospection manuelle</title>
+        <meta name="description" content="ProspectBot surveille LeBonCoin, SeLoger et BienIci, matche chaque bien avec vos acheteurs et envoie les alertes automatiquement. Essai gratuit 14 jours." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </Head>
@@ -398,19 +400,12 @@ export default function LandingPage() {
         .hero-sub { font-size: 18px; color: rgba(255,255,255,0.45); line-height: 1.7; max-width: 560px; margin: 0 auto 40px; font-weight: 300; animation: heroReveal 0.8s 0.3s both; }
         .hero-form { animation: heroReveal 0.8s 0.4s both; }
 
-        /* Profile selector */
-        .profile-tabs { display: inline-flex; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 4px; margin-bottom: 16px; gap: 4px; }
-        .profile-tab { padding: 8px 18px; border-radius: 9px; border: none; cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500; transition: all 0.2s; }
-        .profile-tab.active { background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; }
-        .profile-tab:not(.active) { background: transparent; color: rgba(255,255,255,0.4); }
-        .profile-tab:not(.active):hover { color: rgba(255,255,255,0.7); }
-
         /* Capture form */
-        .capture-form { display: flex; gap: 10px; max-width: 440px; margin: 0 auto; }
-        .capture-input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 13px 18px; color: #e8e8e8; font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
+        .capture-form { display: flex; flex-direction: column; gap: 10px; max-width: 460px; margin: 0 auto; }
+        .capture-input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 13px 18px; color: #e8e8e8; font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
         .capture-input:focus { border-color: rgba(212,168,83,0.5); }
         .capture-input::placeholder { color: rgba(255,255,255,0.3); }
-        .capture-btn { background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; border: none; border-radius: 12px; padding: 13px 24px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; transition: transform 0.2s, box-shadow 0.2s; animation: glowPulse 3s infinite; }
+        .capture-btn { background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; border: none; border-radius: 12px; padding: 15px 24px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; transition: transform 0.2s, box-shadow 0.2s; animation: glowPulse 3s infinite; width: 100%; }
         .capture-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(212,168,83,0.4); }
 
         /* Stats band */
@@ -485,7 +480,6 @@ export default function LandingPage() {
           .steps-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
           .steps-grid::before { display: none; }
           .profiles-grid { grid-template-columns: 1fr; }
-          .capture-form { flex-direction: column; }
           .footer { flex-direction: column; gap: 16px; text-align: center; }
         }
       `}</style>
@@ -506,42 +500,50 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
+      {/* ✅ MODIF — Nouveau hero orienté résultat, sans tabs profil */}
       <section className="hero">
         <div className="hero-glow" />
         <div style={{ position: 'relative', zIndex: 2 }}>
+
+          {/* ✅ MODIF 1 — Tag de réassurance immédiate */}
           <div className="hero-tag">
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3ecf8e', display: 'inline-block' }} />
-            340+ agents utilisent ProspectBot aujourd'hui
+            ✓ 340+ agents actifs · Essai gratuit 14 jours
           </div>
+
+          {/* ✅ MODIF 2 — Headline orientée résultat */}
           <h1 className="hero-title">
-            L'immobilier<br />
-            <em>enfin automatisé.</em>
+            Trouvez des mandats<br />
+            <em>sans prospection manuelle.</em>
           </h1>
+
+          {/* ✅ MODIF 3 — Sous-headline centrée sur le bénéfice agent */}
           <p className="hero-sub">
-            ProspectBot scrape LeBonCoin, SeLoger et BienIci, matche chaque bien avec vos acheteurs et envoie les alertes — automatiquement. Vous gagnez 3h par jour.
+            ProspectBot surveille LeBonCoin, SeLoger et BienIci, détecte les opportunités
+            et contacte vos acheteurs automatiquement — pendant que vous vous concentrez sur vos clients.
           </p>
 
+          {/* ✅ MODIF 4 — Formulaire simplifié : email + secteur, sans tabs */}
           <div className="hero-form">
-            <div className="profile-tabs">
-              {[
-                { id: 'agent', label: 'Agent immo' },
-                { id: 'acheteur', label: 'Acheteur' },
-                { id: 'vendeur', label: 'Vendeur' },
-              ].map(p => (
-                <button key={p.id} className={`profile-tab ${heroProfile === p.id ? 'active' : ''}`} onClick={() => setHeroProfile(p.id)}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-
             {!heroSent ? (
               <form className="capture-form" onSubmit={handleHeroSubmit}>
-                <input type="email" required placeholder={
-                  heroProfile === 'agent' ? 'votre@cabinet.fr' :
-                  heroProfile === 'acheteur' ? 'votre@email.fr' : 'vendeur@email.fr'
-                } value={heroEmail} onChange={e => setHeroEmail(e.target.value)} className="capture-input" />
+                <input
+                  type="email"
+                  required
+                  placeholder="Votre email professionnel"
+                  value={heroEmail}
+                  onChange={e => setHeroEmail(e.target.value)}
+                  className="capture-input"
+                />
+                <input
+                  type="text"
+                  placeholder="Votre secteur (ex : Angers, 49...)"
+                  value={heroSecteur}
+                  onChange={e => setHeroSecteur(e.target.value)}
+                  className="capture-input"
+                />
                 <button type="submit" className="capture-btn">
-                  {heroProfile === 'agent' ? 'Essai gratuit →' : heroProfile === 'acheteur' ? 'Trouver mon bien →' : 'Publier mon bien →'}
+                  Démarrer mon essai gratuit →
                 </button>
               </form>
             ) : (
@@ -550,9 +552,26 @@ export default function LandingPage() {
               </div>
             )}
 
-            <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>
-              Gratuit 14 jours · Aucune carte requise · Annulation en 1 clic
-            </p>
+            {/* ✅ MODIF 5 — Ligne de réassurance plus visible et structurée */}
+            <div style={{
+              marginTop: 18,
+              display: 'flex',
+              gap: 20,
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+            }}>
+              {['✓ 14 jours gratuits', '✓ Sans carte bancaire', '✓ Mise en place en 5 min'].map((item, i) => (
+                <span key={i} style={{
+                  fontSize: 13,
+                  color: 'rgba(255,255,255,0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}>
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -680,26 +699,26 @@ export default function LandingPage() {
                 title: 'Agents immobiliers',
                 desc: 'Automatisez votre veille concurrentielle, gérez votre portefeuille acheteurs et publiez vos annonces sur tous les sites en un clic.',
                 color: 'rgba(212,168,83,0.08)', border: 'rgba(212,168,83,0.2)',
-                cta: 'Essai gratuit 14j', profile: 'agent', delay: '1',
+                cta: 'Essai gratuit 14j', delay: '1',
               },
               {
                 icon: (<svg width="28" height="28" fill="none" stroke="rgba(91,141,238,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>),
                 title: 'Acheteurs',
                 desc: 'Recevez une alerte dès qu\'un bien correspondant à vos critères est publié. Ne ratez plus jamais la bonne affaire.',
                 color: 'rgba(91,141,238,0.06)', border: 'rgba(91,141,238,0.2)',
-                cta: 'Créer mon alerte', profile: 'acheteur', delay: '2',
+                cta: 'Créer mon alerte', delay: '2',
               },
               {
                 icon: (<svg width="28" height="28" fill="none" stroke="rgba(62,207,142,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>),
                 title: 'Vendeurs',
                 desc: 'Publiez votre bien sur LeBonCoin, SeLoger, BienIci et PAP simultanément. Annonce rédigée par IA en 2 minutes.',
                 color: 'rgba(62,207,142,0.06)', border: 'rgba(62,207,142,0.2)',
-                cta: 'Publier mon bien', profile: 'vendeur', delay: '3',
+                cta: 'Publier mon bien', delay: '3',
               },
             ].map((p, i) => (
               <div key={i} className="profile-card" data-reveal data-delay={p.delay}
                 style={{ background: p.color, borderColor: p.border }}
-                onClick={() => { setHeroProfile(p.profile); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                 <div style={{ marginBottom: 16 }}>{p.icon}</div>
                 <h3 style={{ fontSize: 18, fontWeight: 600, color: '#e8e8e8', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>{p.title}</h3>
                 <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, marginBottom: 24 }}>{p.desc}</p>
@@ -755,7 +774,7 @@ export default function LandingPage() {
           <div data-reveal data-delay="2" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => router.push('/login')}
               style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0a0a0a', border: 'none', borderRadius: 14, padding: '16px 36px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 60px rgba(212,168,83,0.25)', transition: 'transform 0.2s' }}>
-              Démarrer gratuitement →
+              Démarrer mon essai gratuit →
             </button>
             <button onClick={() => document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' })}
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: '16px 32px', fontSize: 16, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}>
