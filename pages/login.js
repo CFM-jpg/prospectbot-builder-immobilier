@@ -15,7 +15,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
 
-  // Canvas particles
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -102,7 +101,6 @@ export default function LoginPage() {
         html { scroll-behavior: smooth; }
         body { font-family: 'DM Sans', sans-serif; background: #080809; color: #e8e8e8; min-height: 100vh; overflow: hidden; }
 
-        /* Grain overlay */
         body::before {
           content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
@@ -115,399 +113,75 @@ export default function LoginPage() {
         @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 40px rgba(212,168,83,0.15); } 50% { box-shadow: 0 0 70px rgba(212,168,83,0.3); } }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
 
-        .page {
-          min-height: 100vh;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          position: relative;
-          z-index: 1;
-        }
+        .page { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; position: relative; z-index: 1; }
 
-        /* ── Panneau gauche ── */
-        .panel-left {
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 52px 56px;
-          position: relative;
-          overflow: hidden;
-          border-right: 1px solid rgba(255,255,255,0.06);
-        }
+        .panel-left { display: flex; flex-direction: column; justify-content: space-between; padding: 52px 56px; position: relative; overflow: hidden; border-right: 1px solid rgba(255,255,255,0.06); }
+        .panel-left::after { content: ''; position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); width: 500px; height: 500px; background: radial-gradient(circle, rgba(212,168,83,0.07) 0%, transparent 70%); pointer-events: none; }
+        .panel-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 48px 48px; }
+        .panel-brand { position: relative; z-index: 1; animation: fadeUp 0.7s 0.1s both; }
+        .logo { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: #d4a853; letter-spacing: 1px; font-style: italic; }
+        .panel-center { position: relative; z-index: 1; animation: fadeUp 0.7s 0.2s both; }
+        .panel-tag { display: inline-flex; align-items: center; gap: 8px; background: rgba(212,168,83,0.1); border: 1px solid rgba(212,168,83,0.25); border-radius: 30px; padding: 5px 14px; font-size: 11.5px; color: #d4a853; letter-spacing: 0.5px; margin-bottom: 24px; }
+        .panel-headline { font-family: 'Cormorant Garamond', serif; font-size: clamp(34px, 3.5vw, 46px); font-weight: 300; line-height: 1.1; letter-spacing: -0.5px; color: #f0f0f0; margin-bottom: 18px; }
+        .panel-headline em { font-style: italic; background: linear-gradient(135deg, #8b6914, #d4a853, #f0d080); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .panel-sub { font-size: 14.5px; color: rgba(255,255,255,0.4); line-height: 1.7; max-width: 340px; font-weight: 300; }
 
-        .panel-left::after {
-          content: '';
-          position: absolute;
-          top: 40%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 500px;
-          height: 500px;
-          background: radial-gradient(circle, rgba(212,168,83,0.07) 0%, transparent 70%);
-          pointer-events: none;
-        }
-
-        /* Grille déco */
-        .panel-grid {
-          position: absolute;
-          inset: 0;
-          background-image:
-            linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-          background-size: 48px 48px;
-        }
-
-        .panel-brand {
-          position: relative;
-          z-index: 1;
-          animation: fadeUp 0.7s 0.1s both;
-        }
-
-        .logo {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 22px;
-          color: #d4a853;
-          letter-spacing: 1px;
-          font-style: italic;
-        }
-
-        .panel-center {
-          position: relative;
-          z-index: 1;
-          animation: fadeUp 0.7s 0.2s both;
-        }
-
-        .panel-tag {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: rgba(212,168,83,0.1);
-          border: 1px solid rgba(212,168,83,0.25);
-          border-radius: 30px;
-          padding: 5px 14px;
-          font-size: 11.5px;
-          color: #d4a853;
-          letter-spacing: 0.5px;
-          margin-bottom: 24px;
-        }
-
-        .panel-headline {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(34px, 3.5vw, 46px);
-          font-weight: 300;
-          line-height: 1.1;
-          letter-spacing: -0.5px;
-          color: #f0f0f0;
-          margin-bottom: 18px;
-        }
-        .panel-headline em {
-          font-style: italic;
-          background: linear-gradient(135deg, #8b6914, #d4a853, #f0d080);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .panel-sub {
-          font-size: 14.5px;
-          color: rgba(255,255,255,0.4);
-          line-height: 1.7;
-          max-width: 340px;
-          font-weight: 300;
-        }
-
-        /* Modules cards */
-        .module-cards {
-          display: flex;
-          gap: 12px;
-          margin-top: 32px;
-        }
-        .module-card {
-          flex: 1;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 12px;
-          padding: 16px;
-          animation: float 4s ease-in-out infinite;
-        }
+        .module-cards { display: flex; gap: 12px; margin-top: 32px; }
+        .module-card { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; animation: float 4s ease-in-out infinite; }
         .module-card:nth-child(2) { animation-delay: 0.8s; }
         .module-icon { font-size: 20px; margin-bottom: 10px; }
         .module-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); margin-bottom: 4px; }
         .module-desc { font-size: 11.5px; color: rgba(255,255,255,0.35); line-height: 1.5; }
-        .module-dot {
-          display: inline-block;
-          width: 6px; height: 6px;
-          border-radius: 50%;
-          margin-top: 10px;
-        }
+        .module-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-top: 10px; }
 
-        .panel-stats {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          gap: 36px;
-          animation: fadeUp 0.7s 0.3s both;
-        }
-        .pstat-value {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 32px;
-          font-weight: 500;
-          color: #d4a853;
-          letter-spacing: -1px;
-          line-height: 1;
-        }
-        .pstat-label {
-          font-size: 11px;
-          color: rgba(255,255,255,0.3);
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          margin-top: 4px;
-        }
+        .panel-stats { position: relative; z-index: 1; display: flex; gap: 36px; animation: fadeUp 0.7s 0.3s both; }
+        .pstat-value { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 500; color: #d4a853; letter-spacing: -1px; line-height: 1; }
+        .pstat-label { font-size: 11px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
 
-        /* ── Panneau droit ── */
-        .panel-right {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 48px 56px;
-        }
+        .panel-right { display: flex; align-items: center; justify-content: center; padding: 48px 56px; }
 
-        .form-wrapper {
-          width: 100%;
-          max-width: 360px;
-          animation: fadeUp 0.7s 0.15s both;
-        }
-
+        .form-wrapper { width: 100%; max-width: 360px; animation: fadeUp 0.7s 0.15s both; }
         .form-header { margin-bottom: 36px; }
-        .form-title {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 36px;
-          font-weight: 300;
-          color: #f0f0f0;
-          letter-spacing: -0.5px;
-          margin-bottom: 6px;
-        }
-        .form-subtitle {
-          font-size: 13.5px;
-          color: rgba(255,255,255,0.4);
-          font-weight: 300;
-        }
+        .form-title { font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 300; color: #f0f0f0; letter-spacing: -0.5px; margin-bottom: 6px; }
+        .form-subtitle { font-size: 13.5px; color: rgba(255,255,255,0.4); font-weight: 300; }
 
-        /* Error */
-        .error-box {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 12px 14px;
-          background: rgba(240,68,68,0.08);
-          border: 1px solid rgba(240,68,68,0.25);
-          border-radius: 10px;
-          font-size: 13px;
-          color: #f04444;
-          margin-bottom: 24px;
-          animation: shake 0.3s ease;
-        }
-        .error-icon {
-          width: 18px; height: 18px;
-          border-radius: 50%;
-          background: rgba(240,68,68,0.2);
-          border: 1px solid rgba(240,68,68,0.4);
-          color: #f04444;
-          font-size: 10px;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
+        .error-box { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: rgba(240,68,68,0.08); border: 1px solid rgba(240,68,68,0.25); border-radius: 10px; font-size: 13px; color: #f04444; margin-bottom: 24px; animation: shake 0.3s ease; }
+        .error-icon { width: 18px; height: 18px; border-radius: 50%; background: rgba(240,68,68,0.2); border: 1px solid rgba(240,68,68,0.4); color: #f04444; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
-        /* Fields */
         .field { margin-bottom: 20px; }
-        .field-label {
-          display: block;
-          font-size: 11px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 1.2px;
-          color: rgba(255,255,255,0.35);
-          margin-bottom: 8px;
-        }
+        .field-label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.35); margin-bottom: 8px; }
         .field-input-wrap { position: relative; }
-        .field-input {
-          width: 100%;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.09);
-          border-radius: 12px;
-          padding: 14px 18px;
-          font-size: 14px;
-          color: #e8e8e8;
-          font-family: 'DM Sans', sans-serif;
-          outline: none;
-          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-        }
-        .field-input:focus {
-          border-color: rgba(212,168,83,0.45);
-          box-shadow: 0 0 0 3px rgba(212,168,83,0.07);
-          background: rgba(212,168,83,0.03);
-        }
+        .field-input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 12px; padding: 14px 18px; font-size: 14px; color: #e8e8e8; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
+        .field-input:focus { border-color: rgba(212,168,83,0.45); box-shadow: 0 0 0 3px rgba(212,168,83,0.07); background: rgba(212,168,83,0.03); }
         .field-input::placeholder { color: rgba(255,255,255,0.2); }
         .field-input.has-toggle { padding-right: 50px; }
-
-        .toggle-btn {
-          position: absolute;
-          right: 16px;
-          top: 50%;
-          transform: translateY(-50%);
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: rgba(255,255,255,0.25);
-          padding: 4px;
-          transition: color 0.15s;
-          line-height: 1;
-          display: flex;
-          align-items: center;
-        }
+        .toggle-btn { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.25); padding: 4px; transition: color 0.15s; line-height: 1; display: flex; align-items: center; }
         .toggle-btn:hover { color: rgba(255,255,255,0.5); }
 
-        /* Submit */
-        .submit-btn {
-          width: 100%;
-          padding: 15px;
-          background: linear-gradient(135deg, #8b6914, #d4a853);
-          color: #0a0a0a;
-          border: none;
-          border-radius: 12px;
-          font-size: 14.5px;
-          font-weight: 700;
-          font-family: 'DM Sans', sans-serif;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s, opacity 0.15s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          margin-top: 10px;
-          letter-spacing: 0.3px;
-          animation: glowPulse 3s infinite;
-        }
-        .submit-btn:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 32px rgba(212,168,83,0.35);
-        }
+        .submit-btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; border: none; border-radius: 12px; font-size: 14.5px; font-weight: 700; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; letter-spacing: 0.3px; animation: glowPulse 3s infinite; }
+        .submit-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(212,168,83,0.35); }
         .submit-btn:active:not(:disabled) { transform: translateY(0); }
         .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; animation: none; }
+        .spinner { width: 16px; height: 16px; border: 2px solid rgba(10,10,10,0.25); border-top-color: #0a0a0a; border-radius: 50%; animation: spin 0.6s linear infinite; }
 
-        .spinner {
-          width: 16px; height: 16px;
-          border: 2px solid rgba(10,10,10,0.25);
-          border-top-color: #0a0a0a;
-          border-radius: 50%;
-          animation: spin 0.6s linear infinite;
-        }
-
-        /* Footer */
-        .form-footer {
-          margin-top: 28px;
-          padding-top: 22px;
-          border-top: 1px solid rgba(255,255,255,0.06);
-          text-align: center;
-        }
-        .form-footer p {
-          font-size: 12px;
-          color: rgba(255,255,255,0.25);
-          line-height: 1.7;
-        }
-
-        .hint-box {
-          margin-top: 14px;
-          padding: 12px 14px;
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 10px;
-          font-size: 12px;
-          color: rgba(255,255,255,0.3);
-          line-height: 1.6;
-          text-align: left;
-        }
-        .hint-box strong {
-          font-size: 11px;
-          color: rgba(255,255,255,0.4);
-          display: block;
-          margin-bottom: 5px;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-        }
-        .hint-box code {
-          font-family: monospace;
-          font-size: 11.5px;
-          color: #d4a853;
-          background: rgba(212,168,83,0.1);
-          padding: 1px 6px;
-          border-radius: 4px;
-        }
+        .form-footer { margin-top: 28px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; }
+        .form-footer p { font-size: 12px; color: rgba(255,255,255,0.25); line-height: 1.7; }
+        .hint-box { margin-top: 14px; padding: 12px 14px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; font-size: 12px; color: rgba(255,255,255,0.3); line-height: 1.6; text-align: left; }
+        .hint-box strong { font-size: 11px; color: rgba(255,255,255,0.4); display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.8px; }
+        .hint-box code { font-family: monospace; font-size: 11.5px; color: #d4a853; background: rgba(212,168,83,0.1); padding: 1px 6px; border-radius: 4px; }
 
         /* Module picker */
-        .module-picker {
-          width: 100%;
-          max-width: 360px;
-          animation: fadeUp 0.5s both;
-        }
-        .picker-title {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 32px;
-          font-weight: 300;
-          color: #f0f0f0;
-          letter-spacing: -0.5px;
-          margin-bottom: 6px;
-        }
-        .picker-sub {
-          font-size: 13.5px;
-          color: rgba(255,255,255,0.35);
-          margin-bottom: 32px;
-          font-weight: 300;
-        }
-        .picker-card {
-          display: flex;
-          align-items: center;
-          gap: 18px;
-          padding: 20px 22px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.02);
-          cursor: pointer;
-          transition: border-color 0.2s, background 0.2s, transform 0.2s;
-          margin-bottom: 12px;
-          text-align: left;
-          width: 100%;
-        }
+        .module-picker { width: 100%; max-width: 360px; animation: fadeUp 0.5s both; }
+        .picker-title { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 300; color: #f0f0f0; letter-spacing: -0.5px; margin-bottom: 6px; }
+        .picker-sub { font-size: 13.5px; color: rgba(255,255,255,0.35); margin-bottom: 32px; font-weight: 300; }
+        .picker-card { display: flex; align-items: center; gap: 18px; padding: 20px 22px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); cursor: pointer; transition: border-color 0.2s, background 0.2s, transform 0.2s; margin-bottom: 12px; text-align: left; width: 100%; }
         .picker-card:hover { transform: translateY(-3px); }
         .picker-card.immo:hover { border-color: rgba(212,168,83,0.4); background: rgba(212,168,83,0.04); }
-        .picker-card.b2b:hover  { border-color: rgba(124,106,247,0.4); background: rgba(124,106,247,0.04); }
-        .picker-icon {
-          width: 46px; height: 46px;
-          border-radius: 12px;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px;
-          flex-shrink: 0;
-        }
-        .picker-name {
-          font-size: 15px;
-          font-weight: 600;
-          color: #e8e8e8;
-          margin-bottom: 3px;
-        }
-        .picker-desc {
-          font-size: 12.5px;
-          color: rgba(255,255,255,0.35);
-          line-height: 1.5;
-        }
-        .picker-arrow {
-          margin-left: auto;
-          color: rgba(255,255,255,0.2);
-          font-size: 18px;
-          flex-shrink: 0;
-          transition: transform 0.2s, color 0.2s;
-        }
+        .picker-card.b2b:hover { border-color: rgba(124,106,247,0.4); background: rgba(124,106,247,0.04); }
+        .picker-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+        .picker-name { font-size: 15px; font-weight: 600; color: #e8e8e8; margin-bottom: 3px; }
+        .picker-desc { font-size: 12.5px; color: rgba(255,255,255,0.35); line-height: 1.5; }
+        .picker-arrow { margin-left: auto; color: rgba(255,255,255,0.2); font-size: 18px; flex-shrink: 0; transition: transform 0.2s, color 0.2s; }
         .picker-card:hover .picker-arrow { transform: translateX(4px); color: rgba(255,255,255,0.5); }
 
         @media (max-width: 768px) {
@@ -518,7 +192,6 @@ export default function LoginPage() {
         }
       `}</style>
 
-      {/* Canvas particles */}
       <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
 
       <div className="page">
@@ -526,11 +199,9 @@ export default function LoginPage() {
         {/* ── Panneau gauche ── */}
         <div className="panel-left">
           <div className="panel-grid" />
-
           <div className="panel-brand">
             <div className="logo">ProspectBot</div>
           </div>
-
           <div className="panel-center">
             <div className="panel-tag">
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3ecf8e', display: 'inline-block' }} />
@@ -542,23 +213,21 @@ export default function LoginPage() {
             <p className="panel-sub">
               Immobilier et B2B — un seul outil pour gérer votre prospection de A à Z, sans effort manuel.
             </p>
-
             <div className="module-cards">
               <div className="module-card">
-                <div className="module-icon">🏠</div>
+                <div className="module-icon"></div>
                 <div className="module-name">Immobilier</div>
                 <div className="module-desc">Scraping annonces, matching acheteurs, publication multi-sites</div>
                 <div className="module-dot" style={{ background: '#d4a853' }} />
               </div>
               <div className="module-card">
-                <div className="module-icon">🚀</div>
+                <div className="module-icon"></div>
                 <div className="module-name">B2B</div>
                 <div className="module-desc">Chatbot, séquences email, scraper web, workflows auto</div>
                 <div className="module-dot" style={{ background: '#7c6af7' }} />
               </div>
             </div>
           </div>
-
           <div className="panel-stats">
             <div>
               <div className="pstat-value">340+</div>
@@ -581,11 +250,11 @@ export default function LoginPage() {
           {loggedIn ? (
             /* ── Choix du module ── */
             <div className="module-picker">
-              <h1 className="picker-title">Bienvenue 👋</h1>
+              <h1 className="picker-title">Bienvenue </h1>
               <p className="picker-sub">Choisissez votre espace de travail</p>
 
               <button className="picker-card immo" onClick={() => router.push('/immobilier')}>
-                <div className="picker-icon" style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.2)' }}>🏠</div>
+                <div className="picker-icon" style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.2)' }}></div>
                 <div>
                   <div className="picker-name">Immobilier</div>
                   <div className="picker-desc">Scraping annonces, matching acheteurs, publication multi-sites</div>
@@ -593,8 +262,8 @@ export default function LoginPage() {
                 <span className="picker-arrow">→</span>
               </button>
 
-              <button className="picker-card b2b" onClick={() => router.push('/b2b')}>
-                <div className="picker-icon" style={{ background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)' }}>🚀</div>
+              <button className="picker-card b2b" onClick={() => router.push('/b2b-dashboard')}>
+                <div className="picker-icon" style={{ background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)' }}></div>
                 <div>
                   <div className="picker-name">B2B</div>
                   <div className="picker-desc">Chatbot, séquences email, scraper web, workflows auto</div>
@@ -606,90 +275,74 @@ export default function LoginPage() {
           ) : (
             /* ── Formulaire de connexion ── */
             <div className="form-wrapper">
-            <div className="form-header">
-              <h1 className="form-title">Connexion</h1>
-              <p className="form-subtitle">Accédez à votre espace de travail</p>
-            </div>
-
-            {error && (
-              <div className="error-box">
-                <div className="error-icon">!</div>
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} autoComplete="off">
-              <div className="field">
-                <label className="field-label">Adresse email</label>
-                <input
-                  className="field-input"
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
-                  placeholder="votre@email.fr"
-                  autoComplete="email"
-                  required
-                  autoFocus
-                />
+              <div className="form-header">
+                <h1 className="form-title">Connexion</h1>
+                <p className="form-subtitle">Accédez à votre espace de travail</p>
               </div>
 
-              <div className="field">
-                <label className="field-label">Mot de passe</label>
-                <div className="field-input-wrap">
+              {error && (
+                <div className="error-box">
+                  <div className="error-icon">!</div>
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} autoComplete="off">
+                <div className="field">
+                  <label className="field-label">Adresse email</label>
                   <input
-                    className={`field-input has-toggle`}
-                    type={showPassword ? 'text' : 'password'}
-                    value={form.password}
-                    onChange={e => setForm({ ...form, password: e.target.value })}
-                    placeholder="••••••••"
-                    autoComplete="current-password"
+                    className="field-input"
+                    type="email"
+                    value={form.email}
+                    onChange={e => setForm({ ...form, email: e.target.value })}
+                    placeholder="votre@email.fr"
+                    autoComplete="email"
                     required
+                    autoFocus
                   />
-                  <button
-                    type="button"
-                    className="toggle-btn"
-                    onClick={() => setShowPassword(v => !v)}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? (
-                      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    ) : (
-                      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    )}
-                  </button>
+                </div>
+                <div className="field">
+                  <label className="field-label">Mot de passe</label>
+                  <div className="field-input-wrap">
+                    <input
+                      className="field-input has-toggle"
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={e => setForm({ ...form, password: e.target.value })}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      required
+                    />
+                    <button type="button" className="toggle-btn" onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
+                      {showPassword ? (
+                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <button type="submit" className="submit-btn" disabled={loading || !form.email || !form.password}>
+                  {loading ? (<><span className="spinner" /> Connexion…</>) : ('Se connecter →')}
+                </button>
+              </form>
+
+              <div className="form-footer">
+                <p>
+                  Accès réservé aux agents autorisés.<br />
+                  Contactez votre administrateur pour obtenir vos identifiants.
+                </p>
+                <div className="hint-box">
+                  <strong>Identifiants par défaut</strong>
+                  Email : <code>admin@prospectbot.fr</code><br />
+                  Mot de passe : <code>admin123</code><br />
+                  <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
+                    Modifiez via <code>ADMIN_EMAIL</code> et <code>ADMIN_PASSWORD</code>
+                  </span>
                 </div>
               </div>
-
-              <button
-                type="submit"
-                className="submit-btn"
-                disabled={loading || !form.email || !form.password}
-              >
-                {loading ? (
-                  <><span className="spinner" /> Connexion…</>
-                ) : (
-                  'Se connecter →'
-                )}
-              </button>
-            </form>
-
-            <div className="form-footer">
-              <p>
-                Accès réservé aux agents autorisés.<br />
-                Contactez votre administrateur pour obtenir vos identifiants.
-              </p>
-              <div className="hint-box">
-                <strong>Identifiants par défaut</strong>
-                Email : <code>admin@prospectbot.fr</code><br />
-                Mot de passe : <code>admin123</code><br />
-                <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
-                  Modifiez via <code>ADMIN_EMAIL</code> et <code>ADMIN_PASSWORD</code>
-                </span>
-              </div>
             </div>
-
-          </div>
-          )} {/* fin loggedIn */}
+          )}
 
         </div>
       </div>
