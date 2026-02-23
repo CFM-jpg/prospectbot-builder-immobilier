@@ -135,7 +135,7 @@ export default function B2BDashboard() {
 
   const [campaignForm, setCampaignForm] = useState({ name: '', subject: '', content: '' });
   const [campaignStatus, setCampaignStatus] = useState(null);
-  const [sendingCampaign, setSendingCampaign] = useState(null); // id de la campagne en cours d'envoi
+  const [sendingCampaign, setSendingCampaign] = useState(null);
   const [campaignSendForm, setCampaignSendForm] = useState({ senderName: '', senderEmail: '' });
   const [campaignSendStatus, setCampaignSendStatus] = useState(null);
 
@@ -150,6 +150,7 @@ export default function B2BDashboard() {
   const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect', actions: [] });
   const [workflows, setWorkflows] = useState([]);
   const [workflowStatus, setWorkflowStatus] = useState(null);
+  const [togglingWorkflow, setTogglingWorkflow] = useState(null); // id du workflow en cours de toggle
 
   useEffect(() => {
     loadAll();
@@ -187,6 +188,35 @@ export default function B2BDashboard() {
         const d = await workRes.json();
         setWorkflows(d.workflows || []);
       }
+    } catch (err) { console.error(err); }
+  };
+
+  // ─── Toggle workflow actif/inactif ─────────────────────────────────────────
+  const handleToggleWorkflow = async (workflow) => {
+    setTogglingWorkflow(workflow.id);
+    try {
+      const res = await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle', workflow_id: workflow.id, active: !workflow.active }),
+      });
+      if (res.ok) {
+        // Mise à jour locale immédiate (sans attendre loadAll)
+        setWorkflows(prev => prev.map(w => w.id === workflow.id ? { ...w, active: !w.active } : w));
+      }
+    } catch (err) { console.error(err); }
+    finally { setTogglingWorkflow(null); }
+  };
+
+  // ─── Supprimer workflow ─────────────────────────────────────────────────────
+  const handleDeleteWorkflow = async (workflowId) => {
+    try {
+      await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', workflow_id: workflowId }),
+      });
+      setWorkflows(prev => prev.filter(w => w.id !== workflowId));
     } catch (err) { console.error(err); }
   };
 
@@ -437,6 +467,15 @@ export default function B2BDashboard() {
         .quick-action-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
         .workflow-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; transition: border-color 0.2s; }
         .workflow-card:hover { border-color: rgba(124,106,247,0.25); }
+        /* ─── Toggle switch ─── */
+        .toggle-wrap { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+        .toggle-track { width: 36px; height: 20px; border-radius: 10px; transition: background 0.2s; position: relative; flex-shrink: 0; }
+        .toggle-track.on { background: var(--green); }
+        .toggle-track.off { background: rgba(255,255,255,0.12); }
+        .toggle-thumb { position: absolute; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .toggle-track.on .toggle-thumb { left: 19px; }
+        .toggle-track.off .toggle-thumb { left: 3px; }
+        .toggle-label { font-size: 12px; color: var(--text-muted); }
         @media (max-width: 900px) {
           .sidebar { display: none; }
           .main { padding: 24px 20px; }
@@ -463,7 +502,6 @@ export default function B2BDashboard() {
                 {item.label}
               </button>
             ))}
-
           </nav>
           {agent && (
             <div className="sidebar-footer">
@@ -501,7 +539,7 @@ export default function B2BDashboard() {
                   { label: 'Prospects', value: stats.prospects, sub: 'conversations entrantes', tab: 'chatbot' },
                   { label: 'Leads qualifiés', value: stats.leads, sub: 'avec email identifié', tab: 'chatbot' },
                   { label: 'Emails envoyés', value: stats.emailsSent, sub: 'via Brevo', tab: 'email-sender' },
-                  { label: 'Workflows actifs', value: workflows.length, sub: 'automatisations', tab: 'workflows' },
+                  { label: 'Workflows actifs', value: workflows.filter(w => w.active).length, sub: 'automatisations', tab: 'workflows' },
                 ].map((s, i) => (
                   <div key={i} className="stat-card" onClick={() => setActiveTab(s.tab)}>
                     <div className="stat-label">{s.label}</div>
@@ -805,6 +843,7 @@ export default function B2BDashboard() {
                 <div className="card">
                   <div className="card-title" style={{ marginBottom: 20 }}>Créer un workflow</div>
                   {workflowStatus?.success && <div className="alert alert-success">Workflow créé</div>}
+                  {workflowStatus?.error && <div className="alert alert-error">{workflowStatus.error}</div>}
                   <form onSubmit={handleCreateWorkflow}>
                     <div className="form-group"><label>Nom *</label><input type="text" value={workflowForm.name} onChange={e => setWorkflowForm({ ...workflowForm, name: e.target.value })} placeholder="Nurturing nouveaux leads" required /></div>
                     <div className="form-group">
@@ -830,24 +869,54 @@ export default function B2BDashboard() {
                         ))
                       }
                     </div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={workflowForm.actions.length === 0}>Créer le workflow</button>
+                    <button type="submit" className="btn btn-primary btn-full" disabled={workflowForm.actions.length === 0 || loading}>
+                      {loading ? <><span className="spinner" /> Création…</> : 'Créer le workflow'}
+                    </button>
                   </form>
                 </div>
+
                 <div>
-                  <div className="card-title" style={{ marginBottom: 14, fontSize: 13 }}>Workflows actifs</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div className="card-title" style={{ fontSize: 13 }}>Workflows actifs</div>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {workflows.filter(w => w.active).length}/{workflows.length} actif{workflows.filter(w => w.active).length > 1 ? 's' : ''}
+                    </span>
+                  </div>
                   {workflows.length === 0
                     ? <div className="empty"><strong>Aucun workflow</strong>Configurez votre première automatisation</div>
-                    : workflows.map((w, i) => (
-                      <div key={i} className="workflow-card">
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{w.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                    : workflows.map((w) => (
+                      <div key={w.id} className="workflow-card">
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 3 }}>{w.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             {WORKFLOW_TRIGGERS.find(t => t.value === w.trigger)?.label} · {(w.actions || []).length} action{(w.actions || []).length > 1 ? 's' : ''}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <span className={`badge ${w.active ? 'badge-green' : 'badge-neutral'}`}>{w.active ? 'Actif' : 'Inactif'}</span>
-                          <button onClick={async () => { await fetch('/api/B2B/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', workflow_id: w.id }) }); loadAll(); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+
+                        {/* ── Toggle actif/inactif ── */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <button
+                            onClick={() => handleToggleWorkflow(w)}
+                            disabled={togglingWorkflow === w.id}
+                            title={w.active ? 'Désactiver' : 'Activer'}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, opacity: togglingWorkflow === w.id ? 0.5 : 1 }}
+                          >
+                            <div className={`toggle-track ${w.active ? 'on' : 'off'}`}>
+                              <div className="toggle-thumb" />
+                            </div>
+                            <span style={{ fontSize: 12, color: w.active ? 'var(--green)' : 'var(--text-muted)', minWidth: 38 }}>
+                              {togglingWorkflow === w.id ? '…' : w.active ? 'Actif' : 'Inactif'}
+                            </span>
+                          </button>
+
+                          {/* ── Supprimer ── */}
+                          <button
+                            onClick={() => handleDeleteWorkflow(w.id)}
+                            title="Supprimer"
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px', transition: 'color 0.15s' }}
+                            onMouseEnter={e => e.target.style.color = 'var(--red)'}
+                            onMouseLeave={e => e.target.style.color = 'var(--text-muted)'}
+                          >×</button>
                         </div>
                       </div>
                     ))
