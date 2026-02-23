@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   // Canvas particles
   useEffect(() => {
@@ -73,7 +74,11 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        router.push(redirect || '/immobilier');
+        if (redirect) {
+          router.push(redirect);
+        } else {
+          setLoggedIn(true);
+        }
       } else {
         setError(data.error || 'Identifiants incorrects');
       }
@@ -441,6 +446,70 @@ export default function LoginPage() {
           border-radius: 4px;
         }
 
+        /* Module picker */
+        .module-picker {
+          width: 100%;
+          max-width: 360px;
+          animation: fadeUp 0.5s both;
+        }
+        .picker-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 32px;
+          font-weight: 300;
+          color: #f0f0f0;
+          letter-spacing: -0.5px;
+          margin-bottom: 6px;
+        }
+        .picker-sub {
+          font-size: 13.5px;
+          color: rgba(255,255,255,0.35);
+          margin-bottom: 32px;
+          font-weight: 300;
+        }
+        .picker-card {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          padding: 20px 22px;
+          border-radius: 14px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.02);
+          cursor: pointer;
+          transition: border-color 0.2s, background 0.2s, transform 0.2s;
+          margin-bottom: 12px;
+          text-align: left;
+          width: 100%;
+        }
+        .picker-card:hover { transform: translateY(-3px); }
+        .picker-card.immo:hover { border-color: rgba(212,168,83,0.4); background: rgba(212,168,83,0.04); }
+        .picker-card.b2b:hover  { border-color: rgba(124,106,247,0.4); background: rgba(124,106,247,0.04); }
+        .picker-icon {
+          width: 46px; height: 46px;
+          border-radius: 12px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 22px;
+          flex-shrink: 0;
+        }
+        .picker-name {
+          font-size: 15px;
+          font-weight: 600;
+          color: #e8e8e8;
+          margin-bottom: 3px;
+        }
+        .picker-desc {
+          font-size: 12.5px;
+          color: rgba(255,255,255,0.35);
+          line-height: 1.5;
+        }
+        .picker-arrow {
+          margin-left: auto;
+          color: rgba(255,255,255,0.2);
+          font-size: 18px;
+          flex-shrink: 0;
+          transition: transform 0.2s, color 0.2s;
+        }
+        .picker-card:hover .picker-arrow { transform: translateX(4px); color: rgba(255,255,255,0.5); }
+
         @media (max-width: 768px) {
           .page { grid-template-columns: 1fr; overflow: auto; }
           .panel-left { display: none; }
@@ -465,7 +534,7 @@ export default function LoginPage() {
           <div className="panel-center">
             <div className="panel-tag">
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3ecf8e', display: 'inline-block' }} />
-              840+ professionnels actifs
+              340+ agents actifs
             </div>
             <h2 className="panel-headline">
               Scraping, matching<br />et emails <em>automatisés.</em>
@@ -492,6 +561,10 @@ export default function LoginPage() {
 
           <div className="panel-stats">
             <div>
+              <div className="pstat-value">340+</div>
+              <div className="pstat-label">Agents actifs</div>
+            </div>
+            <div>
               <div className="pstat-value">3h</div>
               <div className="pstat-label">Gagnées / jour</div>
             </div>
@@ -499,16 +572,40 @@ export default function LoginPage() {
               <div className="pstat-value">94%</div>
               <div className="pstat-label">Satisfaction</div>
             </div>
-            <div>
-              <div className="pstat-value">∞</div>
-              <div className="pstat-label">Annonces</div>
-            </div>
           </div>
         </div>
 
         {/* ── Panneau droit ── */}
         <div className="panel-right">
-          <div className="form-wrapper">
+
+          {loggedIn ? (
+            /* ── Choix du module ── */
+            <div className="module-picker">
+              <h1 className="picker-title">Bienvenue 👋</h1>
+              <p className="picker-sub">Choisissez votre espace de travail</p>
+
+              <button className="picker-card immo" onClick={() => router.push('/immobilier')}>
+                <div className="picker-icon" style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.2)' }}>🏠</div>
+                <div>
+                  <div className="picker-name">Immobilier</div>
+                  <div className="picker-desc">Scraping annonces, matching acheteurs, publication multi-sites</div>
+                </div>
+                <span className="picker-arrow">→</span>
+              </button>
+
+              <button className="picker-card b2b" onClick={() => router.push('/b2b')}>
+                <div className="picker-icon" style={{ background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)' }}>🚀</div>
+                <div>
+                  <div className="picker-name">B2B</div>
+                  <div className="picker-desc">Chatbot, séquences email, scraper web, workflows auto</div>
+                </div>
+                <span className="picker-arrow">→</span>
+              </button>
+            </div>
+
+          ) : (
+            /* ── Formulaire de connexion ── */
+            <div className="form-wrapper">
             <div className="form-header">
               <h1 className="form-title">Connexion</h1>
               <p className="form-subtitle">Accédez à votre espace de travail</p>
@@ -592,6 +689,8 @@ export default function LoginPage() {
             </div>
 
           </div>
+          )} {/* fin loggedIn */}
+
         </div>
       </div>
     </>
