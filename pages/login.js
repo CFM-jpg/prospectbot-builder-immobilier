@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -73,11 +72,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        if (redirect) {
-          router.push(redirect);
-        } else {
-          setLoggedIn(true);
-        }
+        router.push(redirect || '/immobilier');
       } else {
         setError(data.error || 'Identifiants incorrects');
       }
@@ -247,33 +242,7 @@ export default function LoginPage() {
         {/* ── Panneau droit ── */}
         <div className="panel-right">
 
-          {loggedIn ? (
-            /* ── Choix du module ── */
-            <div className="module-picker">
-              <h1 className="picker-title">Bienvenue </h1>
-              <p className="picker-sub">Choisissez votre espace de travail</p>
-
-              <button className="picker-card immo" onClick={() => router.push('/immobilier')}>
-                <div className="picker-icon" style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.2)' }}></div>
-                <div>
-                  <div className="picker-name">Immobilier</div>
-                  <div className="picker-desc">Scraping annonces, matching acheteurs, publication multi-sites</div>
-                </div>
-                <span className="picker-arrow">→</span>
-              </button>
-
-              <button className="picker-card b2b" onClick={() => router.push('/b2b-dashboard')}>
-                <div className="picker-icon" style={{ background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)' }}></div>
-                <div>
-                  <div className="picker-name">B2B</div>
-                  <div className="picker-desc">Chatbot, séquences email, scraper web, workflows auto</div>
-                </div>
-                <span className="picker-arrow">→</span>
-              </button>
-            </div>
-
-          ) : (
-            /* ── Formulaire de connexion ── */
+          {/* ── Formulaire de connexion ── */}
             <div className="form-wrapper">
               <div className="form-header">
                 <h1 className="form-title">Connexion</h1>
@@ -342,7 +311,6 @@ export default function LoginPage() {
                 </div>
               </div>
             </div>
-          )}
 
         </div>
       </div>
