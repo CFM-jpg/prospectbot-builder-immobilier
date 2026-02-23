@@ -167,7 +167,7 @@ export default function B2BDashboard() {
   const loadAll = async () => {
     try {
       const [convRes, campRes] = await Promise.all([
-        fetch('/api/B2B/chatbot-conversations'),
+        fetch('/api/B2B/chatbot-conversations', { cache: 'no-store' }),
         fetch('/api/B2B/email-automation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'list_campaigns' }) }),
       ]);
       if (convRes.ok) {
