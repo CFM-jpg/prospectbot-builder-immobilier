@@ -329,7 +329,7 @@ export default function B2BLandingPage() {
     await saveLead({ email: heroEmail, profile: heroProfile, source: 'hero', type: 'b2b_hero_cta' });
     setHeroSent(true);
     setCapturedLeads(l => l + 1);
-    setTimeout(() => router.push('/login'), 1500);
+    setTimeout(() => router.push('/b2b-login'), 1500);
   };
 
   const handleCapture = () => setCapturedLeads(l => l + 1);
@@ -501,7 +501,7 @@ export default function B2BLandingPage() {
           <a href="#temoignages" className="nav-link">Témoignages</a>
           <a href="/immobilier" className="nav-link">Immobilier</a>
         </div>
-        <button className="nav-cta" onClick={() => router.push('/login')}>Se connecter →</button>
+        <button className="nav-cta" onClick={() => router.push('/b2b-login')}>Se connecter →</button>
       </nav>
 
       {/* ── HERO ── */}
@@ -795,7 +795,7 @@ export default function B2BLandingPage() {
           <div data-reveal><h2 className="cta-title">Prêt à automatiser<br /><em>votre prospection B2B ?</em></h2></div>
           <div data-reveal data-delay="1"><p className="cta-sub">Rejoignez les 500+ équipes qui font confiance à ProspectBot pour remplir leur pipeline de leads qualifiés.</p></div>
           <div data-reveal data-delay="2" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => router.push('/login')}
+            <button onClick={() => router.push('/b2b-login')}
               style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 14, padding: '16px 36px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 60px rgba(124,106,247,0.25)', transition: 'transform 0.2s' }}>
               Démarrer gratuitement →
             </button>
@@ -814,7 +814,7 @@ export default function B2BLandingPage() {
       <footer className="footer">
         <div className="footer-logo">ProspectBot</div>
         <div className="footer-links">
-          <a href="/login" className="footer-link">Connexion</a>
+          <a href='/b2b-login' className="footer-link">Connexion</a>
           <a href="/immobilier" className="footer-link">Version Immobilier</a>
           <a href="#" className="footer-link">Mentions légales</a>
           <a href="#" className="footer-link">Contact</a>
