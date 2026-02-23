@@ -166,9 +166,10 @@ export default function B2BDashboard() {
 
   const loadAll = async () => {
     try {
-      const [convRes, campRes] = await Promise.all([
+      const [convRes, campRes, workRes] = await Promise.all([
         fetch('/api/B2B/chatbot-conversations', { cache: 'no-store' }),
         fetch('/api/B2B/email-automation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'list_campaigns' }) }),
+        fetch('/api/B2B/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'list' }) }),
       ]);
       if (convRes.ok) {
         const d = await convRes.json();
@@ -181,6 +182,10 @@ export default function B2BDashboard() {
         const camps = d.campaigns || [];
         setCampaigns(camps);
         setStats(prev => ({ ...prev, emailsSent: camps.reduce((s, c) => s + (c.sent_count || 0), 0) }));
+      }
+      if (workRes.ok) {
+        const d = await workRes.json();
+        setWorkflows(d.workflows || []);
       }
     } catch (err) { console.error(err); }
   };
@@ -287,13 +292,28 @@ export default function B2BDashboard() {
   const addAction = (type) => setWorkflowForm(prev => ({ ...prev, actions: [...prev.actions, { id: Date.now(), type }] }));
   const removeAction = (id) => setWorkflowForm(prev => ({ ...prev, actions: prev.actions.filter(a => a.id !== id) }));
 
-  const handleCreateWorkflow = (e) => {
+  const handleCreateWorkflow = async (e) => {
     e.preventDefault();
     if (workflowForm.actions.length === 0) return;
-    setWorkflows(prev => [...prev, { ...workflowForm, id: Date.now(), active: true }]);
-    setWorkflowStatus({ success: true });
-    setWorkflowForm({ name: '', trigger: 'new_prospect', actions: [] });
-    setTimeout(() => setWorkflowStatus(null), 3000);
+    setLoading(true);
+    setWorkflowStatus(null);
+    try {
+      const res = await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', name: workflowForm.name, trigger: workflowForm.trigger, actions: workflowForm.actions }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWorkflowStatus({ success: true });
+        setWorkflowForm({ name: '', trigger: 'new_prospect', actions: [] });
+        loadAll();
+        setTimeout(() => setWorkflowStatus(null), 3000);
+      } else {
+        setWorkflowStatus({ success: false, error: data.error });
+      }
+    } catch (err) { setWorkflowStatus({ success: false, error: err.message }); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -822,10 +842,13 @@ export default function B2BDashboard() {
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{w.name}</div>
                           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                            {WORKFLOW_TRIGGERS.find(t => t.value === w.trigger)?.label} · {w.actions.length} action{w.actions.length > 1 ? 's' : ''}
+                            {WORKFLOW_TRIGGERS.find(t => t.value === w.trigger)?.label} · {(w.actions || []).length} action{(w.actions || []).length > 1 ? 's' : ''}
                           </div>
                         </div>
-                        <span className="badge badge-green">Actif</span>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span className={`badge ${w.active ? 'badge-green' : 'badge-neutral'}`}>{w.active ? 'Actif' : 'Inactif'}</span>
+                          <button onClick={async () => { await fetch('/api/B2B/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', workflow_id: w.id }) }); loadAll(); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                        </div>
                       </div>
                     ))
                   }
