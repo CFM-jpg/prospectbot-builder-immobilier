@@ -1,5 +1,9 @@
 // pages/api/B2B/scraper.js
 
+export const config = {
+  maxDuration: 30, // Extend Vercel timeout to 30s pour ScraperAPI
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -24,7 +28,6 @@ export default async function handler(req, res) {
     let usingProxy = false;
 
     if (scraperApiKey) {
-      // HTTPS obligatoire sur Vercel (http:// est bloqué)
       fetchUrl = `https://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&render=false`;
       usingProxy = true;
     } else {
@@ -32,7 +35,7 @@ export default async function handler(req, res) {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s
 
     const response = await fetch(fetchUrl, {
       headers: {
@@ -48,7 +51,6 @@ export default async function handler(req, res) {
     if (!response.ok) {
       return res.status(400).json({
         error: `Impossible d'accéder à la page (HTTP ${response.status})`,
-        detail: usingProxy ? 'Via ScraperAPI' : 'Accès direct',
         success: false,
       });
     }
@@ -98,7 +100,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Erreur scraper:', error);
     const message = error.name === 'AbortError'
-      ? 'Timeout — le site met trop de temps à répondre (>20s)'
+      ? 'Timeout — le site met trop de temps à répondre'
       : error.message || 'Erreur lors du scraping';
     return res.status(500).json({
       error: message,
