@@ -135,6 +135,9 @@ export default function B2BDashboard() {
 
   const [campaignForm, setCampaignForm] = useState({ name: '', subject: '', content: '' });
   const [campaignStatus, setCampaignStatus] = useState(null);
+  const [sendingCampaign, setSendingCampaign] = useState(null); // id de la campagne en cours d'envoi
+  const [campaignSendForm, setCampaignSendForm] = useState({ senderName: '', senderEmail: '' });
+  const [campaignSendStatus, setCampaignSendStatus] = useState(null);
 
   const [emailForm, setEmailForm] = useState({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' });
   const [selectedProspects, setSelectedProspects] = useState([]);
@@ -207,12 +210,34 @@ export default function B2BDashboard() {
       const res = await fetch('/api/B2B/email-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create_campaign', title: campaignForm.name, description: campaignForm.content }),
+        body: JSON.stringify({ action: 'create_campaign', title: campaignForm.name, description: campaignForm.content, subject: campaignForm.subject }),
       });
       const data = await res.json();
       if (res.ok) { setCampaignStatus({ success: true }); setCampaignForm({ name: '', subject: '', content: '' }); loadAll(); }
       else { setCampaignStatus({ success: false, error: data.error }); }
     } catch (err) { setCampaignStatus({ success: false, error: err.message }); }
+    finally { setLoading(false); }
+  };
+
+  const handleSendCampaign = async (campaign) => {
+    if (!campaignSendForm.senderName || !campaignSendForm.senderEmail) {
+      setCampaignSendStatus({ success: false, error: 'Nom et email expéditeur requis' });
+      return;
+    }
+    setLoading(true);
+    setCampaignSendStatus(null);
+    try {
+      const prospects = conversations.filter(c => c.visitor_email).map(c => ({ email: c.visitor_email, name: c.visitor_name || 'Prospect' }));
+      if (prospects.length === 0) { setCampaignSendStatus({ success: false, error: 'Aucun prospect avec email disponible' }); setLoading(false); return; }
+      const res = await fetch('/api/B2B/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senderName: campaignSendForm.senderName, senderEmail: campaignSendForm.senderEmail, subject: campaign.subject || campaign.title, template: campaign.description || '', recipients: prospects }),
+      });
+      const data = await res.json();
+      if (res.ok) { setCampaignSendStatus({ success: true, sent: data.sent }); setSendingCampaign(null); }
+      else { setCampaignSendStatus({ success: false, error: data.error }); }
+    } catch (err) { setCampaignSendStatus({ success: false, error: err.message }); }
     finally { setLoading(false); }
   };
 
@@ -612,15 +637,44 @@ export default function B2BDashboard() {
                 </div>
                 <div className="card">
                   <div className="card-title" style={{ marginBottom: 20 }}>Campagnes actives</div>
+                  {campaignSendStatus?.success && <div className="alert alert-success" style={{ marginBottom: 12 }}>Envoyé à {campaignSendStatus.sent} prospect{campaignSendStatus.sent > 1 ? 's' : ''}</div>}
+                  {campaignSendStatus?.error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{campaignSendStatus.error}</div>}
                   {campaigns.length === 0
                     ? <div className="empty"><strong>Aucune campagne</strong>Créez votre première séquence</div>
                     : campaigns.map((c, i) => (
-                      <div key={i} className="list-item">
-                        <div>
-                          <div className="list-item-main">{c.title || c.name}</div>
-                          <div className="list-item-sub">{c.campaign_type || 'manuel'} · {new Date(c.created_at).toLocaleDateString('fr-FR')}</div>
+                      <div key={i} style={{ marginBottom: 12 }}>
+                        <div className="list-item" style={{ alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="list-item-main">{c.title || c.name}</div>
+                            <div className="list-item-sub">{c.subject ? `Sujet : ${c.subject}` : (c.campaign_type || 'manuel')} · {new Date(c.created_at).toLocaleDateString('fr-FR')}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>{c.status === 'active' ? 'Actif' : 'Brouillon'}</span>
+                            <button onClick={() => { setSendingCampaign(sendingCampaign === c.id ? null : c.id); setCampaignSendStatus(null); }} style={{ background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.25)', color: '#7c6af7', borderRadius: 7, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                              {sendingCampaign === c.id ? 'Annuler' : 'Envoyer →'}
+                            </button>
+                          </div>
                         </div>
-                        <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>{c.status === 'active' ? 'Actif' : 'Brouillon'}</span>
+                        {sendingCampaign === c.id && (
+                          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: 14, marginTop: 8 }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+                              Envoi à {conversations.filter(cv => cv.visitor_email).length} prospect{conversations.filter(cv => cv.visitor_email).length > 1 ? 's' : ''} qualifiés
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label>Nom expéditeur</label>
+                                <input type="text" value={campaignSendForm.senderName} onChange={e => setCampaignSendForm({ ...campaignSendForm, senderName: e.target.value })} placeholder="John Doe" />
+                              </div>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label>Email expéditeur</label>
+                                <input type="email" value={campaignSendForm.senderEmail} onChange={e => setCampaignSendForm({ ...campaignSendForm, senderEmail: e.target.value })} placeholder="john@entreprise.com" />
+                              </div>
+                            </div>
+                            <button onClick={() => handleSendCampaign(c)} disabled={loading} className="btn btn-primary btn-full" style={{ fontSize: 13 }}>
+                              {loading ? <><span className="spinner" /> Envoi…</> : `Envoyer la campagne`}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))
                   }
