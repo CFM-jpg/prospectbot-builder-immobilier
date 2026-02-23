@@ -1456,40 +1456,41 @@ export default function ImmobilierDashboard() {
               {!can('matchAuto') ? (
                 <UpgradeGate planRequired="pro" plan={plan} featureLabel="Correspondances automatiques" />
               ) : (
-              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  <h2 className="page-title">Correspondances</h2>
-                  <p className="page-subtitle">{matches.length} match{matches.length > 1 ? 's' : ''} trouvé{matches.length > 1 ? 's' : ''}</p>
-                </div>
-                <button className="btn btn-primary" onClick={handleMatchAuto} disabled={loading}>
-                  {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Calcul…</> : 'Recalculer les matchs'}
-                </button>
-              </div>
-              {matches.length === 0
-                ? <div className="empty"><strong>Aucune correspondance</strong>Ajoutez des acheteurs et cliquez sur "Recalculer les matchs"</div>
-                : matches.map((m, i) => (
-                  <div key={i} className="match-card">
-                    <div className="match-top">
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{m.acheteur_nom}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{m.bien_reference} · {m.bien_adresse}</div>
-                        <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
-                          {m.bien_prix ? m.bien_prix.toLocaleString('fr-FR') + ' €' : '—'}
-                          {m.bien_type && <span className="badge badge-neutral" style={{ marginLeft: 8 }}>{m.bien_type}</span>}
+                <>
+                  <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                      <h2 className="page-title">Correspondances</h2>
+                      <p className="page-subtitle">{matches.length} match{matches.length > 1 ? 's' : ''} trouvé{matches.length > 1 ? 's' : ''}</p>
+                    </div>
+                    <button className="btn btn-primary" onClick={handleMatchAuto} disabled={loading}>
+                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Calcul…</> : 'Recalculer les matchs'}
+                    </button>
+                  </div>
+                  {matches.length === 0
+                    ? <div className="empty"><strong>Aucune correspondance</strong>Ajoutez des acheteurs et cliquez sur "Recalculer les matchs"</div>
+                    : matches.map((m, i) => (
+                      <div key={i} className="match-card">
+                        <div className="match-top">
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{m.acheteur_nom}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{m.bien_reference} · {m.bien_adresse}</div>
+                            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
+                              {m.bien_prix ? m.bien_prix.toLocaleString('fr-FR') + ' €' : '—'}
+                              {m.bien_type && <span className="badge badge-neutral" style={{ marginLeft: 8 }}>{m.bien_type}</span>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div className="match-score">{m.score}%</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>compatibilité</div>
+                          </div>
+                        </div>
+                        <div className="score-bar" style={{ marginTop: 14 }}>
+                          <div className="score-fill" style={{ width: `${m.score}%` }} />
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="match-score">{m.score}%</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>compatibilité</div>
-                      </div>
-                    </div>
-                    <div className="score-bar" style={{ marginTop: 14 }}>
-                      <div className="score-fill" style={{ width: `${m.score}%` }} />
-                    </div>
-                  </div>
-                ))
-              }
-              </>
+                    ))
+                  }
+                </>
               )}
             </>
           )}
