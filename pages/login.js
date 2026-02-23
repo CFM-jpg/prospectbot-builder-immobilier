@@ -203,23 +203,23 @@ export default function LoginPage() {
               340+ agents actifs
             </div>
             <h2 className="panel-headline">
-              Scraping, matching<br />et emails <em>automatisés.</em>
+              Scraping, matching<br />et publication <em>automatisés.</em>
             </h2>
             <p className="panel-sub">
-              Immobilier et B2B — un seul outil pour gérer votre prospection de A à Z, sans effort manuel.
+              Scraping d'annonces, matching acheteurs et publication multi-sites — tout ce dont un agent immobilier a besoin.
             </p>
             <div className="module-cards">
               <div className="module-card">
-                <div className="module-icon"></div>
-                <div className="module-name">Immobilier</div>
-                <div className="module-desc">Scraping annonces, matching acheteurs, publication multi-sites</div>
+                <div className="module-icon">🏠</div>
+                <div className="module-name">Scraping annonces</div>
+                <div className="module-desc">Récupérez les nouvelles annonces automatiquement depuis toutes les sources</div>
                 <div className="module-dot" style={{ background: '#d4a853' }} />
               </div>
               <div className="module-card">
-                <div className="module-icon"></div>
-                <div className="module-name">B2B</div>
-                <div className="module-desc">Chatbot, séquences email, scraper web, workflows auto</div>
-                <div className="module-dot" style={{ background: '#7c6af7' }} />
+                <div className="module-icon">🎯</div>
+                <div className="module-name">Matching acheteurs</div>
+                <div className="module-desc">Associez chaque bien au bon acheteur en quelques secondes</div>
+                <div className="module-dot" style={{ background: '#d4a853' }} />
               </div>
             </div>
           </div>
