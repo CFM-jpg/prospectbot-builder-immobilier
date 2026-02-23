@@ -499,7 +499,6 @@ export default function B2BLandingPage() {
           <a href="#fonctionnalites" className="nav-link">Fonctionnalités</a>
           <a href="#demo" className="nav-link">Démo</a>
           <a href="#temoignages" className="nav-link">Témoignages</a>
-          <a href="/immobilier" className="nav-link">Immobilier</a>
         </div>
         <button className="nav-cta" onClick={() => router.push('/b2b-login')}>Se connecter →</button>
       </nav>
@@ -815,7 +814,6 @@ export default function B2BLandingPage() {
         <div className="footer-logo">ProspectBot</div>
         <div className="footer-links">
           <a href='/b2b-login' className="footer-link">Connexion</a>
-          <a href="/immobilier" className="footer-link">Version Immobilier</a>
           <a href="#" className="footer-link">Mentions légales</a>
           <a href="#" className="footer-link">Contact</a>
         </div>

@@ -411,11 +411,7 @@ export default function B2BDashboard() {
                 {item.label}
               </button>
             ))}
-            <div className="nav-section" style={{ marginTop: 12 }}>Modules</div>
-            <Link href="/immobilier" className="switch-btn">
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-              Passer à Immobilier
-            </Link>
+
           </nav>
           {agent && (
             <div className="sidebar-footer">
