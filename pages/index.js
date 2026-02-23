@@ -793,6 +793,149 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── PRICING ── */}
+      <section id="tarifs" style={{ padding: '100px 48px', position: 'relative', zIndex: 2 }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div data-reveal><div className="section-tag" style={{ textAlign: 'center' }}>Tarifs</div></div>
+            <div data-reveal data-delay="1">
+              <h2 className="section-title" style={{ textAlign: 'center' }}>Un plan pour <em>chaque étape.</em></h2>
+            </div>
+            <div data-reveal data-delay="2">
+              <p className="section-sub" style={{ textAlign: 'center', margin: '0 auto' }}>
+                Commencez gratuitement. Évoluez quand vous êtes prêt.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'start' }} data-reveal data-delay="3">
+            {/* Plan Gratuit */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '36px 32px', transition: 'border-color 0.3s, transform 0.3s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.transform = 'translateY(-4px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.35)', marginBottom: 12 }}>Gratuit</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 52, fontWeight: 500, color: '#f0f0f0', lineHeight: 1 }}>0 €</span>
+                </div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>14 jours · sans carte bancaire</div>
+              </div>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 28 }} />
+              <div style={{ marginBottom: 32 }}>
+                {[
+                  { text: '50 annonces surveillées / jour', included: true },
+                  { text: '5 acheteurs en portefeuille', included: true },
+                  { text: 'Alertes email automatiques', included: true },
+                  { text: 'Publication multi-sites', included: false },
+                  { text: 'CRM avancé', included: false },
+                  { text: 'Analytics & rapports', included: false },
+                ].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 13 }}>
+                    {f.included
+                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    }
+                    <span style={{ fontSize: 13.5, color: f.included ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.2)' }}>{f.text}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => router.push('/login')}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#e8e8e8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}>
+                Démarrer gratuitement →
+              </button>
+            </div>
+
+            {/* Plan Pro — mis en avant */}
+            <div style={{ background: 'rgba(212,168,83,0.06)', border: '1px solid rgba(212,168,83,0.35)', borderRadius: 20, padding: '36px 32px', position: 'relative', transform: 'translateY(-8px)', boxShadow: '0 0 60px rgba(212,168,83,0.08)', transition: 'border-color 0.3s, transform 0.3s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(212,168,83,0.55)'; e.currentTarget.style.transform = 'translateY(-14px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(212,168,83,0.35)'; e.currentTarget.style.transform = 'translateY(-8px)'; }}>
+              <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #8b6914, #d4a853)', borderRadius: 20, padding: '4px 16px', fontSize: 11, fontWeight: 700, color: '#0a0a0a', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>
+                Le plus populaire
+              </div>
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#d4a853', marginBottom: 12 }}>Pro</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 52, fontWeight: 500, color: '#f0f0f0', lineHeight: 1 }}>59 €</span>
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', marginBottom: 10 }}>/mois</span>
+                </div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>ou 47 € /mois · facturation annuelle</div>
+              </div>
+              <div style={{ height: 1, background: 'rgba(212,168,83,0.15)', marginBottom: 28 }} />
+              <div style={{ marginBottom: 32 }}>
+                {[
+                  { text: 'Annonces illimitées', included: true },
+                  { text: 'Acheteurs illimités', included: true },
+                  { text: 'Alertes email automatiques', included: true },
+                  { text: 'Publication multi-sites', included: true },
+                  { text: 'CRM avancé', included: true },
+                  { text: 'Analytics & rapports', included: false },
+                ].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 13 }}>
+                    {f.included
+                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    }
+                    <span style={{ fontSize: 13.5, color: f.included ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.2)' }}>{f.text}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => router.push('/login')}
+                style={{ width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 12, padding: '14px', fontSize: 14, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 8px 32px rgba(212,168,83,0.25)', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(212,168,83,0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(212,168,83,0.25)'; }}>
+                Démarrer mon essai gratuit →
+              </button>
+            </div>
+
+            {/* Plan Agence */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '36px 32px', transition: 'border-color 0.3s, transform 0.3s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.transform = 'translateY(-4px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.35)', marginBottom: 12 }}>Agence</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 52, fontWeight: 500, color: '#f0f0f0', lineHeight: 1 }}>169 €</span>
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', marginBottom: 10 }}>/mois</span>
+                </div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>ou 135 € /mois · facturation annuelle</div>
+              </div>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 28 }} />
+              <div style={{ marginBottom: 32 }}>
+                {[
+                  { text: 'Annonces illimitées', included: true },
+                  { text: 'Acheteurs illimités', included: true },
+                  { text: 'Alertes email automatiques', included: true },
+                  { text: 'Publication multi-sites', included: true },
+                  { text: 'CRM avancé', included: true },
+                  { text: 'Analytics & rapports', included: true },
+                ].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 13 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.65)' }}>{f.text}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => router.push('/login')}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#e8e8e8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}>
+                Contacter l'équipe →
+              </button>
+            </div>
+          </div>
+
+          {/* Note sous le pricing */}
+          <p data-reveal style={{ textAlign: 'center', marginTop: 32, fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+            Prix hors taxes · Engagement mensuel ou annuel · Résiliation à tout moment
+          </p>
+        </div>
+      </section>
+
       {/* ── CTA FINAL ── */}
       <section className="cta-section">
         <div className="cta-bg" />
