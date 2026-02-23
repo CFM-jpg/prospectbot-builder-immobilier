@@ -2,6 +2,8 @@
 // API Acheteurs - Version Supabase
 
 import { supabaseAdmin } from '../../../lib/supabase';
+import { getSession } from '../../../lib/auth';
+import { getPlanFeatures } from '../../../lib/planConfig';
 
 export default async function handler(req, res) {
   // GET - Récupérer la liste des acheteurs
@@ -11,12 +13,10 @@ export default async function handler(req, res) {
 
       let query = supabaseAdmin.from('acheteurs').select('*');
 
-      // Filtre par statut si fourni
       if (statut) {
         query = query.eq('statut', statut);
       }
 
-      // Tri par date de création (plus récents en premier)
       query = query.order('created_at', { ascending: false });
 
       const { data, error } = await query;
@@ -51,6 +51,26 @@ export default async function handler(req, res) {
           error: 'Nom et email requis'
         });
       }
+
+      // ── Vérification limite plan ──────────────────────────────────────────
+      const session = getSession(req);
+      const features = getPlanFeatures(session?.plan, session?.role);
+
+      if (features.acheteursLimit !== Infinity) {
+        const { count, error: countError } = await supabaseAdmin
+          .from('acheteurs')
+          .select('*', { count: 'exact', head: true });
+
+        if (!countError && count >= features.acheteursLimit) {
+          return res.status(403).json({
+            success: false,
+            error: `Limite atteinte — votre plan ${session?.plan || 'gratuit'} est limité à ${features.acheteursLimit} acheteurs. Passez à un plan supérieur pour en ajouter davantage.`,
+            limitReached: true,
+            limit: features.acheteursLimit,
+          });
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       // Vérifier si l'email existe déjà
       const { data: existant } = await supabaseAdmin
