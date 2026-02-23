@@ -228,6 +228,7 @@ export default function B2BDashboard() {
     setCampaignSendStatus(null);
     try {
       const prospects = conversations.filter(c => c.visitor_email).map(c => ({ email: c.visitor_email, name: c.visitor_name || 'Prospect' }));
+console.log('prospects trouvés:', prospects);
       if (prospects.length === 0) { setCampaignSendStatus({ success: false, error: 'Aucun prospect avec email disponible' }); setLoading(false); return; }
       const res = await fetch('/api/B2B/send-email', {
         method: 'POST',
