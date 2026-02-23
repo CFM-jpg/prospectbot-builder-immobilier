@@ -5,13 +5,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { url, selector } = req.body;
+  const { url } = req.body;
 
   if (!url) {
     return res.status(400).json({ error: 'URL requise' });
   }
 
-  // Validation URL basique
   try {
     new URL(url);
   } catch {
@@ -22,21 +21,24 @@ export default async function handler(req, res) {
     const scraperApiKey = process.env.SCRAPER_API_KEY;
 
     let fetchUrl;
+    let usingProxy = false;
 
     if (scraperApiKey) {
-      // Utilise ScraperAPI pour bypasser les blocages
-      fetchUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}`;
+      // HTTPS obligatoire sur Vercel (http:// est bloqué)
+      fetchUrl = `https://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&render=false`;
+      usingProxy = true;
     } else {
-      // Fallback direct (peut être bloqué par certains sites)
       fetchUrl = url;
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     const response = await fetch(fetchUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
       },
       signal: controller.signal,
     });
@@ -44,20 +46,25 @@ export default async function handler(req, res) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      return res.status(400).json({ error: `Impossible d'accéder à la page (${response.status})` });
+      return res.status(400).json({
+        error: `Impossible d'accéder à la page (HTTP ${response.status})`,
+        detail: usingProxy ? 'Via ScraperAPI' : 'Accès direct',
+        success: false,
+      });
     }
 
     const html = await response.text();
 
-    // Extraction des emails par regex
+    // Extraction emails par regex
     const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
     const allMatches = html.match(emailRegex) || [];
 
-    // Nettoyage et déduplication
     const blacklist = [
       'example.com', 'test.com', 'domain.com', 'email.com',
       'sentry.io', 'wix.com', 'wordpress.com', 'jquery',
-      '.png', '.jpg', '.gif', '.svg', '.css', '.js'
+      'w3.org', 'schema.org', 'google.com', 'facebook.com',
+      'twitter.com', 'linkedin.com', 'instagram.com',
+      '.png', '.jpg', '.gif', '.svg', '.css', '.js', '.woff',
     ];
 
     const emails = [...new Set(
@@ -67,7 +74,6 @@ export default async function handler(req, res) {
           if (e.length > 100) return false;
           if (blacklist.some(b => e.includes(b))) return false;
           if (e.startsWith('no-reply') || e.startsWith('noreply')) return false;
-          // Vérif format basique
           const parts = e.split('@');
           if (parts.length !== 2) return false;
           if (parts[0].length < 1 || parts[1].length < 3) return false;
@@ -81,12 +87,18 @@ export default async function handler(req, res) {
       emails,
       count: emails.length,
       url,
+      debug: {
+        proxy: usingProxy,
+        htmlLength: html.length,
+        rawEmailsFound: allMatches.length,
+        afterFilter: emails.length,
+      },
     });
 
   } catch (error) {
     console.error('Erreur scraper:', error);
     const message = error.name === 'AbortError'
-      ? 'Timeout — le site met trop de temps à répondre'
+      ? 'Timeout — le site met trop de temps à répondre (>20s)'
       : error.message || 'Erreur lors du scraping';
     return res.status(500).json({
       error: message,
