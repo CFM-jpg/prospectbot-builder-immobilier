@@ -15,7 +15,12 @@ function useB2BAuth() {
     }
   }, [auth.loading, auth.agent]);
 
-  return auth;
+  const logout = async () => {
+    await fetch('/api/auth/logout');
+    router.push('/b2b-login');
+  };
+
+  return { ...auth, logout };
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
