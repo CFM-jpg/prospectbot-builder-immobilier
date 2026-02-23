@@ -362,7 +362,7 @@ function OnboardingAcheteur({ onComplete, onClose }) {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Équipements souhaités</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {[{ k: 'jardin', l: '🌿 Jardin' }, { k: 'terrasse', l: '☀️ Terrasse' }, { k: 'parking', l: '🚗 Parking' }, { k: 'cave', l: '📦 Cave' }, { k: 'piscine', l: '🏊 Piscine' }].map(opt => (
+                  {[{ k: 'jardin', l: ' Jardin' }, { k: 'terrasse', l: ' Terrasse' }, { k: 'parking', l: ' Parking' }, { k: 'cave', l: ' Cave' }, { k: 'piscine', l: ' Piscine' }].map(opt => (
                     <button key={opt.k} onClick={() => set(opt.k, !form[opt.k])} style={{ padding: '9px 16px', borderRadius: 9, border: `1px solid ${form[opt.k] ? '#3ecf8e' : 'rgba(255,255,255,0.07)'}`, background: form[opt.k] ? 'rgba(62,207,142,0.1)' : '#1f1f24', color: form[opt.k] ? '#3ecf8e' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>{opt.l}</button>
                   ))}
                 </div>
@@ -485,8 +485,8 @@ function PublicationModal({ onClose, onSuccess }) {
   };
 
   const nextLabel = () => {
-    if (etape === 2) return loading ? '✨ Génération...' : '✨ Générer le texte';
-    if (etape === 4 && !resultats) return loading ? 'Publication...' : `🚀 Publier sur ${plateformesSelectionnees.length} site${plateformesSelectionnees.length > 1 ? 's' : ''}`;
+    if (etape === 2) return loading ? ' Génération...' : ' Générer le texte';
+    if (etape === 4 && !resultats) return loading ? 'Publication...' : ` Publier sur ${plateformesSelectionnees.length} site${plateformesSelectionnees.length > 1 ? 's' : ''}`;
     if (etape === 4 && resultats) return 'Terminer ✓';
     return 'Continuer →';
   };
@@ -605,10 +605,10 @@ function PublicationModal({ onClose, onSuccess }) {
             <div>
               {!texteGenere ? (
                 <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                  <div style={{ fontSize: 40, marginBottom: 16 }}>✨</div>
+                  <div style={{ fontSize: 40, marginBottom: 16 }}></div>
                   <p style={{ color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>Générez automatiquement un texte d'annonce optimisé.</p>
                   <button style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }} onClick={genererTexte} disabled={loading}>
-                    {loading ? 'Génération...' : '✨ Générer'}
+                    {loading ? 'Génération...' : ' Générer'}
                   </button>
                 </div>
               ) : (
@@ -622,7 +622,7 @@ function PublicationModal({ onClose, onSuccess }) {
                       {texteGenere.pointsForts?.map((p, i) => <span key={i} style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', color: '#d4a853', padding: '4px 12px', borderRadius: 20, fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>{p}</span>)}
                     </div>
                   </div>
-                  <button style={{ background: '#1f1f24', color: '#6b6b78', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', alignSelf: 'flex-start' }} onClick={genererTexte} disabled={loading}>🔄 Régénérer</button>
+                  <button style={{ background: '#1f1f24', color: '#6b6b78', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', alignSelf: 'flex-start' }} onClick={genererTexte} disabled={loading}> Régénérer</button>
                 </div>
               )}
             </div>
@@ -741,7 +741,7 @@ function PublicationDashboard() {
 
       {/* Bannière config */}
       <div style={{ background: 'rgba(212,168,83,0.06)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 12, padding: '14px 18px', marginBottom: 24, display: 'flex', gap: 12 }}>
-        <span style={{ fontSize: 18, marginTop: 1 }}>⚙️</span>
+        <span style={{ fontSize: 18, marginTop: 1 }}></span>
         <div>
           <p style={{ margin: '0 0 4px 0', fontSize: 13, color: '#d4a853', fontWeight: 600 }}>Configuration des APIs partenaires</p>
           <p style={{ margin: 0, fontSize: 12.5, color: '#6b6b78', lineHeight: 1.6 }}>
@@ -1118,7 +1118,7 @@ export default function ImmobilierDashboard() {
             <div className="nav-divider" />
             <button className={`nav-item ${activeTab === 'publication' ? 'active' : ''}`} onClick={() => setActiveTab('publication')}>
               <span className="nav-dot" />
-              📢 Publier une annonce
+               Publier une annonce
             </button>
           </nav>
           {agent && (
