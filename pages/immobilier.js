@@ -1,32 +1,15 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { useAuth } from '../lib/useAuth';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const SITES = [
-  {
-    id: 'bienici',
-    label: "Bien'ici",
-    sublabel: 'Annonces premium',
-    apiRoute: '/api/scrapers/bienici',
-    active: true,
-  },
-  {
-    id: 'seloger',
-    label: 'SeLoger',
-    sublabel: 'Agences immobilières',
-    apiRoute: '/api/scrapers/seloger',
-    active: true,
-  },
-  {
-    id: 'leboncoin',
-    label: 'Le Bon Coin',
-    sublabel: 'Particuliers & agences',
-    apiRoute: '/api/scrapers/leboncoin',
-    active: true,
-  },
+  { id: 'bienici', label: "Bien'ici", sublabel: 'Annonces premium', apiRoute: '/api/scrapers/bienici', active: true },
+  { id: 'seloger', label: 'SeLoger', sublabel: 'Agences immobilières', apiRoute: '/api/scrapers/seloger', active: true },
+  { id: 'leboncoin', label: 'Le Bon Coin', sublabel: 'Particuliers & agences', apiRoute: '/api/scrapers/leboncoin', active: true },
 ];
 
 const PROPERTY_TYPES = [
@@ -46,6 +29,409 @@ const NAV_ITEMS = [
   { id: 'email', label: 'Emails' },
 ];
 
+const TYPES_BIEN = ['Appartement', 'Maison', 'Villa', 'Studio', 'Loft', 'Terrain', 'Local commercial', 'Tous'];
+
+const ONBOARDING_STEPS = [
+  { id: 'bienvenue', icon: '🏠', title: null, desc: 'Votre assistant immobilier automatisé. En quelques minutes, découvrez comment ProspectBot trouve, trie et notifie vos acheteurs automatiquement.', highlight: null },
+  { id: 'biens', icon: '🏗️', title: 'Les annonces', desc: 'ProspectBot scrape automatiquement LeBonCoin, SeLoger et BienIci pour récupérer les nouvelles annonces. Vous pouvez aussi importer des biens manuellement.', highlight: 'Onglet "Annonces" dans la sidebar' },
+  { id: 'acheteurs', icon: '👤', title: 'Gérez vos acheteurs', desc: 'Ajoutez vos clients avec leurs critères de recherche : budget, localisation, surface, type de bien. Plus les critères sont précis, meilleurs sont les matchs.', highlight: 'Onglet "Acheteurs" dans la sidebar' },
+  { id: 'matching', icon: '⚡', title: 'Le matching automatique', desc: 'Chaque bien est comparé à chaque acheteur. Un score de 0 à 100% est calculé selon le budget, la surface, la localisation et les critères spécifiques.', highlight: 'Onglet "Correspondances"' },
+  { id: 'emails', icon: '✉️', title: 'Alertes email automatiques', desc: 'Quand un bien correspond à plus de 60% aux critères d\'un acheteur, un email lui est envoyé automatiquement via Brevo. Vous pouvez aussi envoyer manuellement.', highlight: 'Onglet "Emails"' },
+  { id: 'checklist', icon: '✅', title: 'Checklist de démarrage', desc: 'Avant de commencer, vérifiez que tout est bien configuré.', highlight: null },
+];
+
+const CHECKLIST_ITEMS = [
+  { id: 'supabase', label: 'Supabase connecté (NEXT_PUBLIC_SUPABASE_URL)' },
+  { id: 'brevo', label: 'Clé API Brevo configurée pour les emails' },
+  { id: 'acheteur', label: 'Au moins 1 acheteur ajouté dans le système' },
+  { id: 'scraper', label: 'Premier scraping lancé pour récupérer des biens' },
+  { id: 'match', label: 'Matching calculé au moins une fois' },
+];
+
+// ─── Onboarding Agent ─────────────────────────────────────────────────────────
+
+function OnboardingAgent({ agentName, onComplete }) {
+  const [step, setStep] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const [checklist, setChecklist] = useState({ supabase: false, brevo: false, acheteur: false, scraper: false, match: false });
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('pb_checklist') || '{}');
+      if (Object.keys(saved).length) setChecklist(c => ({ ...c, ...saved }));
+    } catch {}
+  }, []);
+
+  const goNext = () => {
+    if (animating) return;
+    setAnimating(true);
+    setTimeout(() => { setStep(s => Math.min(s + 1, ONBOARDING_STEPS.length - 1)); setAnimating(false); }, 180);
+  };
+
+  const goPrev = () => {
+    if (animating || step === 0) return;
+    setAnimating(true);
+    setTimeout(() => { setStep(s => Math.max(s - 1, 0)); setAnimating(false); }, 180);
+  };
+
+  const toggleCheck = (key) => {
+    const updated = { ...checklist, [key]: !checklist[key] };
+    setChecklist(updated);
+    try { localStorage.setItem('pb_checklist', JSON.stringify(updated)); } catch {}
+  };
+
+  const cur = ONBOARDING_STEPS[step];
+  const isLast = step === ONBOARDING_STEPS.length - 1;
+  const checkDone = Object.values(checklist).filter(Boolean).length;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 500, margin: 20, overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
+        {/* Progress bar */}
+        <div style={{ height: 3, background: '#1f1f24' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg, #8b6914, #d4a853)', width: `${((step + 1) / ONBOARDING_STEPS.length) * 100}%`, transition: 'width 0.4s ease' }} />
+        </div>
+
+        {/* Dots */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '20px 32px 0' }}>
+          {ONBOARDING_STEPS.map((s, i) => (
+            <div key={s.id} onClick={() => i < step && setStep(i)} style={{ width: 7, height: 7, borderRadius: '50%', background: i === step ? '#d4a853' : i < step ? 'rgba(212,168,83,0.5)' : '#2a2a30', transform: i === step ? 'scale(1.4)' : 'scale(1)', transition: 'all 0.3s', cursor: i < step ? 'pointer' : 'default' }} />
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: '24px 36px 12px', textAlign: 'center', opacity: animating ? 0 : 1, transition: 'opacity 0.18s' }}>
+          <div style={{ fontSize: 46, marginBottom: 18 }}>{cur.icon}</div>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, color: '#e8e8e8', fontWeight: 400, margin: '0 0 12px 0' }}>
+            {step === 0 ? `Bonjour, ${agentName} 👋` : cur.title}
+          </h2>
+          <p style={{ fontSize: 14, color: '#6b6b78', lineHeight: 1.65, margin: '0 0 18px 0' }}>{cur.desc}</p>
+
+          {cur.highlight && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.25)', borderRadius: 8, padding: '7px 14px', color: '#d4a853', fontSize: 13, marginBottom: 8 }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {cur.highlight}
+            </div>
+          )}
+
+          {/* Checklist */}
+          {cur.id === 'checklist' && (
+            <div style={{ textAlign: 'left', marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ color: '#6b6b78', fontSize: 12 }}>Progression</span>
+                <span style={{ color: '#d4a853', fontSize: 12, fontWeight: 600 }}>{checkDone}/{CHECKLIST_ITEMS.length}</span>
+              </div>
+              <div style={{ height: 4, background: '#1f1f24', borderRadius: 2, marginBottom: 12, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: '#3ecf8e', borderRadius: 2, width: `${(checkDone / CHECKLIST_ITEMS.length) * 100}%`, transition: 'width 0.4s' }} />
+              </div>
+              {CHECKLIST_ITEMS.map(item => (
+                <div key={item.id} onClick={() => toggleCheck(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 10, border: `1px solid ${checklist[item.id] ? 'rgba(62,207,142,0.35)' : 'rgba(255,255,255,0.07)'}`, background: checklist[item.id] ? 'rgba(62,207,142,0.07)' : '#1f1f24', cursor: 'pointer', marginBottom: 7, transition: 'all 0.2s' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${checklist[item.id] ? '#3ecf8e' : '#4b5563'}`, background: checklist[item.id] ? '#3ecf8e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                    {checklist[item.id] && <svg width="9" height="9" fill="none" stroke="#0f0f11" strokeWidth="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </div>
+                  <span style={{ fontSize: 13, color: checklist[item.id] ? '#6b6b78' : '#d1d5db', textDecoration: checklist[item.id] ? 'line-through' : 'none' }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 36px 26px', gap: 12 }}>
+          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Précédent</button>
+          <button onClick={onComplete} style={{ background: 'none', border: 'none', color: '#4b5563', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'underline' }}>Passer</button>
+          {isLast
+            ? <button onClick={onComplete} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Commencer →</button>
+            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Suivant →</button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Onboarding Acheteur ──────────────────────────────────────────────────────
+
+const ACHETEUR_STEPS = [
+  { id: 'identite', title: 'Qui est votre client ?', sub: 'Informations de contact' },
+  { id: 'budget', title: 'Quel est son budget ?', sub: 'Fourchette de prix' },
+  { id: 'bien', title: 'Quel type de bien ?', sub: 'Nature et surface' },
+  { id: 'localisation', title: 'Où cherche-t-il ?', sub: 'Zone géographique' },
+  { id: 'options', title: 'Des critères spécifiques ?', sub: 'Options et équipements' },
+  { id: 'recap', title: 'Récapitulatif', sub: 'Vérifiez avant d\'enregistrer' },
+];
+
+function OnboardingAcheteur({ onComplete, onClose }) {
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [form, setForm] = useState({
+    nom: '', prenom: '', email: '', telephone: '',
+    budget_min: '', budget_max: '',
+    type_bien: 'Tous', surface_min: '', surface_max: '', pieces_min: '', chambres_min: '',
+    ville: '', departement: '', code_postal: '',
+    jardin: false, terrasse: false, parking: false, cave: false, piscine: false,
+    notes: '',
+  });
+
+  const set = (key, val) => { setForm(f => ({ ...f, [key]: val })); setErrors(e => ({ ...e, [key]: null })); };
+
+  const validateStep = () => {
+    const e = {};
+    if (step === 0) {
+      if (!form.nom.trim()) e.nom = 'Nom requis';
+      if (!form.email.trim()) e.email = 'Email requis';
+      else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email invalide';
+    }
+    if (step === 1 && !form.budget_max) e.budget_max = 'Budget maximum requis';
+    if (step === 3 && !form.ville.trim() && !form.departement.trim() && !form.code_postal.trim()) e.ville = 'Au moins un critère de localisation requis';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const goNext = () => { if (validateStep()) setStep(s => Math.min(s + 1, ACHETEUR_STEPS.length - 1)); };
+  const goPrev = () => setStep(s => Math.max(s - 1, 0));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        nom: `${form.nom} ${form.prenom}`.trim(),
+        email: form.email,
+        telephone: form.telephone,
+        budget_min: form.budget_min ? parseInt(form.budget_min) : null,
+        budget_max: form.budget_max ? parseInt(form.budget_max) : null,
+        type_bien: form.type_bien === 'Tous' ? null : form.type_bien,
+        surface_min: form.surface_min ? parseInt(form.surface_min) : null,
+        surface_max: form.surface_max ? parseInt(form.surface_max) : null,
+        pieces_min: form.pieces_min ? parseInt(form.pieces_min) : null,
+        chambres_min: form.chambres_min ? parseInt(form.chambres_min) : null,
+        villes: form.ville ? [form.ville] : [],
+        departement: form.departement,
+        code_postal: form.code_postal,
+        jardin: form.jardin, terrasse: form.terrasse, parking: form.parking, cave: form.cave, piscine: form.piscine,
+        notes: form.notes,
+        actif: true,
+      };
+      const res = await fetch('/api/immobilier/acheteurs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onComplete && onComplete(data.data);
+        if (data.data?.id) router.push(`/acheteurs/${data.data.id}`);
+      } else {
+        alert('Erreur : ' + (data.error || 'Erreur inconnue'));
+      }
+    } catch (err) {
+      alert('Erreur réseau');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fmt = (n) => n ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n) : '—';
+  const cur = ACHETEUR_STEPS[step];
+  const isLast = step === ACHETEUR_STEPS.length - 1;
+
+  const inputStyle = (err) => ({ width: '100%', background: '#1f1f24', border: `1px solid ${err ? '#f04444' : 'rgba(255,255,255,0.07)'}`, borderRadius: 8, padding: '10px 13px', fontSize: 13.5, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', outline: 'none', boxSizing: 'border-box' });
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 540, margin: 20, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '26px 30px 16px' }}>
+          <div>
+            <p style={{ fontSize: 11, color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Étape {step + 1} / {ACHETEUR_STEPS.length} — {cur.sub}</p>
+            <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22, color: '#e8e8e8', fontWeight: 400, margin: 0 }}>{cur.title}</h2>
+          </div>
+          <button onClick={onClose} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: 8, cursor: 'pointer', color: '#a0a0ae', display: 'flex' }}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        {/* Progress segments */}
+        <div style={{ display: 'flex', gap: 4, padding: '0 30px 18px' }}>
+          {ACHETEUR_STEPS.map((s, i) => (
+            <div key={s.id} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? '#d4a853' : '#2a2a30', opacity: i === step ? 1 : i < step ? 0.6 : 0.3, transition: 'all 0.3s' }} />
+          ))}
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '0 30px', overflowY: 'auto', flex: 1 }}>
+
+          {/* Identité */}
+          {step === 0 && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Nom *</label>
+                  <input style={inputStyle(errors.nom)} placeholder="Dupont" value={form.nom} onChange={e => set('nom', e.target.value)} />
+                  {errors.nom && <p style={{ color: '#f04444', fontSize: 12, marginTop: 4 }}>{errors.nom}</p>}
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Prénom</label>
+                  <input style={inputStyle()} placeholder="Jean" value={form.prenom} onChange={e => set('prenom', e.target.value)} />
+                </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Email *</label>
+                <input style={inputStyle(errors.email)} type="email" placeholder="jean@email.fr" value={form.email} onChange={e => set('email', e.target.value)} />
+                {errors.email && <p style={{ color: '#f04444', fontSize: 12, marginTop: 4 }}>{errors.email}</p>}
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Téléphone</label>
+                <input style={inputStyle()} placeholder="06 00 00 00 00" value={form.telephone} onChange={e => set('telephone', e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          {/* Budget */}
+          {step === 1 && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Budget minimum</label>
+                  <div style={{ position: 'relative' }}>
+                    <input style={{ ...inputStyle(), paddingRight: 32 }} type="number" placeholder="100000" value={form.budget_min} onChange={e => set('budget_min', e.target.value)} />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b6b78', fontSize: 13, pointerEvents: 'none' }}>€</span>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Budget maximum *</label>
+                  <div style={{ position: 'relative' }}>
+                    <input style={{ ...inputStyle(errors.budget_max), paddingRight: 32 }} type="number" placeholder="300000" value={form.budget_max} onChange={e => set('budget_max', e.target.value)} />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b6b78', fontSize: 13, pointerEvents: 'none' }}>€</span>
+                  </div>
+                  {errors.budget_max && <p style={{ color: '#f04444', fontSize: 12, marginTop: 4 }}>{errors.budget_max}</p>}
+                </div>
+              </div>
+              {form.budget_max && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 18px' }}>
+                  <span style={{ color: '#6b6b78', fontSize: 13 }}>Budget max :</span>
+                  <span style={{ fontSize: 22, fontFamily: 'DM Serif Display, serif', color: '#d4a853' }}>{fmt(form.budget_max)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Type de bien */}
+          {step === 2 && (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Type de bien</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {TYPES_BIEN.map(t => (
+                    <button key={t} onClick={() => set('type_bien', t)} style={{ padding: '9px 6px', borderRadius: 9, border: `1px solid ${form.type_bien === t ? '#d4a853' : 'rgba(255,255,255,0.07)'}`, background: form.type_bien === t ? 'rgba(212,168,83,0.12)' : '#1f1f24', color: form.type_bien === t ? '#d4a853' : '#a0a0ae', fontSize: 12.5, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Surface min (m²)</label>
+                  <input style={inputStyle()} type="number" placeholder="50" value={form.surface_min} onChange={e => set('surface_min', e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Surface max (m²)</label>
+                  <input style={inputStyle()} type="number" placeholder="150" value={form.surface_max} onChange={e => set('surface_max', e.target.value)} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Pièces minimum</label>
+                  <input style={inputStyle()} type="number" placeholder="3" value={form.pieces_min} onChange={e => set('pieces_min', e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Chambres minimum</label>
+                  <input style={inputStyle()} type="number" placeholder="2" value={form.chambres_min} onChange={e => set('chambres_min', e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Localisation */}
+          {step === 3 && (
+            <div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Ville ou zone</label>
+                <input style={inputStyle(errors.ville)} placeholder="Paris, Lyon, Bordeaux..." value={form.ville} onChange={e => set('ville', e.target.value)} />
+                {errors.ville && <p style={{ color: '#f04444', fontSize: 12, marginTop: 4 }}>{errors.ville}</p>}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Département</label>
+                  <input style={inputStyle()} placeholder="75, 69, 33..." value={form.departement} onChange={e => set('departement', e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Code postal</label>
+                  <input style={inputStyle()} placeholder="75001" value={form.code_postal} onChange={e => set('code_postal', e.target.value)} />
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: '#4b5563', marginTop: 10, fontStyle: 'italic' }}>Remplissez au moins un champ. Plus c'est précis, meilleurs seront les matchs.</p>
+            </div>
+          )}
+
+          {/* Options */}
+          {step === 4 && (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Équipements souhaités</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {[{ k: 'jardin', l: '🌿 Jardin' }, { k: 'terrasse', l: '☀️ Terrasse' }, { k: 'parking', l: '🚗 Parking' }, { k: 'cave', l: '📦 Cave' }, { k: 'piscine', l: '🏊 Piscine' }].map(opt => (
+                    <button key={opt.k} onClick={() => set(opt.k, !form[opt.k])} style={{ padding: '9px 16px', borderRadius: 9, border: `1px solid ${form[opt.k] ? '#3ecf8e' : 'rgba(255,255,255,0.07)'}`, background: form[opt.k] ? 'rgba(62,207,142,0.1)' : '#1f1f24', color: form[opt.k] ? '#3ecf8e' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Notes internes</label>
+                <textarea style={{ ...inputStyle(), height: 90, resize: 'vertical', paddingTop: 10, lineHeight: 1.6 }} placeholder="Préférences particulières, situation personnelle..." value={form.notes} onChange={e => set('notes', e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          {/* Récap */}
+          {step === 5 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[
+                { l: 'Nom', v: `${form.nom} ${form.prenom}`.trim() || '—' },
+                { l: 'Email', v: form.email || '—' },
+                { l: 'Téléphone', v: form.telephone || '—' },
+                { l: 'Budget', v: `${form.budget_min ? fmt(form.budget_min) + ' — ' : ''}${fmt(form.budget_max)}`, gold: true },
+                { l: 'Type de bien', v: form.type_bien },
+                { l: 'Surface', v: form.surface_min || form.surface_max ? `${form.surface_min || '?'} — ${form.surface_max || '?'} m²` : '—' },
+                { l: 'Pièces min', v: form.pieces_min || '—' },
+                { l: 'Localisation', v: [form.ville, form.departement, form.code_postal].filter(Boolean).join(', ') || '—' },
+                { l: 'Équipements', v: ['jardin', 'terrasse', 'parking', 'cave', 'piscine'].filter(k => form[k]).join(', ') || 'Aucun' },
+              ].map((item, i) => (
+                <div key={i} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, padding: '11px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{item.l}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, color: item.gold ? '#d4a853' : '#e8e8e8' }}>{item.v}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '18px 30px 26px', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: 16 }}>
+          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '10px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Retour</button>
+          {isLast
+            ? <button onClick={handleSave} disabled={saving} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: saving ? 0.7 : 1 }}>{saving ? 'Enregistrement...' : 'Enregistrer ✓'}</button>
+            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Continuer →</button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ImmobilierDashboard() {
@@ -60,33 +446,33 @@ export default function ImmobilierDashboard() {
   const [selectedProspects, setSelectedProspects] = useState([]);
   const [biensFilter, setBiensFilter] = useState({ type: 'all', search: '' });
 
-  const [scraperForm, setScraperForm] = useState({
-    siteId: null,
-    location: '',
-    propertyType: 'all',
-    prixMin: '',
-    prixMax: '',
-    surfaceMin: '',
-  });
+  const [scraperForm, setScraperForm] = useState({ siteId: null, location: '', propertyType: 'all', prixMin: '', prixMax: '', surfaceMin: '' });
   const [scrapingProgress, setScrapingProgress] = useState(null);
 
-  const [emailForm, setEmailForm] = useState({
-    subject: '',
-    message: '',
-    senderName: '',
-    senderEmail: '',
-  });
+  const [emailForm, setEmailForm] = useState({ subject: '', message: '', senderName: '', senderEmail: '' });
   const [emailStatus, setEmailStatus] = useState(null);
 
-  // Acheteur form
-  const [acheteurForm, setAcheteurForm] = useState({
-    nom: '', prenom: '', email: '', telephone: '',
-    budget_max: '', surface_min: '', surface_max: '',
-    pieces_min: '', villes: '', type_bien: [],
-  });
-  const [acheteurStatus, setAcheteurStatus] = useState(null);
+  // Onboarding
+  const [showOnboardingAgent, setShowOnboardingAgent] = useState(false);
+  const [showOnboardingAcheteur, setShowOnboardingAcheteur] = useState(false);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    loadAll();
+    try {
+      const done = localStorage.getItem('pb_onboarding_done');
+      if (!done) setTimeout(() => setShowOnboardingAgent(true), 400);
+    } catch {}
+  }, []);
+
+  const handleOnboardingAgentComplete = () => {
+    setShowOnboardingAgent(false);
+    try { localStorage.setItem('pb_onboarding_done', '1'); } catch {}
+  };
+
+  const handleOnboardingAcheteurComplete = () => {
+    setShowOnboardingAcheteur(false);
+    loadAll();
+  };
 
   const loadAll = async () => {
     try {
@@ -102,8 +488,6 @@ export default function ImmobilierDashboard() {
       if (statsRes.ok) { const d = await statsRes.json(); setStats(d.data || null); }
     } catch (err) { console.error(err); }
   };
-
-  // ── Scraper ────────────────────────────────────────────────────────────────
 
   const handleScrape = async () => {
     if (!scraperForm.siteId || !scraperForm.location.trim()) return;
@@ -121,11 +505,7 @@ export default function ImmobilierDashboard() {
       const res = await fetch(`${site.apiRoute}?${params}`);
       const data = await res.json();
       if (res.ok) {
-        setScrapingProgress({
-          status: 'done',
-          count: data.stats?.annoncesTouvees || 0,
-          nouvelles: data.stats?.nouvellesAnnonces || 0,
-        });
+        setScrapingProgress({ status: 'done', count: data.stats?.annoncesTouvees || 0, nouvelles: data.stats?.nouvellesAnnonces || 0 });
         loadAll();
       } else {
         setScrapingProgress({ status: 'error', message: data.error || 'Erreur inconnue' });
@@ -142,8 +522,6 @@ export default function ImmobilierDashboard() {
     setScraperForm({ siteId: null, location: '', propertyType: 'all', prixMin: '', prixMax: '', surfaceMin: '' });
   };
 
-  // ── Email ──────────────────────────────────────────────────────────────────
-
   const handleSendEmail = async (e) => {
     e.preventDefault();
     if (selectedProspects.length === 0) return;
@@ -153,53 +531,12 @@ export default function ImmobilierDashboard() {
       const res = await fetch('/api/B2B/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: selectedProspects.map(email => ({ email })),
-          subject: emailForm.subject,
-          template: emailForm.message,
-          senderName: emailForm.senderName,
-          senderEmail: emailForm.senderEmail,
-        }),
+        body: JSON.stringify({ recipients: selectedProspects.map(email => ({ email })), subject: emailForm.subject, template: emailForm.message, senderName: emailForm.senderName, senderEmail: emailForm.senderEmail }),
       });
       const data = await res.json();
       setEmailStatus(res.ok ? { success: true, sent: data.sent } : { success: false, error: data.error });
     } catch (err) {
       setEmailStatus({ success: false, error: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Acheteur ───────────────────────────────────────────────────────────────
-
-  const handleAjouterAcheteur = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setAcheteurStatus(null);
-    try {
-      const payload = {
-        ...acheteurForm,
-        villes: acheteurForm.villes ? acheteurForm.villes.split(',').map(v => v.trim()) : [],
-        budget_max: acheteurForm.budget_max ? parseInt(acheteurForm.budget_max) : null,
-        surface_min: acheteurForm.surface_min ? parseInt(acheteurForm.surface_min) : null,
-        surface_max: acheteurForm.surface_max ? parseInt(acheteurForm.surface_max) : null,
-        pieces_min: acheteurForm.pieces_min ? parseInt(acheteurForm.pieces_min) : null,
-      };
-      const res = await fetch('/api/immobilier/acheteurs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setAcheteurStatus({ success: true });
-        setAcheteurForm({ nom: '', prenom: '', email: '', telephone: '', budget_max: '', surface_min: '', surface_max: '', pieces_min: '', villes: '', type_bien: [] });
-        loadAll();
-      } else {
-        setAcheteurStatus({ success: false, error: data.error });
-      }
-    } catch (err) {
-      setAcheteurStatus({ success: false, error: err.message });
     } finally {
       setLoading(false);
     }
@@ -216,20 +553,14 @@ export default function ImmobilierDashboard() {
   };
 
   const toggleProspect = (email) => {
-    setSelectedProspects(prev =>
-      prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
-    );
+    setSelectedProspects(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
   };
 
   const filteredBiens = biens.filter(b => {
     const matchType = biensFilter.type === 'all' || b.type === biensFilter.type;
-    const matchSearch = !biensFilter.search ||
-      b.titre?.toLowerCase().includes(biensFilter.search.toLowerCase()) ||
-      b.ville?.toLowerCase().includes(biensFilter.search.toLowerCase());
+    const matchSearch = !biensFilter.search || b.titre?.toLowerCase().includes(biensFilter.search.toLowerCase()) || b.ville?.toLowerCase().includes(biensFilter.search.toLowerCase());
     return matchType && matchSearch;
   });
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -242,64 +573,23 @@ export default function ImmobilierDashboard() {
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; background: #0f0f11; color: #e8e8e8; min-height: 100vh; }
-
         :root {
-          --bg: #0f0f11;
-          --surface: #17171a;
-          --surface2: #1f1f24;
-          --border: rgba(255,255,255,0.07);
-          --border-hover: rgba(255,255,255,0.14);
-          --text: #e8e8e8;
-          --text-muted: #6b6b78;
-          --text-dim: #a0a0ae;
-          --accent: #d4a853;
-          --accent-dim: rgba(212,168,83,0.12);
-          --accent-border: rgba(212,168,83,0.3);
-          --green: #3ecf8e;
-          --green-dim: rgba(62,207,142,0.1);
-          --red: #f04444;
-          --red-dim: rgba(240,68,68,0.1);
-          --blue: #5b8dee;
-          --blue-dim: rgba(91,141,238,0.1);
+          --bg: #0f0f11; --surface: #17171a; --surface2: #1f1f24;
+          --border: rgba(255,255,255,0.07); --border-hover: rgba(255,255,255,0.14);
+          --text: #e8e8e8; --text-muted: #6b6b78; --text-dim: #a0a0ae;
+          --accent: #d4a853; --accent-dim: rgba(212,168,83,0.12); --accent-border: rgba(212,168,83,0.3);
+          --green: #3ecf8e; --green-dim: rgba(62,207,142,0.1);
+          --red: #f04444; --red-dim: rgba(240,68,68,0.1);
+          --blue: #5b8dee; --blue-dim: rgba(91,141,238,0.1);
         }
-
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 2px; }
-
         .layout { display: flex; min-height: 100vh; }
-
-        /* Sidebar */
-        .sidebar {
-          width: 220px;
-          flex-shrink: 0;
-          background: var(--surface);
-          border-right: 1px solid var(--border);
-          display: flex;
-          flex-direction: column;
-          position: sticky;
-          top: 0;
-          height: 100vh;
-          overflow-y: auto;
-        }
-        .sidebar-logo {
-          padding: 28px 20px 20px;
-          border-bottom: 1px solid var(--border);
-        }
-        .sidebar-logo h1 {
-          font-family: 'DM Serif Display', serif;
-          font-size: 18px;
-          color: var(--accent);
-          letter-spacing: -0.3px;
-        }
-        .sidebar-logo p {
-          font-size: 11px;
-          color: var(--text-muted);
-          margin-top: 3px;
-          letter-spacing: 0.5px;
-          text-transform: uppercase;
-        }
+        .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+        .sidebar-logo { padding: 28px 20px 20px; border-bottom: 1px solid var(--border); }
+        .sidebar-logo h1 { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--accent); letter-spacing: -0.3px; }
+        .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
         .sidebar-nav { padding: 16px 12px; flex: 1; }
         .sidebar-footer { padding: 14px 12px; border-top: 1px solid var(--border); }
         .agent-info { padding: 10px 12px; background: var(--surface2); border-radius: 8px; margin-bottom: 8px; }
@@ -307,412 +597,108 @@ export default function ImmobilierDashboard() {
         .agent-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
         .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; }
         .logout-btn:hover { color: #f04444; border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.05); }
-        .nav-item {
-          display: flex;
-          align-items: center;
-          padding: 9px 12px;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 13.5px;
-          font-weight: 400;
-          color: var(--text-muted);
-          transition: all 0.15s;
-          margin-bottom: 2px;
-          border: none;
-          background: none;
-          width: 100%;
-          text-align: left;
-        }
+        .help-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 12px; font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: color 0.15s; text-align: left; margin-bottom: 6px; }
+        .help-btn:hover { color: var(--accent); }
+        .nav-item { display: flex; align-items: center; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 400; color: var(--text-muted); transition: all 0.15s; margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left; }
         .nav-item:hover { color: var(--text); background: var(--surface2); }
         .nav-item.active { color: var(--accent); background: var(--accent-dim); font-weight: 500; }
-        .nav-dot {
-          width: 5px; height: 5px;
-          border-radius: 50%;
-          background: currentColor;
-          margin-right: 10px;
-          opacity: 0.5;
-        }
+        .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: 10px; opacity: 0.5; }
         .nav-item.active .nav-dot { opacity: 1; }
-
-        /* Main */
-        .main {
-          flex: 1;
-          overflow-y: auto;
-          padding: 40px 48px;
-          max-width: 1100px;
-        }
-        .page-header {
-          margin-bottom: 36px;
-        }
-        .page-title {
-          font-family: 'DM Serif Display', serif;
-          font-size: 26px;
-          font-weight: 400;
-          color: var(--text);
-          letter-spacing: -0.5px;
-        }
-        .page-subtitle {
-          font-size: 13.5px;
-          color: var(--text-muted);
-          margin-top: 6px;
-        }
-
-        /* Stats grid */
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 16px;
-          margin-bottom: 36px;
-        }
-        .stat-card {
-          background: var(--surface);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 22px 20px;
-          cursor: pointer;
-          transition: border-color 0.15s;
-        }
+        .main { flex: 1; overflow-y: auto; padding: 40px 48px; max-width: 1100px; }
+        .page-header { margin-bottom: 36px; }
+        .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: var(--text); letter-spacing: -0.5px; }
+        .page-subtitle { font-size: 13.5px; color: var(--text-muted); margin-top: 6px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 36px; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 20px; cursor: pointer; transition: border-color 0.15s; }
         .stat-card:hover { border-color: var(--border-hover); }
-        .stat-label {
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-          color: var(--text-muted);
-          font-weight: 500;
-        }
-        .stat-value {
-          font-size: 30px;
-          font-family: 'DM Serif Display', serif;
-          color: var(--text);
-          margin-top: 8px;
-          letter-spacing: -1px;
-        }
-        .stat-sub {
-          font-size: 12px;
-          color: var(--text-muted);
-          margin-top: 4px;
-        }
-
-        /* Cards */
-        .card {
-          background: var(--surface);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 28px;
-          margin-bottom: 20px;
-        }
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        .card-title {
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text);
-        }
-        .card-link {
-          font-size: 12px;
-          color: var(--accent);
-          cursor: pointer;
-          background: none;
-          border: none;
-          padding: 0;
-        }
+        .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 500; }
+        .stat-value { font-size: 30px; font-family: 'DM Serif Display', serif; color: var(--text); margin-top: 8px; letter-spacing: -1px; }
+        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .card-title { font-size: 14px; font-weight: 500; color: var(--text); }
+        .card-link { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
         .card-link:hover { opacity: 0.8; }
-
         .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-
-        /* List items */
-        .list-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 12px 0;
-          border-bottom: 1px solid var(--border);
-        }
+        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
         .list-item:last-child { border-bottom: none; }
         .list-item-main { font-size: 13.5px; color: var(--text); font-weight: 500; }
         .list-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         .list-item-right { text-align: right; font-size: 13px; color: var(--text); font-weight: 500; }
         .list-item-right small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; }
-
-        /* Badge */
-        .badge {
-          display: inline-block;
-          padding: 2px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: 500;
-          letter-spacing: 0.2px;
-        }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.2px; }
         .badge-blue { background: var(--blue-dim); color: var(--blue); }
         .badge-green { background: var(--green-dim); color: var(--green); }
         .badge-gold { background: var(--accent-dim); color: var(--accent); }
         .badge-neutral { background: var(--surface2); color: var(--text-muted); }
-
-        /* Score bar */
         .score-bar { height: 3px; background: var(--surface2); border-radius: 2px; margin-top: 6px; }
         .score-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.4s; }
-
-        /* Forms */
-        label {
-          display: block;
-          font-size: 12px;
-          font-weight: 500;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 7px;
-        }
-        input[type="text"], input[type="email"], input[type="number"], input[type="tel"], select, textarea {
-          width: 100%;
-          background: var(--surface2);
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          padding: 10px 13px;
-          font-size: 13.5px;
-          color: var(--text);
-          font-family: 'DM Sans', sans-serif;
-          outline: none;
-          transition: border-color 0.15s;
-        }
+        label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
+        input[type="text"], input[type="email"], input[type="number"], input[type="tel"], select, textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
         input:focus, select:focus, textarea:focus { border-color: var(--accent-border); }
         input::placeholder, textarea::placeholder { color: var(--text-muted); }
         select option { background: #1f1f24; }
         textarea { resize: vertical; line-height: 1.6; }
-
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .form-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
         .form-group { margin-bottom: 16px; }
-
-        /* Buttons */
-        .btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          padding: 10px 20px;
-          border-radius: 8px;
-          font-size: 13.5px;
-          font-weight: 500;
-          font-family: 'DM Sans', sans-serif;
-          cursor: pointer;
-          border: none;
-          transition: all 0.15s;
-        }
-        .btn-primary {
-          background: var(--accent);
-          color: #0f0f11;
-        }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 13.5px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s; }
+        .btn-primary { background: var(--accent); color: #0f0f11; }
         .btn-primary:hover { opacity: 0.9; }
         .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-secondary {
-          background: var(--surface2);
-          color: var(--text-dim);
-          border: 1px solid var(--border);
-        }
+        .btn-secondary { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
         .btn-secondary:hover { border-color: var(--border-hover); color: var(--text); }
-        .btn-ghost {
-          background: transparent;
-          color: var(--text-muted);
-          border: 1px solid var(--border);
-        }
+        .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
         .btn-ghost:hover { color: var(--text); border-color: var(--border-hover); }
         .btn-full { width: 100%; }
-
-        /* Site selector */
         .site-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .site-card {
-          padding: 18px 16px;
-          border-radius: 10px;
-          border: 1.5px solid var(--border);
-          background: var(--surface2);
-          cursor: pointer;
-          transition: all 0.15s;
-          text-align: left;
-        }
+        .site-card { padding: 18px 16px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface2); cursor: pointer; transition: all 0.15s; text-align: left; }
         .site-card:hover { border-color: var(--border-hover); }
         .site-card.selected { border-color: var(--accent); background: var(--accent-dim); }
         .site-name { font-size: 14px; font-weight: 600; color: var(--text); }
         .site-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-        .site-check {
-          display: inline-block;
-          margin-top: 10px;
-          font-size: 11px;
-          color: var(--accent);
-          font-weight: 500;
-        }
-
-        /* Step label */
-        .step-label {
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-          color: var(--text-muted);
-          font-weight: 600;
-          margin-bottom: 14px;
-        }
+        .site-check { display: inline-block; margin-top: 10px; font-size: 11px; color: var(--accent); font-weight: 500; }
+        .step-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 600; margin-bottom: 14px; }
         .step-block { margin-bottom: 28px; }
-
-        /* Progress */
-        .progress-box {
-          padding: 20px 22px;
-          border-radius: 10px;
-          border: 1px solid;
-          margin-bottom: 24px;
-        }
+        .progress-box { padding: 20px 22px; border-radius: 10px; border: 1px solid; margin-bottom: 24px; }
         .progress-running { border-color: var(--blue); background: var(--blue-dim); }
         .progress-done { border-color: var(--green); background: var(--green-dim); }
         .progress-error { border-color: var(--red); background: var(--red-dim); }
         .progress-title { font-size: 14px; font-weight: 600; }
         .progress-sub { font-size: 13px; color: var(--text-dim); margin-top: 5px; }
-
-        /* Spinner */
-        .spinner {
-          width: 14px; height: 14px;
-          border: 2px solid rgba(255,255,255,0.2);
-          border-top-color: #fff;
-          border-radius: 50%;
-          animation: spin 0.6s linear infinite;
-          display: inline-block;
-        }
+        .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Bien card */
-        .bien-card {
-          background: var(--surface2);
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 20px;
-          margin-bottom: 12px;
-          transition: border-color 0.15s, transform 0.15s;
-          cursor: pointer;
-        }
+        .bien-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 12px; transition: border-color 0.15s, transform 0.15s; cursor: pointer; }
         .bien-card:hover { border-color: var(--accent); transform: translateY(-1px); }
         .bien-top { display: flex; justify-content: space-between; align-items: flex-start; }
         .bien-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
         .bien-meta { font-size: 12.5px; color: var(--text-muted); }
         .bien-price { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text); text-align: right; }
         .bien-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-
-        /* Match card */
-        .match-card {
-          background: var(--surface2);
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 18px 20px;
-          margin-bottom: 10px;
-        }
+        .match-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 10px; }
         .match-top { display: flex; justify-content: space-between; align-items: center; }
-        .match-score {
-          font-family: 'DM Serif Display', serif;
-          font-size: 22px;
-          color: var(--accent);
-        }
-
-        /* Acheteur card */
-        .acheteur-card {
-          background: var(--surface2);
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 18px 20px;
-          margin-bottom: 10px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        /* Prospect row */
-        .prospect-row {
-          display: flex;
-          align-items: center;
-          padding: 12px 14px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--surface2);
-          margin-bottom: 8px;
-          cursor: pointer;
-          transition: border-color 0.15s;
-        }
+        .match-score { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--accent); }
+        .acheteur-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; transition: border-color 0.15s, transform 0.15s; cursor: pointer; }
+        .acheteur-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+        .prospect-row { display: flex; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
         .prospect-row:hover { border-color: var(--border-hover); }
         .prospect-row.selected { border-color: var(--accent-border); background: var(--accent-dim); }
-        .prospect-check {
-          width: 16px; height: 16px;
-          border-radius: 4px;
-          border: 1.5px solid var(--border);
-          margin-right: 12px;
-          flex-shrink: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.15s;
-        }
+        .prospect-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border); margin-right: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
         .prospect-check.checked { background: var(--accent); border-color: var(--accent); }
-        .prospect-check.checked::after {
-          content: '';
-          width: 8px; height: 5px;
-          border-left: 2px solid #0f0f11;
-          border-bottom: 2px solid #0f0f11;
-          transform: rotate(-45deg) translate(1px, -1px);
-        }
-
-        /* Alert */
-        .alert {
-          padding: 12px 16px;
-          border-radius: 8px;
-          font-size: 13px;
-          margin-bottom: 20px;
-          border: 1px solid;
-        }
+        .prospect-check.checked::after { content: ''; width: 8px; height: 5px; border-left: 2px solid #0f0f11; border-bottom: 2px solid #0f0f11; transform: rotate(-45deg) translate(1px, -1px); }
+        .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; border: 1px solid; }
         .alert-success { background: var(--green-dim); border-color: var(--green); color: var(--green); }
         .alert-error { background: var(--red-dim); border-color: var(--red); color: var(--red); }
         .alert-warning { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
-
-        /* Empty state */
-        .empty {
-          text-align: center;
-          padding: 48px 20px;
-          color: var(--text-muted);
-          font-size: 13.5px;
-        }
+        .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 13.5px; }
         .empty strong { display: block; font-size: 15px; color: var(--text-dim); margin-bottom: 8px; }
-
-        /* Filter row */
-        .filter-row {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
+        .filter-row { display: flex; gap: 12px; margin-bottom: 20px; }
         .filter-row input { flex: 1; }
         .filter-row select { width: 160px; }
-
-        /* Sticky bottom bar */
-        .selection-bar {
-          position: fixed;
-          bottom: 24px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: var(--surface);
-          border: 1px solid var(--border-hover);
-          border-radius: 10px;
-          padding: 12px 20px;
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-          z-index: 100;
-        }
+        .selection-bar { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border-hover); border-radius: 10px; padding: 12px 20px; display: flex; align-items: center; gap: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100; }
         .selection-bar p { font-size: 13px; color: var(--text-dim); }
         .selection-bar strong { color: var(--text); }
-
-        .divider {
-          border: none;
-          border-top: 1px solid var(--border);
-          margin: 24px 0;
-        }
-
+        .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
         @media (max-width: 900px) {
           .sidebar { display: none; }
           .main { padding: 24px 20px; }
@@ -733,11 +719,7 @@ export default function ImmobilierDashboard() {
           </div>
           <nav className="sidebar-nav">
             {NAV_ITEMS.map(item => (
-              <button
-                key={item.id}
-                className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(item.id)}
-              >
+              <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
                 <span className="nav-dot" />
                 {item.label}
               </button>
@@ -749,6 +731,10 @@ export default function ImmobilierDashboard() {
                 <div className="agent-name">{agent.name}</div>
                 <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
               </div>
+              <button className="help-btn" onClick={() => setShowOnboardingAgent(true)}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Revoir le tutoriel
+              </button>
               <button className="logout-btn" onClick={logout}>
                 <span>←</span> Déconnexion
               </button>
@@ -766,7 +752,6 @@ export default function ImmobilierDashboard() {
                 <h2 className="page-title">Vue d'ensemble</h2>
                 <p className="page-subtitle">Activité du portefeuille en temps réel</p>
               </div>
-
               <div className="stats-grid">
                 <div className="stat-card" onClick={() => setActiveTab('biens')}>
                   <div className="stat-label">Annonces</div>
@@ -785,15 +770,10 @@ export default function ImmobilierDashboard() {
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Prix moyen</div>
-                  <div className="stat-value">
-                    {stats?.prixMoyen
-                      ? (stats.prixMoyen / 1000).toFixed(0) + 'k'
-                      : '—'}
-                  </div>
+                  <div className="stat-value">{stats?.prixMoyen ? (stats.prixMoyen / 1000).toFixed(0) + 'k' : '—'}</div>
                   <div className="stat-sub">euros sur le marché</div>
                 </div>
               </div>
-
               <div className="two-col">
                 <div className="card">
                   <div className="card-header">
@@ -816,7 +796,6 @@ export default function ImmobilierDashboard() {
                     ))
                   }
                 </div>
-
                 <div className="card">
                   <div className="card-header">
                     <span className="card-title">Meilleures correspondances</span>
@@ -848,7 +827,6 @@ export default function ImmobilierDashboard() {
                 <h2 className="page-title">Recherche d'annonces</h2>
                 <p className="page-subtitle">Sélectionnez une source et définissez vos critères</p>
               </div>
-
               {scrapingProgress && (
                 <div className={`progress-box ${scrapingProgress.status === 'running' ? 'progress-running' : scrapingProgress.status === 'done' ? 'progress-done' : 'progress-error'}`}>
                   {scrapingProgress.status === 'running' && (
@@ -860,9 +838,7 @@ export default function ImmobilierDashboard() {
                   {scrapingProgress.status === 'done' && (
                     <div>
                       <div className="progress-title" style={{ color: 'var(--green)' }}>Recherche terminée</div>
-                      <div className="progress-sub">
-                        {scrapingProgress.count} annonces trouvées · {scrapingProgress.nouvelles} nouvelles ajoutées
-                      </div>
+                      <div className="progress-sub">{scrapingProgress.count} annonces trouvées · {scrapingProgress.nouvelles} nouvelles ajoutées</div>
                       <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={resetScraper}>Nouvelle recherche</button>
                     </div>
                   )}
@@ -875,18 +851,13 @@ export default function ImmobilierDashboard() {
                   )}
                 </div>
               )}
-
               {!scrapingProgress && (
                 <div className="card">
                   <div className="step-block">
                     <div className="step-label">1 — Source</div>
                     <div className="site-grid">
                       {SITES.map(site => (
-                        <div
-                          key={site.id}
-                          className={`site-card ${scraperForm.siteId === site.id ? 'selected' : ''}`}
-                          onClick={() => setScraperForm({ ...scraperForm, siteId: site.id })}
-                        >
+                        <div key={site.id} className={`site-card ${scraperForm.siteId === site.id ? 'selected' : ''}`} onClick={() => setScraperForm({ ...scraperForm, siteId: site.id })}>
                           <div className="site-name">{site.label}</div>
                           <div className="site-sub">{site.sublabel}</div>
                           {scraperForm.siteId === site.id && <span className="site-check">Sélectionné</span>}
@@ -894,46 +865,20 @@ export default function ImmobilierDashboard() {
                       ))}
                     </div>
                   </div>
-
                   <div className="step-block">
                     <div className="step-label">2 — Localisation</div>
-                    <input
-                      type="text"
-                      value={scraperForm.location}
-                      onChange={e => setScraperForm({ ...scraperForm, location: e.target.value })}
-                      placeholder="Paris, Lyon, Nantes…"
-                    />
+                    <input type="text" value={scraperForm.location} onChange={e => setScraperForm({ ...scraperForm, location: e.target.value })} placeholder="Paris, Lyon, Nantes…" />
                   </div>
-
                   <div className="step-block">
                     <div className="step-label">3 — Filtres optionnels</div>
                     <div className="form-grid-4">
-                      <div>
-                        <label>Type</label>
-                        <select value={scraperForm.propertyType} onChange={e => setScraperForm({ ...scraperForm, propertyType: e.target.value })}>
-                          {PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label>Prix min (€)</label>
-                        <input type="number" value={scraperForm.prixMin} onChange={e => setScraperForm({ ...scraperForm, prixMin: e.target.value })} placeholder="100 000" />
-                      </div>
-                      <div>
-                        <label>Prix max (€)</label>
-                        <input type="number" value={scraperForm.prixMax} onChange={e => setScraperForm({ ...scraperForm, prixMax: e.target.value })} placeholder="500 000" />
-                      </div>
-                      <div>
-                        <label>Surface min (m²)</label>
-                        <input type="number" value={scraperForm.surfaceMin} onChange={e => setScraperForm({ ...scraperForm, surfaceMin: e.target.value })} placeholder="50" />
-                      </div>
+                      <div><label>Type</label><select value={scraperForm.propertyType} onChange={e => setScraperForm({ ...scraperForm, propertyType: e.target.value })}>{PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+                      <div><label>Prix min (€)</label><input type="number" value={scraperForm.prixMin} onChange={e => setScraperForm({ ...scraperForm, prixMin: e.target.value })} placeholder="100 000" /></div>
+                      <div><label>Prix max (€)</label><input type="number" value={scraperForm.prixMax} onChange={e => setScraperForm({ ...scraperForm, prixMax: e.target.value })} placeholder="500 000" /></div>
+                      <div><label>Surface min (m²)</label><input type="number" value={scraperForm.surfaceMin} onChange={e => setScraperForm({ ...scraperForm, surfaceMin: e.target.value })} placeholder="50" /></div>
                     </div>
                   </div>
-
-                  <button
-                    className="btn btn-primary btn-full"
-                    onClick={handleScrape}
-                    disabled={loading || !scraperForm.siteId || !scraperForm.location.trim()}
-                  >
+                  <button className="btn btn-primary btn-full" onClick={handleScrape} disabled={loading || !scraperForm.siteId || !scraperForm.location.trim()}>
                     {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Recherche en cours…</> : 'Lancer la recherche'}
                   </button>
                   {(!scraperForm.siteId || !scraperForm.location.trim()) && (
@@ -956,19 +901,12 @@ export default function ImmobilierDashboard() {
                 </div>
                 <button className="btn btn-secondary" onClick={() => setActiveTab('scraper')}>Nouvelle recherche</button>
               </div>
-
               <div className="filter-row">
-                <input
-                  type="text"
-                  placeholder="Rechercher par ville, titre…"
-                  value={biensFilter.search}
-                  onChange={e => setBiensFilter({ ...biensFilter, search: e.target.value })}
-                />
+                <input type="text" placeholder="Rechercher par ville, titre…" value={biensFilter.search} onChange={e => setBiensFilter({ ...biensFilter, search: e.target.value })} />
                 <select value={biensFilter.type} onChange={e => setBiensFilter({ ...biensFilter, type: e.target.value })}>
                   {PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
-
               {filteredBiens.length === 0
                 ? <div className="empty"><strong>Aucune annonce</strong>Utilisez la recherche pour importer des biens</div>
                 : filteredBiens.map((bien, i) => (
@@ -977,11 +915,7 @@ export default function ImmobilierDashboard() {
                       <div style={{ flex: 1 }}>
                         <div className="bien-title">{bien.titre || 'Sans titre'}</div>
                         <div className="bien-meta">{bien.ville || bien.adresse || 'Localisation inconnue'}</div>
-                        {bien.description && (
-                          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
-                            {bien.description.slice(0, 140)}{bien.description.length > 140 ? '…' : ''}
-                          </div>
-                        )}
+                        {bien.description && <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>{bien.description.slice(0, 140)}{bien.description.length > 140 ? '…' : ''}</div>}
                         <div className="bien-tags">
                           <span className="badge badge-blue">{bien.type || 'autre'}</span>
                           <span className="badge badge-neutral">{bien.source || 'import'}</span>
@@ -992,9 +926,7 @@ export default function ImmobilierDashboard() {
                       <div style={{ marginLeft: 20, textAlign: 'right', flexShrink: 0 }}>
                         <div className="bien-price">{bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : '—'}</div>
                         <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>Voir le détail →</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                          {new Date(bien.created_at).toLocaleDateString('fr-FR')}
-                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(bien.created_at).toLocaleDateString('fr-FR')}</div>
                       </div>
                     </div>
                   </div>
@@ -1006,54 +938,42 @@ export default function ImmobilierDashboard() {
           {/* ── Acheteurs ── */}
           {activeTab === 'acheteurs' && (
             <>
-              <div className="page-header">
-                <h2 className="page-title">Acheteurs</h2>
-                <p className="page-subtitle">{acheteurs.length} profil{acheteurs.length > 1 ? 's' : ''} enregistré{acheteurs.length > 1 ? 's' : ''}</p>
-              </div>
-
-              <div className="two-col">
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div>
-                  {acheteurs.length === 0
-                    ? <div className="empty"><strong>Aucun acheteur</strong>Ajoutez votre premier profil ci-contre</div>
-                    : acheteurs.map((a, i) => (
-                      <div key={i} className="acheteur-card">
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{a.nom} {a.prenom}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{a.email}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                            Budget : {a.budget_max ? a.budget_max.toLocaleString('fr-FR') + ' €' : '—'}
-                            {a.villes?.length ? ' · ' + (Array.isArray(a.villes) ? a.villes.join(', ') : a.villes) : ''}
-                          </div>
-                        </div>
-                        <span className={`badge ${a.statut === 'actif' ? 'badge-green' : 'badge-neutral'}`}>{a.statut}</span>
-                      </div>
-                    ))
-                  }
+                  <h2 className="page-title">Acheteurs</h2>
+                  <p className="page-subtitle">{acheteurs.length} profil{acheteurs.length > 1 ? 's' : ''} enregistré{acheteurs.length > 1 ? 's' : ''}</p>
                 </div>
-
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Ajouter un acheteur</div>
-                  {acheteurStatus?.success && <div className="alert alert-success">Acheteur ajouté avec succès</div>}
-                  {acheteurStatus?.error && <div className="alert alert-error">{acheteurStatus.error}</div>}
-                  <form onSubmit={handleAjouterAcheteur}>
-                    <div className="form-grid" style={{ marginBottom: 16 }}>
-                      <div><label>Nom *</label><input type="text" value={acheteurForm.nom} onChange={e => setAcheteurForm({ ...acheteurForm, nom: e.target.value })} required /></div>
-                      <div><label>Prénom</label><input type="text" value={acheteurForm.prenom} onChange={e => setAcheteurForm({ ...acheteurForm, prenom: e.target.value })} /></div>
-                    </div>
-                    <div className="form-group"><label>Email *</label><input type="email" value={acheteurForm.email} onChange={e => setAcheteurForm({ ...acheteurForm, email: e.target.value })} required /></div>
-                    <div className="form-group"><label>Téléphone</label><input type="tel" value={acheteurForm.telephone} onChange={e => setAcheteurForm({ ...acheteurForm, telephone: e.target.value })} /></div>
-                    <div className="form-group"><label>Budget max (€)</label><input type="number" value={acheteurForm.budget_max} onChange={e => setAcheteurForm({ ...acheteurForm, budget_max: e.target.value })} /></div>
-                    <div className="form-grid" style={{ marginBottom: 16 }}>
-                      <div><label>Surface min (m²)</label><input type="number" value={acheteurForm.surface_min} onChange={e => setAcheteurForm({ ...acheteurForm, surface_min: e.target.value })} /></div>
-                      <div><label>Pièces min</label><input type="number" value={acheteurForm.pieces_min} onChange={e => setAcheteurForm({ ...acheteurForm, pieces_min: e.target.value })} /></div>
-                    </div>
-                    <div className="form-group"><label>Villes recherchées (séparées par virgule)</label><input type="text" value={acheteurForm.villes} onChange={e => setAcheteurForm({ ...acheteurForm, villes: e.target.value })} placeholder="Paris, Lyon, Nantes" /></div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Enregistrement…</> : 'Ajouter l\'acheteur'}
-                    </button>
-                  </form>
-                </div>
+                <button className="btn btn-primary" onClick={() => setShowOnboardingAcheteur(true)}>
+                  + Ajouter un acheteur
+                </button>
               </div>
+
+              {acheteurs.length === 0
+                ? (
+                  <div className="empty">
+                    <strong>Aucun acheteur</strong>
+                    Cliquez sur "Ajouter un acheteur" pour enregistrer votre premier profil
+                    <br /><br />
+                    <button className="btn btn-primary" onClick={() => setShowOnboardingAcheteur(true)}>+ Ajouter un acheteur</button>
+                  </div>
+                )
+                : acheteurs.map((a, i) => (
+                  <Link key={i} href={`/acheteurs/${a.id}`} className="acheteur-card">
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{a.nom} {a.prenom}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{a.email}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Budget : {a.budget_max ? a.budget_max.toLocaleString('fr-FR') + ' €' : '—'}
+                        {a.villes?.length ? ' · ' + (Array.isArray(a.villes) ? a.villes.join(', ') : a.villes) : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className={`badge ${a.statut === 'actif' ? 'badge-green' : 'badge-neutral'}`}>{a.statut || 'actif'}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>→</span>
+                    </div>
+                  </Link>
+                ))
+              }
             </>
           )}
 
@@ -1069,7 +989,6 @@ export default function ImmobilierDashboard() {
                   {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Calcul…</> : 'Recalculer les matchs'}
                 </button>
               </div>
-
               {matches.length === 0
                 ? <div className="empty"><strong>Aucune correspondance</strong>Ajoutez des acheteurs et cliquez sur "Recalculer les matchs"</div>
                 : matches.map((m, i) => (
@@ -1077,9 +996,7 @@ export default function ImmobilierDashboard() {
                     <div className="match-top">
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{m.acheteur_nom}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                          {m.bien_reference} · {m.bien_adresse}
-                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{m.bien_reference} · {m.bien_adresse}</div>
                         <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
                           {m.bien_prix ? m.bien_prix.toLocaleString('fr-FR') + ' €' : '—'}
                           {m.bien_type && <span className="badge badge-neutral" style={{ marginLeft: 8 }}>{m.bien_type}</span>}
@@ -1106,21 +1023,16 @@ export default function ImmobilierDashboard() {
                 <h2 className="page-title">Envoi d'emails</h2>
                 <p className="page-subtitle">Sélectionnez des destinataires et rédigez votre message</p>
               </div>
-
               <div className="two-col" style={{ alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                       {selectedProspects.length > 0 ? `${selectedProspects.length} sélectionné${selectedProspects.length > 1 ? 's' : ''}` : 'Sélectionnez des destinataires'}
                     </span>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: '6px 12px', fontSize: 12 }}
-                      onClick={() => {
-                        const emails = acheteurs.filter(a => a.email).map(a => a.email);
-                        setSelectedProspects(selectedProspects.length === emails.length ? [] : emails);
-                      }}
-                    >
+                    <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => {
+                      const emails = acheteurs.filter(a => a.email).map(a => a.email);
+                      setSelectedProspects(selectedProspects.length === emails.length ? [] : emails);
+                    }}>
                       {selectedProspects.length === acheteurs.filter(a => a.email).length ? 'Tout désélectionner' : 'Tout sélectionner'}
                     </button>
                   </div>
@@ -1140,7 +1052,6 @@ export default function ImmobilierDashboard() {
                     })
                   }
                 </div>
-
                 <div className="card">
                   <div className="card-title" style={{ marginBottom: 20 }}>Composer l'email</div>
                   {emailStatus?.success && <div className="alert alert-success">{emailStatus.sent} email{emailStatus.sent > 1 ? 's' : ''} envoyé{emailStatus.sent > 1 ? 's' : ''}</div>}
@@ -1157,10 +1068,7 @@ export default function ImmobilierDashboard() {
                       <textarea value={emailForm.message} onChange={e => setEmailForm({ ...emailForm, message: e.target.value })} placeholder="Rédigez votre message ici…" rows={8} required />
                     </div>
                     <button type="submit" className="btn btn-primary btn-full" disabled={loading || selectedProspects.length === 0}>
-                      {loading
-                        ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Envoi…</>
-                        : `Envoyer à ${selectedProspects.length} destinataire${selectedProspects.length > 1 ? 's' : ''}`
-                      }
+                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Envoi…</> : `Envoyer à ${selectedProspects.length} destinataire${selectedProspects.length > 1 ? 's' : ''}`}
                     </button>
                   </form>
                 </div>
@@ -1170,6 +1078,22 @@ export default function ImmobilierDashboard() {
 
         </main>
       </div>
+
+      {/* Onboarding Agent */}
+      {showOnboardingAgent && (
+        <OnboardingAgent
+          agentName={agent?.name || 'Agent'}
+          onComplete={handleOnboardingAgentComplete}
+        />
+      )}
+
+      {/* Onboarding Acheteur */}
+      {showOnboardingAcheteur && (
+        <OnboardingAcheteur
+          onComplete={handleOnboardingAcheteurComplete}
+          onClose={() => setShowOnboardingAcheteur(false)}
+        />
+      )}
     </>
   );
 }
