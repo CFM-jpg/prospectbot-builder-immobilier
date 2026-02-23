@@ -1,259 +1,344 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useAuth } from '../lib/useAuth';
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+// ─── Lead capture API ─────────────────────────────────────────────────────────
+async function saveLead(data) {
+  try {
+    await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  } catch {}
+}
 
-const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Vue d\'ensemble' },
-  { id: 'chatbot', label: 'Chatbot' },
-  { id: 'campaigns', label: 'Campagnes email' },
-  { id: 'email-sender', label: 'Envoi email' },
-  { id: 'scraper', label: 'Scraper web' },
-  { id: 'workflows', label: 'Workflows' },
+// ─── Hook scroll reveal ───────────────────────────────────────────────────────
+function useScrollReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll('[data-reveal]');
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('revealed');
+          obs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    els.forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+}
+
+// ─── Animated counter ────────────────────────────────────────────────────────
+function Counter({ target, suffix = '', duration = 1800 }) {
+  const [val, setVal] = useState(0);
+  const ref = useRef(null);
+  const started = useRef(false);
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true;
+        const start = performance.now();
+        const tick = (now) => {
+          const p = Math.min((now - start) / duration, 1);
+          const eased = 1 - Math.pow(1 - p, 3);
+          setVal(Math.floor(eased * target));
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.5 });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [target, duration]);
+  return <span ref={ref}>{val.toLocaleString('fr-FR')}{suffix}</span>;
+}
+
+// ─── Live B2B Demo ────────────────────────────────────────────────────────────
+const DEMO_PROSPECTS = [
+  { company: 'Acme SaaS', contact: 'Jean M.', email: 'jean@acmesaas.io', source: 'LinkedIn' },
+  { company: 'TechFlow', contact: 'Sophie D.', email: 'sdupont@techflow.fr', source: 'Site web' },
+  { company: 'Innova Corp', contact: 'Marc T.', email: 'marc@innovacorp.com', source: 'Chatbot' },
+  { company: 'DataVision', contact: 'Lucie B.', email: 'l.berger@datavision.eu', source: 'Formulaire' },
 ];
 
-const WORKFLOW_TRIGGERS = [
-  { value: 'new_prospect', label: 'Nouveau prospect' },
-  { value: 'email_opened', label: 'Email ouvert' },
-  { value: 'link_clicked', label: 'Lien cliqué' },
-  { value: 'form_submitted', label: 'Formulaire soumis' },
-  { value: 'chatbot_conversation', label: 'Conversation chatbot' },
+const DEMO_CAMPAIGNS = [
+  { name: 'Séquence onboarding', steps: 3, opens: '68%', label: 'Email 1 envoyé' },
+  { name: 'Relance prospects froids', steps: 5, opens: '41%', label: 'Workflow actif' },
 ];
 
-const WORKFLOW_ACTIONS = [
-  { type: 'send_email', label: 'Envoyer un email' },
-  { type: 'wait', label: 'Délai d\'attente' },
-  { type: 'tag_prospect', label: 'Ajouter un tag' },
-  { type: 'notify_team', label: 'Notifier l\'équipe' },
-];
-
-const ONBOARDING_STEPS = [
-  { id: 'welcome', icon: '🚀', title: null, desc: 'Votre outil de prospection B2B automatisé. Chatbot, campagnes email, scraper et workflows — tout en un.', highlight: null },
-  { id: 'chatbot', icon: '🤖', title: 'Chatbot de qualification', desc: 'Créez un chatbot qui qualifie automatiquement vos visiteurs et capture leurs emails. Les leads arrivent directement dans votre tableau de bord.', highlight: 'Onglet "Chatbot"' },
-  { id: 'scraper', icon: '🔍', title: 'Scraper web', desc: 'Extrayez des adresses email depuis n\'importe quel site. Alimentez vos campagnes avec des contacts frais en quelques secondes.', highlight: 'Onglet "Scraper web"' },
-  { id: 'campaigns', icon: '📧', title: 'Campagnes email', desc: 'Créez des séquences email automatisées pour nurture vos prospects. Personnalisez le contenu et suivez les performances.', highlight: 'Onglet "Campagnes email"' },
-  { id: 'workflows', icon: '⚙️', title: 'Workflows automatiques', desc: 'Déclenchez des actions automatiques selon le comportement de vos prospects : email ouvert, lien cliqué, formulaire soumis.', highlight: 'Onglet "Workflows"' },
-];
-
-// ─── Onboarding ───────────────────────────────────────────────────────────────
-
-function OnboardingB2B({ agentName, onComplete }) {
+function LiveDemoB2B() {
   const [step, setStep] = useState(0);
-  const [animating, setAnimating] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [prospectIdx, setProspectIdx] = useState(0);
+  const [scanLine, setScanLine] = useState(0);
+  const [results, setResults] = useState([]);
 
-  const goNext = () => {
-    if (animating) return;
-    setAnimating(true);
-    setTimeout(() => { setStep(s => Math.min(s + 1, ONBOARDING_STEPS.length - 1)); setAnimating(false); }, 180);
-  };
-  const goPrev = () => {
-    if (animating || step === 0) return;
-    setAnimating(true);
-    setTimeout(() => { setStep(s => Math.max(s - 1, 0)); setAnimating(false); }, 180);
-  };
+  useEffect(() => {
+    if (step !== 1) return;
+    const interval = setInterval(() => {
+      setProspectIdx(i => (i + 1) % DEMO_PROSPECTS.length);
+    }, 700);
+    setTimeout(() => {
+      clearInterval(interval);
+      setScanning(true);
+      setTimeout(() => {
+        setResults(DEMO_CAMPAIGNS);
+        setStep(2);
+        setScanning(false);
+      }, 1200);
+    }, DEMO_PROSPECTS.length * 700 + 400);
+  }, [step]);
 
-  const cur = ONBOARDING_STEPS[step];
-  const isLast = step === ONBOARDING_STEPS.length - 1;
+  useEffect(() => {
+    if (!scanning) return;
+    const i = setInterval(() => setScanLine(l => (l + 1) % 100), 16);
+    return () => clearInterval(i);
+  }, [scanning]);
+
+  const reset = () => { setStep(0); setResults([]); setProspectIdx(0); setScanning(false); };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 500, margin: 20, overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
-        <div style={{ height: 3, background: '#1f1f24' }}>
-          <div style={{ height: '100%', background: 'linear-gradient(90deg, #5a45d4, #7c6af7)', width: `${((step + 1) / ONBOARDING_STEPS.length) * 100}%`, transition: 'width 0.4s ease' }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '20px 32px 0' }}>
-          {ONBOARDING_STEPS.map((s, i) => (
-            <div key={s.id} onClick={() => i < step && setStep(i)} style={{ width: 7, height: 7, borderRadius: '50%', background: i === step ? '#7c6af7' : i < step ? 'rgba(124,106,247,0.5)' : '#2a2a30', transform: i === step ? 'scale(1.4)' : 'scale(1)', transition: 'all 0.3s', cursor: i < step ? 'pointer' : 'default' }} />
-          ))}
-        </div>
-        <div style={{ padding: '24px 36px 12px', textAlign: 'center', opacity: animating ? 0 : 1, transition: 'opacity 0.18s' }}>
-          <div style={{ fontSize: 46, marginBottom: 18 }}>{cur.icon}</div>
-          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, color: '#e8e8e8', fontWeight: 400, margin: '0 0 12px 0' }}>
-            {step === 0 ? `Bonjour, ${agentName} 👋` : cur.title}
-          </h2>
-          <p style={{ fontSize: 14, color: '#6b6b78', lineHeight: 1.65, margin: '0 0 18px 0' }}>{cur.desc}</p>
-          {cur.highlight && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.25)', borderRadius: 8, padding: '7px 14px', color: '#7c6af7', fontSize: 13, marginBottom: 8 }}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              {cur.highlight}
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(124,106,247,0.2)', borderRadius: 20, overflow: 'hidden', maxWidth: 720, margin: '0 auto' }}>
+      {/* Terminal header */}
+      <div style={{ background: 'rgba(0,0,0,0.4)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
+        <span style={{ marginLeft: 12, fontSize: 12, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>ProspectBot B2B — Live Demo</span>
+      </div>
+
+      <div style={{ padding: '28px 32px' }}>
+        {step === 0 && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+              <svg width="36" height="36" fill="none" stroke="rgba(124,106,247,0.6)" strokeWidth="1.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
             </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 36px 26px', gap: 12 }}>
-          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Précédent</button>
-          <button onClick={onComplete} style={{ background: 'none', border: 'none', color: '#4b5563', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'underline' }}>Passer</button>
-          {isLast
-            ? <button onClick={onComplete} style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Commencer →</button>
-            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Suivant →</button>
-          }
-        </div>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, marginBottom: 8, fontFamily: 'DM Sans, sans-serif' }}>
+              Voyez ProspectBot B2B en action
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginBottom: 28, fontFamily: 'DM Sans, sans-serif' }}>
+              Simulation réelle : scraping → qualification → séquences email
+            </p>
+            <button onClick={() => setStep(1)}
+              style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 12, padding: '13px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 40px rgba(124,106,247,0.3)' }}>
+              ▶ Lancer la démo
+            </button>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3ecf8e', boxShadow: '0 0 8px #3ecf8e', animation: 'pulse 1s infinite' }} />
+              <span style={{ color: '#3ecf8e', fontSize: 13, fontFamily: 'monospace' }}>Scraping en cours — {DEMO_PROSPECTS.length} sources analysées</span>
+            </div>
+            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)', padding: 20, marginBottom: 16 }}>
+              {scanning && (
+                <div style={{ position: 'absolute', left: 0, top: `${scanLine}%`, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, #7c6af7, transparent)', opacity: 0.8, zIndex: 10, transition: 'top 0.016s linear' }} />
+              )}
+              <div style={{ fontFamily: 'monospace', fontSize: 13 }}>
+                {DEMO_PROSPECTS.map((p, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', opacity: scanning || i <= prospectIdx ? 1 : 0.2, transition: 'opacity 0.3s', color: i === prospectIdx && !scanning ? '#7c6af7' : 'rgba(255,255,255,0.6)' }}>
+                    <span>{p.company} — {p.contact}</span>
+                    <span style={{ color: '#3ecf8e' }}>{p.source}</span>
+                  </div>
+                ))}
+              </div>
+              {scanning && (
+                <div style={{ textAlign: 'center', paddingTop: 16 }}>
+                  <span style={{ color: '#7c6af7', fontSize: 13, fontFamily: 'monospace' }}>Qualification & segmentation…</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <svg width="16" height="16" fill="none" stroke="#3ecf8e" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style={{ color: '#3ecf8e', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{DEMO_PROSPECTS.length} prospects qualifiés — séquences lancées automatiquement</span>
+            </div>
+            {results.map((r, i) => (
+              <div key={i} style={{ background: 'rgba(124,106,247,0.06)', border: '1px solid rgba(124,106,247,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 12, animation: `fadeUp 0.4s ${i * 0.15}s both` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 4, fontFamily: 'DM Sans, sans-serif' }}>{r.name}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif' }}>{r.steps} étapes · Taux d'ouverture {r.opens}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 22, fontFamily: 'Cormorant Garamond, serif', color: '#7c6af7', fontWeight: 600 }}>{r.opens}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'DM Sans, sans-serif' }}>ouvertures</div>
+                  </div>
+                </div>
+                <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2 }}>
+                  <div style={{ height: '100%', background: 'linear-gradient(90deg, #5a45d4, #7c6af7)', borderRadius: 2, width: r.opens, transition: 'width 1s ease' }} />
+                </div>
+                <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(124,106,247,0.8)', fontFamily: 'DM Sans, sans-serif' }}>
+                  — {r.label}
+                </div>
+              </div>
+            ))}
+            <button onClick={reset} style={{ marginTop: 8, background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 18px', color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>↺ Rejouer</button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export default function B2BDashboard() {
-  const { agent, logout } = useAuth();
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [loading, setLoading] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
-  const [conversations, setConversations] = useState([]);
-  const [campaigns, setCampaigns] = useState([]);
-
-  const [stats, setStats] = useState({ prospects: 0, leads: 0, emailsSent: 0, conversions: 0 });
-
-  const [chatbotForm, setChatbotForm] = useState({ name: '', greeting: '', targetAudience: '' });
-  const [chatbotStatus, setChatbotStatus] = useState(null);
-
-  const [campaignForm, setCampaignForm] = useState({ name: '', subject: '', content: '' });
-  const [campaignStatus, setCampaignStatus] = useState(null);
-
-  const [emailForm, setEmailForm] = useState({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' });
-  const [selectedProspects, setSelectedProspects] = useState([]);
-  const [emailStatus, setEmailStatus] = useState(null);
-
-  const [scraperForm, setScraperForm] = useState({ url: '', selector: '' });
-  const [scrapedEmails, setScrapedEmails] = useState([]);
-  const [scraperStatus, setScraperStatus] = useState(null);
-
-  const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect', actions: [] });
-  const [workflows, setWorkflows] = useState([]);
-  const [workflowStatus, setWorkflowStatus] = useState(null);
+// ─── Floating CTA ─────────────────────────────────────────────────────────────
+function FloatingCTA({ onCapture }) {
+  const [visible, setVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    loadAll();
-    try {
-      const done = localStorage.getItem('pb_b2b_onboarding_done');
-      if (!done) setTimeout(() => setShowOnboarding(true), 400);
-    } catch {}
+    const timer = setTimeout(() => {
+      if (!dismissed) setVisible(true);
+    }, 18000);
+    const onScroll = () => {
+      if (window.scrollY > window.innerHeight * 1.5 && !dismissed) setVisible(true);
+    };
+    window.addEventListener('scroll', onScroll);
+    return () => { clearTimeout(timer); window.removeEventListener('scroll', onScroll); };
+  }, [dismissed]);
+
+  if (!visible || dismissed) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await saveLead({ email, type: 'floating_cta', source: 'b2b_landing' });
+    setSent(true);
+    onCapture?.({ email });
+    setTimeout(() => setDismissed(true), 2000);
+  };
+
+  return (
+    <div style={{ position: 'fixed', bottom: 28, right: 28, zIndex: 900, animation: 'slideUp 0.4s ease' }}>
+      <div style={{ background: '#111113', border: '1px solid rgba(124,106,247,0.4)', borderRadius: 16, padding: '20px 24px', width: 300, boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(124,106,247,0.1)' }}>
+        <button onClick={() => setDismissed(true)} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+        {!sent ? (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <svg width="20" height="20" fill="none" stroke="#7c6af7" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', marginBottom: 6 }}>Essai gratuit 14 jours</p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif', marginBottom: 14 }}>Rejoignez 500+ équipes qui automatisent leur prospection B2B</p>
+            <form onSubmit={handleSubmit}>
+              <input type="email" required placeholder="votre@entreprise.fr" value={email} onChange={e => setEmail(e.target.value)}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '9px 13px', color: '#e8e8e8', fontSize: 13, fontFamily: 'DM Sans, sans-serif', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
+              <button type="submit" style={{ width: '100%', background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                Démarrer gratuitement →
+              </button>
+            </form>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '10px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+              <svg width="28" height="28" fill="none" stroke="#3ecf8e" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12" stroke="#3ecf8e"/></svg>
+            </div>
+            <p style={{ color: '#3ecf8e', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Parfait ! On vous contacte sous 24h.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function B2BLandingPage() {
+  const router = useRouter();
+  const canvasRef = useRef(null);
+  const [heroEmail, setHeroEmail] = useState('');
+  const [heroProfile, setHeroProfile] = useState('startup');
+  const [heroSent, setHeroSent] = useState(false);
+  const [navScrolled, setNavScrolled] = useState(false);
+  const [activeTestimonial, setActiveTestimonial] = useState(0);
+  const [capturedLeads, setCapturedLeads] = useState(0);
+
+  useScrollReveal();
+
+  // Canvas particles background — violet tint
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let w = canvas.width = window.innerWidth;
+    let h = canvas.height = window.innerHeight;
+    const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
+    window.addEventListener('resize', resize);
+
+    const particles = Array.from({ length: 60 }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.5 + 0.5,
+      alpha: Math.random() * 0.4 + 0.1,
+    }));
+
+    let frame;
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(124,106,247,${p.alpha})`;
+        ctx.fill();
+      });
+      particles.forEach((p, i) => {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = p.x - particles[j].x, dy = p.y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.strokeStyle = `rgba(124,106,247,${0.08 * (1 - dist / 120)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      });
+      frame = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', resize); };
   }, []);
 
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
-    try { localStorage.setItem('pb_b2b_onboarding_done', '1'); } catch {}
-  };
+  // Scroll nav
+  useEffect(() => {
+    const fn = () => setNavScrolled(window.scrollY > 60);
+    window.addEventListener('scroll', fn);
+    return () => window.removeEventListener('scroll', fn);
+  }, []);
 
-  const loadAll = async () => {
-    try {
-      const [convRes, campRes] = await Promise.all([
-        fetch('/api/B2B/chatbot-conversations'),
-        fetch('/api/B2B/email-automation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'list_campaigns' }) }),
-      ]);
-      if (convRes.ok) {
-        const d = await convRes.json();
-        const convs = d.conversations || [];
-        setConversations(convs);
-        setStats(prev => ({ ...prev, prospects: convs.length, leads: convs.filter(c => c.lead_email || c.visitor_email).length }));
-      }
-      if (campRes.ok) {
-        const d = await campRes.json();
-        const camps = d.campaigns || [];
-        setCampaigns(camps);
-        setStats(prev => ({ ...prev, emailsSent: camps.reduce((s, c) => s + (c.sent_count || 0), 0) }));
-      }
-    } catch (err) { console.error(err); }
-  };
+  // Testimonial auto-rotate
+  useEffect(() => {
+    const t = setInterval(() => setActiveTestimonial(i => (i + 1) % TESTIMONIALS.length), 5000);
+    return () => clearInterval(t);
+  }, []);
 
-  const handleCreateChatbot = async (e) => {
+  const handleHeroSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setChatbotStatus(null);
-    try {
-      const res = await fetch('/api/B2B/chatbot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: chatbotForm.name, welcomeMessage: chatbotForm.greeting, questions: [{ text: chatbotForm.targetAudience || 'Comment puis-je vous aider ?' }] }),
-      });
-      const data = await res.json();
-      if (res.ok) { setChatbotStatus({ success: true }); setChatbotForm({ name: '', greeting: '', targetAudience: '' }); }
-      else { setChatbotStatus({ success: false, error: data.error }); }
-    } catch (err) { setChatbotStatus({ success: false, error: err.message }); }
-    finally { setLoading(false); }
+    await saveLead({ email: heroEmail, profile: heroProfile, source: 'hero', type: 'b2b_hero_cta' });
+    setHeroSent(true);
+    setCapturedLeads(l => l + 1);
+    setTimeout(() => router.push('/login'), 1500);
   };
 
-  const handleCreateCampaign = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setCampaignStatus(null);
-    try {
-      const res = await fetch('/api/B2B/email-automation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create_campaign', title: campaignForm.name, description: campaignForm.content }),
-      });
-      const data = await res.json();
-      if (res.ok) { setCampaignStatus({ success: true }); setCampaignForm({ name: '', subject: '', content: '' }); loadAll(); }
-      else { setCampaignStatus({ success: false, error: data.error }); }
-    } catch (err) { setCampaignStatus({ success: false, error: err.message }); }
-    finally { setLoading(false); }
-  };
-
-  const handleSendEmail = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setEmailStatus(null);
-    const recipients = selectedProspects.length > 0
-      ? selectedProspects.map(email => ({ email }))
-      : emailForm.recipients.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
-    if (recipients.length === 0) { setEmailStatus({ success: false, error: 'Aucun destinataire' }); setLoading(false); return; }
-    try {
-      const res = await fetch('/api/B2B/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipients, subject: emailForm.subject, template: emailForm.content, senderName: emailForm.senderName, senderEmail: emailForm.senderEmail }),
-      });
-      const data = await res.json();
-      if (res.ok) { setEmailStatus({ success: true, sent: data.sent }); setEmailForm({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' }); setSelectedProspects([]); }
-      else { setEmailStatus({ success: false, error: data.error }); }
-    } catch (err) { setEmailStatus({ success: false, error: err.message }); }
-    finally { setLoading(false); }
-  };
-
-  const toggleProspect = (email) => {
-    setSelectedProspects(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
-  };
-
-  const handleScrape = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setScraperStatus(null);
-    setScrapedEmails([]);
-    try {
-      const res = await fetch('/api/B2B/scraper', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: scraperForm.url, selector: scraperForm.selector }),
-      });
-      const data = await res.json();
-      if (res.ok) { setScrapedEmails(data.emails || []); setScraperStatus({ success: true, count: (data.emails || []).length }); }
-      else { setScraperStatus({ success: false, error: data.error || 'Erreur lors du scraping' }); }
-    } catch (err) { setScraperStatus({ success: false, error: err.message }); }
-    finally { setLoading(false); }
-  };
-
-  const addAction = (type) => setWorkflowForm(prev => ({ ...prev, actions: [...prev.actions, { id: Date.now(), type }] }));
-  const removeAction = (id) => setWorkflowForm(prev => ({ ...prev, actions: prev.actions.filter(a => a.id !== id) }));
-
-  const handleCreateWorkflow = (e) => {
-    e.preventDefault();
-    if (workflowForm.actions.length === 0) return;
-    setWorkflows(prev => [...prev, { ...workflowForm, id: Date.now(), active: true }]);
-    setWorkflowStatus({ success: true });
-    setWorkflowForm({ name: '', trigger: 'new_prospect', actions: [] });
-    setTimeout(() => setWorkflowStatus(null), 3000);
-  };
+  const handleCapture = () => setCapturedLeads(l => l + 1);
 
   return (
     <>
       <Head>
-        <title>B2B Dashboard — ProspectBot</title>
+        <title>ProspectBot B2B — La prospection automatisée</title>
+        <meta name="description" content="ProspectBot B2B scrape les contacts, qualifie vos leads et envoie les séquences email automatiquement. Gagnez 5h par semaine." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </Head>
@@ -261,497 +346,513 @@ export default function B2BDashboard() {
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { scroll-behavior: smooth; }
-        body { font-family: 'DM Sans', sans-serif; background: #080809; color: #e8e8e8; min-height: 100vh; overflow-x: hidden; }
+        body { background: #080809; color: #e8e8e8; font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
+
+        /* Grain overlay */
         body::before {
           content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
           opacity: 0.4;
         }
-        :root {
-          --bg: #080809; --surface: #111113; --surface2: #17171a;
-          --border: rgba(255,255,255,0.07); --border-hover: rgba(255,255,255,0.14);
-          --text: #e8e8e8; --text-muted: #6b6b78; --text-dim: #a0a0ae;
-          --accent: #7c6af7; --accent-dim: rgba(124,106,247,0.10); --accent-border: rgba(124,106,247,0.3);
-          --green: #3ecf8e; --green-dim: rgba(62,207,142,0.1);
-          --red: #f04444; --red-dim: rgba(240,68,68,0.1);
-          --blue: #5b8dee; --blue-dim: rgba(91,141,238,0.1);
-        }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(124,106,247,0.2); border-radius: 2px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(124,106,247,0.35); }
-        .layout { display: flex; min-height: 100vh; }
-        .sidebar { width: 220px; flex-shrink: 0; background: rgba(255,255,255,0.02); border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-        .sidebar-logo { padding: 28px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .sidebar-logo h1 { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--accent); letter-spacing: 0.5px; font-style: italic; }
-        .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 3px; letter-spacing: 1px; text-transform: uppercase; }
-        .sidebar-nav { padding: 16px 12px; flex: 1; }
-        .sidebar-footer { padding: 14px 12px; border-top: 1px solid rgba(255,255,255,0.06); }
-        .agent-info { padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; margin-bottom: 8px; }
-        .agent-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .agent-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-        .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; margin-top: 6px; }
-        .logout-btn:hover { color: #f04444; border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.05); }
-        .help-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 12px; font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: color 0.15s; text-align: left; margin-bottom: 4px; }
-        .help-btn:hover { color: var(--accent); }
-        .switch-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 12.5px; color: var(--text-muted); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-decoration: none; margin-bottom: 6px; }
-        .switch-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.14); }
-        .nav-item { display: flex; align-items: center; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 400; color: rgba(255,255,255,0.45); transition: all 0.15s; margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left; letter-spacing: 0.2px; }
-        .nav-item:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.04); }
-        .nav-item.active { color: var(--accent); background: var(--accent-dim); font-weight: 500; }
-        .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: 10px; opacity: 0.5; }
-        .nav-item.active .nav-dot { opacity: 1; }
-        .nav-section { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); padding: 12px 12px 6px; opacity: 0.6; }
-        .main { flex: 1; overflow-y: auto; padding: 40px 48px; max-width: 1100px; }
-        .page-header { margin-bottom: 36px; }
-        .page-title { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 300; color: var(--text); letter-spacing: -0.5px; }
-        .page-subtitle { font-size: 13.5px; color: var(--text-muted); margin-top: 6px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 36px; }
-        .stat-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 22px 20px; transition: border-color 0.2s, transform 0.2s; cursor: pointer; }
-        .stat-card:hover { border-color: rgba(124,106,247,0.25); transform: translateY(-2px); }
-        .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); font-weight: 500; }
-        .stat-value { font-size: 36px; font-family: 'Cormorant Garamond', serif; color: var(--accent); margin-top: 8px; letter-spacing: -1px; font-weight: 500; }
-        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-        .card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 28px; margin-bottom: 20px; transition: border-color 0.2s; }
-        .card:hover { border-color: rgba(255,255,255,0.1); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .card-title { font-size: 14px; font-weight: 500; color: var(--text); letter-spacing: 0.2px; }
-        .card-link { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
-        .card-link:hover { opacity: 0.8; }
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .list-item:last-child { border-bottom: none; }
-        .list-item-main { font-size: 13.5px; color: var(--text); font-weight: 500; }
-        .list-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-        .list-item-right { text-align: right; font-size: 13px; color: var(--text); font-weight: 500; }
-        .list-item-right small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
-        .badge-accent { background: var(--accent-dim); color: var(--accent); }
-        .badge-green { background: rgba(62,207,142,0.1); color: var(--green); }
-        .badge-neutral { background: rgba(255,255,255,0.05); color: var(--text-muted); }
-        .badge-red { background: rgba(240,68,68,0.1); color: var(--red); }
-        label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 7px; }
-        input[type="text"], input[type="email"], input[type="url"], select, textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
-        input:focus, select:focus, textarea:focus { border-color: var(--accent-border); background: rgba(124,106,247,0.04); }
-        input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.2); }
-        select option { background: #111113; }
-        textarea { resize: vertical; line-height: 1.6; }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .form-group { margin-bottom: 16px; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 10px; font-size: 13.5px; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s; }
-        .btn-primary { background: linear-gradient(135deg, #5a45d4, #7c6af7); color: #fff; box-shadow: 0 4px 20px rgba(124,106,247,0.25); }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(124,106,247,0.4); }
-        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
-        .btn-secondary { background: rgba(255,255,255,0.04); color: var(--text-dim); border: 1px solid rgba(255,255,255,0.09); }
-        .btn-secondary:hover { border-color: rgba(255,255,255,0.14); color: var(--text); }
-        .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.09); }
-        .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.14); }
-        .btn-full { width: 100%; }
-        .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+
+        /* Scroll reveal */
+        [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity 0.7s ease, transform 0.7s ease; }
+        [data-reveal][data-delay="1"] { transition-delay: 0.1s; }
+        [data-reveal][data-delay="2"] { transition-delay: 0.2s; }
+        [data-reveal][data-delay="3"] { transition-delay: 0.3s; }
+        [data-reveal][data-delay="4"] { transition-delay: 0.4s; }
+        [data-reveal][data-delay="5"] { transition-delay: 0.5s; }
+        [data-reveal][data-delay="6"] { transition-delay: 0.6s; }
+        [data-reveal].revealed { opacity: 1; transform: translateY(0); }
+
+        /* Animations */
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+        @keyframes heroReveal { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 40px rgba(124,106,247,0.2); } 50% { box-shadow: 0 0 80px rgba(124,106,247,0.45); } }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .alert { padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 20px; border: 1px solid; }
-        .alert-success { background: rgba(62,207,142,0.08); border-color: rgba(62,207,142,0.3); color: var(--green); }
-        .alert-error { background: rgba(240,68,68,0.08); border-color: rgba(240,68,68,0.3); color: var(--red); }
-        .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 13.5px; }
-        .empty strong { display: block; font-size: 15px; color: var(--text-dim); margin-bottom: 8px; }
-        .prospect-row { display: flex; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
-        .prospect-row:hover { border-color: rgba(255,255,255,0.14); }
-        .prospect-row.selected { border-color: var(--accent-border); background: var(--accent-dim); }
-        .prospect-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid rgba(255,255,255,0.15); margin-right: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-        .prospect-check.checked { background: var(--accent); border-color: var(--accent); }
-        .prospect-check.checked::after { content: ''; width: 8px; height: 5px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
-        .action-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
-        .action-btn { padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); color: var(--text-dim); font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: center; }
-        .action-btn:hover { border-color: var(--accent-border); color: var(--text); }
-        .action-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: var(--text-dim); }
-        .email-pill { display: inline-flex; align-items: center; padding: 6px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; font-size: 12.5px; color: var(--text-dim); font-family: monospace; margin: 4px; }
-        .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .quick-action-btn { padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; color: var(--text-dim); font-size: 13.5px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.2s; text-align: left; }
-        .quick-action-btn:hover { border-color: var(--accent-border); color: var(--text); transform: translateY(-2px); }
-        .quick-action-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-        .workflow-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; transition: border-color 0.2s; }
-        .workflow-card:hover { border-color: rgba(124,106,247,0.25); }
+
+        /* Nav */
+        .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 20px 48px; display: flex; align-items: center; justify-content: space-between; transition: all 0.3s; }
+        .nav.scrolled { background: rgba(8,8,9,0.9); backdrop-filter: blur(12px); padding: 14px 48px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .nav-logo { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: #7c6af7; letter-spacing: 1px; font-style: italic; }
+        .nav-links { display: flex; align-items: center; gap: 32px; }
+        .nav-link { font-size: 13.5px; color: rgba(255,255,255,0.5); text-decoration: none; transition: color 0.2s; letter-spacing: 0.3px; }
+        .nav-link:hover { color: #7c6af7; }
+        .nav-cta { background: linear-gradient(135deg, #5a45d4, #7c6af7); color: #fff; border: none; border-radius: 10px; padding: 9px 22px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: transform 0.2s, box-shadow 0.2s; }
+        .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(124,106,247,0.4); }
+
+        /* Sections */
+        section { position: relative; z-index: 2; }
+
+        /* Hero */
+        .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 120px 48px 80px; text-align: center; position: relative; overflow: hidden; }
+        .hero-glow { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); width: 600px; height: 600px; background: radial-gradient(ellipse, rgba(124,106,247,0.08) 0%, transparent 70%); pointer-events: none; }
+        .hero-tag { display: inline-flex; align-items: center; gap: 8px; background: rgba(124,106,247,0.1); border: 1px solid rgba(124,106,247,0.25); border-radius: 30px; padding: 6px 16px; font-size: 12.5px; color: #7c6af7; letter-spacing: 0.5px; margin-bottom: 28px; animation: heroReveal 0.8s 0.1s both; }
+        .hero-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(52px, 7vw, 88px); font-weight: 300; line-height: 1.05; letter-spacing: -1px; color: #f0f0f0; margin-bottom: 20px; animation: heroReveal 0.8s 0.2s both; }
+        .hero-title em { font-style: italic; background: linear-gradient(135deg, #5a45d4, #7c6af7, #a899ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .hero-sub { font-size: 18px; color: rgba(255,255,255,0.45); line-height: 1.7; max-width: 560px; margin: 0 auto 40px; font-weight: 300; animation: heroReveal 0.8s 0.3s both; }
+        .hero-form { animation: heroReveal 0.8s 0.4s both; }
+
+        /* Profile selector */
+        .profile-tabs { display: inline-flex; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 4px; margin-bottom: 16px; gap: 4px; }
+        .profile-tab { padding: 8px 18px; border-radius: 9px; border: none; cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500; transition: all 0.2s; }
+        .profile-tab.active { background: linear-gradient(135deg, #5a45d4, #7c6af7); color: #fff; }
+        .profile-tab:not(.active) { background: transparent; color: rgba(255,255,255,0.4); }
+        .profile-tab:not(.active):hover { color: rgba(255,255,255,0.7); }
+
+        /* Capture form */
+        .capture-form { display: flex; gap: 10px; max-width: 440px; margin: 0 auto; }
+        .capture-input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 13px 18px; color: #e8e8e8; font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
+        .capture-input:focus { border-color: rgba(124,106,247,0.5); }
+        .capture-input::placeholder { color: rgba(255,255,255,0.3); }
+        .capture-btn { background: linear-gradient(135deg, #5a45d4, #7c6af7); color: #fff; border: none; border-radius: 12px; padding: 13px 24px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; transition: transform 0.2s, box-shadow 0.2s; animation: glowPulse 3s infinite; }
+        .capture-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(124,106,247,0.45); }
+
+        /* Stats band */
+        .stats-band { padding: 60px 48px; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 900px; margin: 0 auto; text-align: center; gap: 40px; }
+        .stat-num { font-family: 'Cormorant Garamond', serif; font-size: 52px; font-weight: 500; color: #7c6af7; line-height: 1; }
+        .stat-label { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 6px; letter-spacing: 0.3px; }
+
+        /* Section layout */
+        .section { padding: 100px 48px; max-width: 1100px; margin: 0 auto; }
+        .section-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #7c6af7; margin-bottom: 16px; }
+        .section-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(36px, 4vw, 52px); font-weight: 300; line-height: 1.15; color: #f0f0f0; margin-bottom: 20px; }
+        .section-title em { font-style: italic; color: #7c6af7; }
+        .section-sub { font-size: 16px; color: rgba(255,255,255,0.45); line-height: 1.7; max-width: 540px; font-weight: 300; }
+
+        /* Features */
+        .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
+        .feature-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 28px; transition: border-color 0.3s, transform 0.3s; }
+        .feature-card:hover { border-color: rgba(124,106,247,0.3); transform: translateY(-4px); }
+        .feature-icon { font-size: 28px; margin-bottom: 16px; display: block; animation: float 4s ease-in-out infinite; }
+        .feature-title { font-size: 16px; font-weight: 600; color: #e8e8e8; margin-bottom: 10px; }
+        .feature-desc { font-size: 13.5px; color: rgba(255,255,255,0.4); line-height: 1.65; }
+        .feature-tag { display: inline-block; margin-top: 14px; padding: 3px 10px; background: rgba(124,106,247,0.1); border: 1px solid rgba(124,106,247,0.2); border-radius: 20px; font-size: 11px; color: #7c6af7; }
+
+        /* How it works */
+        .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 56px; position: relative; }
+        .steps-grid::before { content: ''; position: absolute; top: 28px; left: 10%; right: 10%; height: 1px; background: linear-gradient(90deg, transparent, rgba(124,106,247,0.3), transparent); }
+        .step-item { text-align: center; padding: 0 20px; }
+        .step-num { width: 56px; height: 56px; border-radius: 50%; background: rgba(124,106,247,0.08); border: 1px solid rgba(124,106,247,0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-family: 'Cormorant Garamond', serif; font-size: 22px; color: #7c6af7; position: relative; z-index: 2; }
+        .step-title { font-size: 14px; font-weight: 600; color: #e8e8e8; margin-bottom: 8px; }
+        .step-desc { font-size: 13px; color: rgba(255,255,255,0.35); line-height: 1.6; }
+
+        /* Testimonials */
+        .testimonials-section { padding: 100px 48px; background: linear-gradient(180deg, transparent, rgba(124,106,247,0.03), transparent); }
+        .testimonials-inner { max-width: 800px; margin: 0 auto; }
+        .testimonial-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(124,106,247,0.15); border-radius: 20px; padding: 40px 48px; position: relative; }
+        .testimonial-quote { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-style: italic; color: rgba(255,255,255,0.8); line-height: 1.6; margin-bottom: 24px; padding-left: 32px; }
+        .testimonial-quote::before { content: '"'; font-size: 60px; color: rgba(124,106,247,0.2); position: absolute; top: 20px; left: 40px; line-height: 1; font-family: 'Cormorant Garamond', serif; }
+        .testimonial-author { display: flex; align-items: center; gap: 14px; }
+        .testimonial-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #5a45d4, #7c6af7); display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; font-weight: 700; }
+        .testimonial-name { font-size: 14px; font-weight: 600; color: #e8e8e8; }
+        .testimonial-role { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+        .testimonial-dots { display: flex; justify-content: center; gap: 8px; margin-top: 28px; }
+        .t-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.15); cursor: pointer; transition: all 0.3s; }
+        .t-dot.active { background: #7c6af7; transform: scale(1.3); }
+
+        /* Profiles section */
+        .profiles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
+        .profile-card { border-radius: 16px; padding: 32px 28px; cursor: pointer; transition: all 0.3s; border: 1px solid; }
+        .profile-card:hover { transform: translateY(-6px); }
+
+        /* CTA final */
+        .cta-section { padding: 120px 48px; text-align: center; position: relative; overflow: hidden; }
+        .cta-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(124,106,247,0.06) 0%, transparent 70%); pointer-events: none; }
+        .cta-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(40px, 5vw, 64px); font-weight: 300; color: #f0f0f0; margin-bottom: 20px; }
+        .cta-sub { font-size: 16px; color: rgba(255,255,255,0.4); margin-bottom: 40px; max-width: 460px; margin-left: auto; margin-right: auto; line-height: 1.7; }
+
+        /* Footer */
+        .footer { padding: 40px 48px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center; }
+        .footer-logo { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: rgba(124,106,247,0.6); font-style: italic; }
+        .footer-links { display: flex; gap: 24px; }
+        .footer-link { font-size: 12.5px; color: rgba(255,255,255,0.25); text-decoration: none; transition: color 0.2s; }
+        .footer-link:hover { color: rgba(255,255,255,0.5); }
+
         @media (max-width: 900px) {
-          .sidebar { display: none; }
-          .main { padding: 24px 20px; }
+          .nav { padding: 16px 24px; }
+          .nav-links { display: none; }
+          .hero { padding: 100px 24px 60px; }
           .stats-grid { grid-template-columns: repeat(2, 1fr); }
-          .two-col { grid-template-columns: 1fr; }
-          .form-grid { grid-template-columns: 1fr; }
-          .action-btns { grid-template-columns: 1fr 1fr; }
-          .quick-actions { grid-template-columns: 1fr; }
+          .section { padding: 60px 24px; }
+          .features-grid { grid-template-columns: 1fr; }
+          .steps-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
+          .steps-grid::before { display: none; }
+          .profiles-grid { grid-template-columns: 1fr; }
+          .capture-form { flex-direction: column; }
+          .footer { flex-direction: column; gap: 16px; text-align: center; }
         }
       `}</style>
 
-      <div className="layout">
-        {/* Sidebar */}
-        <aside className="sidebar">
-          <div className="sidebar-logo">
-            <h1>B2B Pro</h1>
-            <p>Prospection</p>
+      {/* Canvas particles */}
+      <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
+
+      {/* Nav */}
+      <nav className={`nav ${navScrolled ? 'scrolled' : ''}`}>
+        <div className="nav-logo">ProspectBot</div>
+        <div className="nav-links">
+          <a href="#fonctionnalites" className="nav-link">Fonctionnalités</a>
+          <a href="#demo" className="nav-link">Démo</a>
+          <a href="#temoignages" className="nav-link">Témoignages</a>
+          <a href="/immobilier" className="nav-link">Immobilier</a>
+        </div>
+        <button className="nav-cta" onClick={() => router.push('/login')}>Se connecter →</button>
+      </nav>
+
+      {/* ── HERO ── */}
+      <section className="hero">
+        <div className="hero-glow" />
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div className="hero-tag">
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3ecf8e', display: 'inline-block' }} />
+            500+ équipes sales utilisent ProspectBot B2B aujourd'hui
           </div>
-          <nav className="sidebar-nav">
-            <div className="nav-section">Navigation</div>
-            {NAV_ITEMS.map(item => (
-              <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
-                <span className="nav-dot" />
-                {item.label}
-              </button>
-            ))}
-            <div className="nav-section" style={{ marginTop: 12 }}>Modules</div>
-            <Link href="/immobilier" className="switch-btn">
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-              Passer à Immobilier
-            </Link>
-          </nav>
-          {agent && (
-            <div className="sidebar-footer">
-              <div className="agent-info">
-                <div className="agent-name">{agent.name}</div>
-                <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
-              </div>
-              <button className="help-btn" onClick={() => setShowOnboarding(true)}>
-                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                Revoir le tutoriel
-              </button>
-              <button className="logout-btn" onClick={logout}>
-                <span>←</span> Déconnexion
-              </button>
+          <h1 className="hero-title">
+            La prospection B2B<br />
+            <em>enfin automatisée.</em>
+          </h1>
+          <p className="hero-sub">
+            ProspectBot scrape les contacts, qualifie vos leads via chatbot et déclenche les séquences email automatiquement. Vous gagnez 5h par semaine.
+          </p>
+
+          <div className="hero-form">
+            <div className="profile-tabs">
+              {[
+                { id: 'startup', label: 'Startup' },
+                { id: 'agence', label: 'Agence' },
+                { id: 'independant', label: 'Indépendant' },
+              ].map(p => (
+                <button
+                  key={p.id}
+                  className={`profile-tab ${heroProfile === p.id ? 'active' : ''}`}
+                  onClick={() => setHeroProfile(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
-          )}
-        </aside>
 
-        {/* Main */}
-        <main className="main">
-
-          {/* ── Dashboard ── */}
-          {activeTab === 'dashboard' && (
-            <>
-              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  <h2 className="page-title">Vue d'ensemble</h2>
-                  <p className="page-subtitle">Performances de prospection B2B</p>
-                </div>
-                <button className="btn btn-secondary" onClick={loadAll}>↻ Actualiser</button>
+            {!heroSent ? (
+              <form className="capture-form" onSubmit={handleHeroSubmit}>
+                <input
+                  type="email"
+                  required
+                  placeholder={
+                    heroProfile === 'startup' ? 'vous@startup.io' :
+                    heroProfile === 'agence' ? 'vous@agence.fr' : 'vous@freelance.fr'
+                  }
+                  value={heroEmail}
+                  onChange={e => setHeroEmail(e.target.value)}
+                  className="capture-input"
+                />
+                <button type="submit" className="capture-btn">
+                  {heroProfile === 'startup' ? 'Essai gratuit →' : heroProfile === 'agence' ? 'Démo gratuite →' : 'Commencer →'}
+                </button>
+              </form>
+            ) : (
+              <div style={{ padding: '16px 24px', background: 'rgba(62,207,142,0.1)', border: '1px solid rgba(62,207,142,0.3)', borderRadius: 12, display: 'inline-block', animation: 'fadeUp 0.4s ease' }}>
+                <span style={{ color: '#3ecf8e', fontSize: 15, fontWeight: 600 }}>Parfait — Redirection en cours…</span>
               </div>
+            )}
 
-              <div className="stats-grid">
+            <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>
+              Gratuit 14 jours · Aucune carte requise · Annulation en 1 clic
+            </p>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.3, animation: 'float 2s ease-in-out infinite' }}>
+          <div style={{ width: 1, height: 40, background: 'linear-gradient(180deg, transparent, #7c6af7)' }} />
+          <span style={{ fontSize: 10, letterSpacing: 2, color: '#7c6af7' }}>SCROLL</span>
+        </div>
+      </section>
+
+      {/* ── STATS ── */}
+      <div className="stats-band">
+        <div className="stats-grid">
+          {[
+            { num: 500, suffix: '+', label: 'Équipes actives' },
+            { num: 5, suffix: 'h', label: 'Gagnées par semaine' },
+            { num: 120000, suffix: '+', label: 'Emails envoyés' },
+            { num: 38, suffix: '%', label: 'Taux d\'ouverture moyen' },
+          ].map((s, i) => (
+            <div key={i} data-reveal data-delay={String(i + 1)}>
+              <div className="stat-num"><Counter target={s.num} suffix={s.suffix} /></div>
+              <div className="stat-label">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── FONCTIONNALITÉS ── */}
+      <section id="fonctionnalites">
+        <div className="section">
+          <div data-reveal><div className="section-tag">Fonctionnalités</div></div>
+          <div data-reveal data-delay="1">
+            <h2 className="section-title">Tout ce dont une équipe sales<br /><em>a besoin, en un seul endroit.</em></h2>
+          </div>
+          <div data-reveal data-delay="2">
+            <p className="section-sub">Du scraping de contacts à l'automatisation des séquences email — ProspectBot couvre l'intégralité du workflow de prospection B2B.</p>
+          </div>
+
+          <div className="features-grid">
+            {[
+              {
+                icon: (<svg width="22" height="22" fill="none" stroke="#7c6af7" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>),
+                title: 'Scraping de contacts',
+                desc: 'Extrayez des emails et numéros depuis n\'importe quel site web. Alimentez votre pipeline en quelques secondes avec des données fraîches.',
+                tag: 'Automatique', delay: '1'
+              },
+              {
+                icon: (<svg width="22" height="22" fill="none" stroke="#7c6af7" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>),
+                title: 'Chatbot de qualification',
+                desc: 'Un chatbot intelligent capture et qualifie vos visiteurs. Les leads arrivent directement dans votre dashboard avec leurs informations complètes.',
+                tag: 'IA', delay: '2'
+              },
+              {
+                icon: (<svg width="22" height="22" fill="none" stroke="#7c6af7" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>),
+                title: 'Séquences email automatiques',
+                desc: 'Créez des workflows email multi-étapes déclenchés par le comportement de vos prospects. Ouverture, clic, réponse — tout est tracé.',
+                tag: 'Brevo', delay: '3'
+              },
+              {
+                icon: (<svg width="22" height="22" fill="none" stroke="#7c6af7" strokeWidth="1.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>),
+                title: 'Workflows intelligents',
+                desc: 'Automatisez les actions selon le comportement : email ouvert → relance, lien cliqué → appel commercial, formulaire soumis → onboarding.',
+                tag: 'Automation', delay: '4'
+              },
+              {
+                icon: (<svg width="22" height="22" fill="none" stroke="#7c6af7" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>),
+                title: 'CRM prospects',
+                desc: 'Fiche complète par prospect : historique des interactions, emails ouverts, comportement sur votre site, tags et segments personnalisés.',
+                tag: 'CRM', delay: '5'
+              },
+              {
+                icon: (<svg width="22" height="22" fill="none" stroke="#7c6af7" strokeWidth="1.5" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>),
+                title: 'Analytics & reporting',
+                desc: 'Tableau de bord en temps réel : taux d\'ouverture, de clics, de conversion, ROI par campagne. Prenez des décisions basées sur les données.',
+                tag: 'Data', delay: '6'
+              },
+            ].map((f, i) => (
+              <div key={i} className="feature-card" data-reveal data-delay={f.delay}>
+                <span className="feature-icon" style={{ animationDelay: `${i * 0.5}s`, display: 'block', marginBottom: 16 }}>{f.icon}</span>
+                <div className="feature-title">{f.title}</div>
+                <p className="feature-desc">{f.desc}</p>
+                <span className="feature-tag">{f.tag}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── COMMENT ÇA MARCHE ── */}
+      <section style={{ borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(124,106,247,0.02)' }}>
+        <div className="section">
+          <div style={{ textAlign: 'center', marginBottom: 0 }}>
+            <div data-reveal><div className="section-tag" style={{ textAlign: 'center' }}>Comment ça marche</div></div>
+            <div data-reveal data-delay="1"><h2 className="section-title" style={{ textAlign: 'center' }}>Opérationnel en <em>3 minutes.</em></h2></div>
+          </div>
+          <div className="steps-grid">
+            {[
+              { n: '1', title: 'Créez votre compte', desc: 'Inscription en 2 minutes, aucune carte de crédit requise.', delay: '1' },
+              { n: '2', title: 'Importez vos contacts', desc: 'Via le scraper ou votre CRM existant. ProspectBot segmente automatiquement.', delay: '2' },
+              { n: '3', title: 'Lancez une campagne', desc: 'Choisissez un template, personnalisez le texte par IA, planifiez l\'envoi.', delay: '3' },
+              { n: '4', title: 'Analysez & convertissez', desc: 'Suivez les ouvertures, les clics, les réponses. Les workflows font le reste.', delay: '4' },
+            ].map((s, i) => (
+              <div key={i} className="step-item" data-reveal data-delay={s.delay}>
+                <div className="step-num">{s.n}</div>
+                <div className="step-title">{s.title}</div>
+                <p className="step-desc">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── DEMO INTERACTIVE ── */}
+      <section id="demo">
+        <div className="section">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
+            <div>
+              <div data-reveal><div className="section-tag">Démo live</div></div>
+              <div data-reveal data-delay="1">
+                <h2 className="section-title">Voyez-le tourner <em>en direct.</em></h2>
+              </div>
+              <div data-reveal data-delay="2">
+                <p className="section-sub">Cliquez sur "Lancer la démo" et observez ProspectBot scraper les contacts, les qualifier et déclencher les séquences email — le tout en quelques secondes.</p>
+              </div>
+              <div data-reveal data-delay="3" style={{ marginTop: 32 }}>
                 {[
-                  { label: 'Prospects', value: stats.prospects, sub: 'conversations entrantes', tab: 'chatbot' },
-                  { label: 'Leads qualifiés', value: stats.leads, sub: 'avec email identifié', tab: 'chatbot' },
-                  { label: 'Emails envoyés', value: stats.emailsSent, sub: 'via Brevo', tab: 'email-sender' },
-                  { label: 'Workflows actifs', value: workflows.length, sub: 'automatisations', tab: 'workflows' },
-                ].map((s, i) => (
-                  <div key={i} className="stat-card" onClick={() => setActiveTab(s.tab)}>
-                    <div className="stat-label">{s.label}</div>
-                    <div className="stat-value">{s.value}</div>
-                    <div className="stat-sub">{s.sub}</div>
+                  '4 sources scrappées simultanément',
+                  'Qualification automatique par score',
+                  'Séquence email déclenchée',
+                  'Tracking complet en temps réel',
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c6af7', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>{item}</span>
                   </div>
                 ))}
               </div>
+            </div>
+            <div data-reveal data-delay="2">
+              <LiveDemoB2B />
+            </div>
+          </div>
+        </div>
+      </section>
 
-              <div className="two-col">
-                <div className="card">
-                  <div className="card-header">
-                    <span className="card-title">Conversations récentes</span>
-                    <button className="card-link" onClick={() => setActiveTab('chatbot')}>Voir tout</button>
-                  </div>
-                  {conversations.length === 0
-                    ? <div className="empty"><strong>Aucune conversation</strong>Les leads de votre chatbot apparaîtront ici</div>
-                    : conversations.slice(0, 5).map((c, i) => (
-                      <div key={i} className="list-item">
-                        <div>
-                          <div className="list-item-main">{c.visitor_email || c.lead_email || 'Visiteur anonyme'}</div>
-                          <div className="list-item-sub">{c.qualification_reason || 'Non catégorisé'}</div>
-                        </div>
-                        <div className="list-item-right">
-                          <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>{c.qualified ? 'Qualifié' : 'Froid'}</span>
-                          <small>{new Date(c.created_at).toLocaleDateString('fr-FR')}</small>
-                        </div>
-                      </div>
-                    ))
-                  }
-                </div>
+      {/* ── PROFILS ── */}
+      <section id="profils">
+        <div className="section">
+          <div style={{ textAlign: 'center' }}>
+            <div data-reveal><div className="section-tag" style={{ textAlign: 'center' }}>Pour qui ?</div></div>
+            <div data-reveal data-delay="1"><h2 className="section-title" style={{ textAlign: 'center' }}>Un outil conçu pour <em>chaque profil.</em></h2></div>
+          </div>
+          <div className="profiles-grid">
+            {[
+              {
+                icon: (<svg width="28" height="28" fill="none" stroke="#7c6af7" strokeWidth="1.3" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>),
+                title: 'Startups & scale-ups',
+                desc: 'Automatisez votre outreach dès le premier jour. Construisez votre pipeline B2B sans recruter une équipe sales complète.',
+                color: 'rgba(124,106,247,0.08)', border: 'rgba(124,106,247,0.2)',
+                cta: 'Essai gratuit 14j', profile: 'startup', delay: '1',
+              },
+              {
+                icon: (<svg width="28" height="28" fill="none" stroke="rgba(212,168,83,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>),
+                title: 'Agences & consultants',
+                desc: 'Gérez la prospection de plusieurs clients depuis un seul dashboard. Campagnes séparées, reporting par client.',
+                color: 'rgba(212,168,83,0.06)', border: 'rgba(212,168,83,0.2)',
+                cta: 'Voir les plans agences', profile: 'agence', delay: '2',
+              },
+              {
+                icon: (<svg width="28" height="28" fill="none" stroke="rgba(62,207,142,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>),
+                title: 'Indépendants & freelances',
+                desc: 'Trouvez vos prochains clients sans passer vos journées à prospecter manuellement. ProspectBot travaille pendant que vous dormez.',
+                color: 'rgba(62,207,142,0.06)', border: 'rgba(62,207,142,0.2)',
+                cta: 'Commencer maintenant', profile: 'independant', delay: '3',
+              },
+            ].map((p, i) => (
+              <div key={i} className="profile-card" data-reveal data-delay={p.delay}
+                style={{ background: p.color, borderColor: p.border }}
+                onClick={() => { setHeroProfile(p.profile); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                <div style={{ marginBottom: 16 }}>{p.icon}</div>
+                <h3 style={{ fontSize: 18, fontWeight: 600, color: '#e8e8e8', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>{p.title}</h3>
+                <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, marginBottom: 24 }}>{p.desc}</p>
+                <button style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 20px', color: '#e8e8e8', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}>
+                  {p.cta} →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-                <div className="card">
-                  <div className="card-header">
-                    <span className="card-title">Campagnes email</span>
-                    <button className="card-link" onClick={() => setActiveTab('campaigns')}>Voir tout</button>
-                  </div>
-                  {campaigns.length === 0
-                    ? <div className="empty"><strong>Aucune campagne</strong>Créez votre première séquence email</div>
-                    : campaigns.slice(0, 5).map((c, i) => (
-                      <div key={i} className="list-item">
-                        <div>
-                          <div className="list-item-main">{c.title || c.name || 'Campagne sans nom'}</div>
-                          <div className="list-item-sub">{c.campaign_type || 'manuel'}</div>
-                        </div>
-                        <div className="list-item-right">
-                          <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>{c.status === 'active' ? 'Actif' : c.status || 'Brouillon'}</span>
-                        </div>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card-header"><span className="card-title">Actions rapides</span></div>
-                <div className="quick-actions">
-                  <button className="quick-action-btn" onClick={() => setActiveTab('chatbot')}>
-                    <div className="quick-action-label">Chatbot</div>Créer un chatbot
-                  </button>
-                  <button className="quick-action-btn" onClick={() => setActiveTab('campaigns')}>
-                    <div className="quick-action-label">Email</div>Nouvelle campagne
-                  </button>
-                  <button className="quick-action-btn" onClick={() => setActiveTab('workflows')}>
-                    <div className="quick-action-label">Automation</div>Configurer un workflow
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── Chatbot ── */}
-          {activeTab === 'chatbot' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Chatbot</h2>
-                <p className="page-subtitle">Créez et gérez vos chatbots de qualification</p>
-              </div>
-              <div className="two-col" style={{ alignItems: 'flex-start' }}>
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Créer un chatbot</div>
-                  {chatbotStatus?.success && <div className="alert alert-success">Chatbot créé avec succès</div>}
-                  {chatbotStatus?.error && <div className="alert alert-error">{chatbotStatus.error}</div>}
-                  <form onSubmit={handleCreateChatbot}>
-                    <div className="form-group"><label>Nom *</label><input type="text" value={chatbotForm.name} onChange={e => setChatbotForm({ ...chatbotForm, name: e.target.value })} placeholder="Assistant commercial" required /></div>
-                    <div className="form-group"><label>Message de bienvenue *</label><textarea value={chatbotForm.greeting} onChange={e => setChatbotForm({ ...chatbotForm, greeting: e.target.value })} placeholder="Bonjour ! Comment puis-je vous aider ?" rows={4} required /></div>
-                    <div className="form-group"><label>Public cible</label><input type="text" value={chatbotForm.targetAudience} onChange={e => setChatbotForm({ ...chatbotForm, targetAudience: e.target.value })} placeholder="PME, professionnels B2B…" /></div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                      {loading ? <><span className="spinner" /> Création…</> : 'Créer le chatbot'}
-                    </button>
-                  </form>
-                </div>
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Conversations reçues</div>
-                  {conversations.length === 0
-                    ? <div className="empty"><strong>Aucune conversation</strong>Les interactions avec votre chatbot apparaîtront ici</div>
-                    : conversations.map((c, i) => (
-                      <div key={i} className="list-item">
-                        <div>
-                          <div className="list-item-main">{c.visitor_email || c.lead_email || 'Anonyme'}</div>
-                          <div className="list-item-sub">{c.qualification_reason || '—'}</div>
-                        </div>
-                        <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>{c.qualified ? 'Qualifié' : 'Froid'}</span>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── Campaigns ── */}
-          {activeTab === 'campaigns' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Campagnes email</h2>
-                <p className="page-subtitle">Automatisez vos séquences de prospection</p>
-              </div>
-              <div className="two-col" style={{ alignItems: 'flex-start' }}>
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Nouvelle campagne</div>
-                  {campaignStatus?.success && <div className="alert alert-success">Campagne créée</div>}
-                  {campaignStatus?.error && <div className="alert alert-error">{campaignStatus.error}</div>}
-                  <form onSubmit={handleCreateCampaign}>
-                    <div className="form-group"><label>Nom *</label><input type="text" value={campaignForm.name} onChange={e => setCampaignForm({ ...campaignForm, name: e.target.value })} placeholder="Offre de lancement" required /></div>
-                    <div className="form-group"><label>Sujet de l'email *</label><input type="text" value={campaignForm.subject} onChange={e => setCampaignForm({ ...campaignForm, subject: e.target.value })} placeholder="Découvrez notre solution…" required /></div>
-                    <div className="form-group"><label>Contenu</label><textarea value={campaignForm.content} onChange={e => setCampaignForm({ ...campaignForm, content: e.target.value })} placeholder="Rédigez votre email ici (HTML supporté)…" rows={8} /></div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                      {loading ? <><span className="spinner" /> Création…</> : 'Créer la campagne'}
-                    </button>
-                  </form>
-                </div>
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Campagnes actives</div>
-                  {campaigns.length === 0
-                    ? <div className="empty"><strong>Aucune campagne</strong>Créez votre première séquence</div>
-                    : campaigns.map((c, i) => (
-                      <div key={i} className="list-item">
-                        <div>
-                          <div className="list-item-main">{c.title || c.name}</div>
-                          <div className="list-item-sub">{c.campaign_type || 'manuel'} · {new Date(c.created_at).toLocaleDateString('fr-FR')}</div>
-                        </div>
-                        <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>{c.status === 'active' ? 'Actif' : 'Brouillon'}</span>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── Email Sender ── */}
-          {activeTab === 'email-sender' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Envoi d'emails</h2>
-                <p className="page-subtitle">Contactez vos prospects directement</p>
-              </div>
-              <div className="two-col" style={{ alignItems: 'flex-start' }}>
+      {/* ── TÉMOIGNAGES ── */}
+      <section id="temoignages" className="testimonials-section">
+        <div className="testimonials-inner">
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <div data-reveal><div className="section-tag" style={{ textAlign: 'center' }}>Témoignages</div></div>
+            <div data-reveal data-delay="1"><h2 className="section-title" style={{ textAlign: 'center' }}>Ce qu'ils en <em>disent.</em></h2></div>
+          </div>
+          <div data-reveal data-delay="2">
+            <div className="testimonial-card">
+              <p className="testimonial-quote">
+                {TESTIMONIALS[activeTestimonial].quote}
+              </p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar">{TESTIMONIALS[activeTestimonial].initials}</div>
                 <div>
-                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{selectedProspects.length > 0 ? `${selectedProspects.length} sélectionné${selectedProspects.length > 1 ? 's' : ''}` : 'Leads qualifiés'}</span>
-                  </div>
-                  {conversations.filter(c => c.visitor_email || c.lead_email).length === 0
-                    ? <div className="empty"><strong>Aucun lead</strong>Les leads avec email apparaîtront ici</div>
-                    : conversations.filter(c => c.visitor_email || c.lead_email).map((c, i) => {
-                      const email = c.visitor_email || c.lead_email;
-                      const selected = selectedProspects.includes(email);
-                      return (
-                        <div key={i} className={`prospect-row ${selected ? 'selected' : ''}`} onClick={() => toggleProspect(email)}>
-                          <div className={`prospect-check ${selected ? 'checked' : ''}`} />
-                          <div>
-                            <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text)' }}>{email}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.qualification_reason || '—'}</div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  }
+                  <div className="testimonial-name">{TESTIMONIALS[activeTestimonial].name}</div>
+                  <div className="testimonial-role">{TESTIMONIALS[activeTestimonial].role}</div>
                 </div>
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Composer</div>
-                  {emailStatus?.success && <div className="alert alert-success">{emailStatus.sent} email{emailStatus.sent > 1 ? 's' : ''} envoyé{emailStatus.sent > 1 ? 's' : ''}</div>}
-                  {emailStatus?.error && <div className="alert alert-error">{emailStatus.error}</div>}
-                  <form onSubmit={handleSendEmail}>
-                    <div className="form-grid" style={{ marginBottom: 16 }}>
-                      <div><label>Expéditeur (nom)</label><input type="text" value={emailForm.senderName} onChange={e => setEmailForm({ ...emailForm, senderName: e.target.value })} required /></div>
-                      <div><label>Expéditeur (email)</label><input type="email" value={emailForm.senderEmail} onChange={e => setEmailForm({ ...emailForm, senderEmail: e.target.value })} required /></div>
-                    </div>
-                    {selectedProspects.length === 0 && (
-                      <div className="form-group">
-                        <label>Destinataires (séparés par virgule)</label>
-                        <input type="text" value={emailForm.recipients} onChange={e => setEmailForm({ ...emailForm, recipients: e.target.value })} placeholder="contact@exemple.com, autre@exemple.com" />
-                      </div>
-                    )}
-                    <div className="form-group"><label>Sujet</label><input type="text" value={emailForm.subject} onChange={e => setEmailForm({ ...emailForm, subject: e.target.value })} placeholder="Objet de votre message" required /></div>
-                    <div className="form-group"><label>Message</label><textarea value={emailForm.content} onChange={e => setEmailForm({ ...emailForm, content: e.target.value })} placeholder="Rédigez votre message…" rows={7} required /></div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                      {loading ? <><span className="spinner" /> Envoi…</> : `Envoyer${selectedProspects.length > 0 ? ` à ${selectedProspects.length} destinataire${selectedProspects.length > 1 ? 's' : ''}` : ''}`}
-                    </button>
-                  </form>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} width="13" height="13" viewBox="0 0 24 24" fill="#7c6af7"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  ))}
                 </div>
               </div>
-            </>
-          )}
+            </div>
+            <div className="testimonial-dots">
+              {TESTIMONIALS.map((_, i) => (
+                <div key={i} className={`t-dot ${i === activeTestimonial ? 'active' : ''}`} onClick={() => setActiveTestimonial(i)} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
-          {/* ── Scraper ── */}
-          {activeTab === 'scraper' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Scraper web</h2>
-                <p className="page-subtitle">Extrayez des contacts depuis n'importe quel site</p>
-              </div>
-              <div className="card">
-                {scraperStatus?.success && <div className="alert alert-success">{scraperStatus.count} email{scraperStatus.count > 1 ? 's' : ''} extrait{scraperStatus.count > 1 ? 's' : ''}</div>}
-                {scraperStatus?.error && <div className="alert alert-error">{scraperStatus.error}</div>}
-                <form onSubmit={handleScrape}>
-                  <div className="form-group"><label>URL du site *</label><input type="url" value={scraperForm.url} onChange={e => setScraperForm({ ...scraperForm, url: e.target.value })} placeholder="https://example.com/contact" required /></div>
-                  <div className="form-group">
-                    <label>Sélecteur CSS <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optionnel)</span></label>
-                    <input type="text" value={scraperForm.selector} onChange={e => setScraperForm({ ...scraperForm, selector: e.target.value })} placeholder=".email, #contact-email…" />
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Sans sélecteur, tous les emails de la page sont extraits automatiquement</p>
-                  </div>
-                  <button type="submit" className="btn btn-primary" disabled={loading}>
-                    {loading ? <><span className="spinner" /> Extraction…</> : 'Lancer l\'extraction'}
-                  </button>
-                </form>
-                {scrapedEmails.length > 0 && (
-                  <div style={{ marginTop: 28 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                      <span className="card-title">{scrapedEmails.length} email{scrapedEmails.length > 1 ? 's' : ''} trouvé{scrapedEmails.length > 1 ? 's' : ''}</span>
-                      <button className="btn btn-secondary" onClick={() => setActiveTab('email-sender')}>Envoyer un email à ces contacts</button>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                      {scrapedEmails.map((email, i) => <span key={i} className="email-pill">{email}</span>)}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+      {/* ── CTA FINAL ── */}
+      <section className="cta-section">
+        <div className="cta-bg" />
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div data-reveal><h2 className="cta-title">Prêt à automatiser<br /><em>votre prospection B2B ?</em></h2></div>
+          <div data-reveal data-delay="1"><p className="cta-sub">Rejoignez les 500+ équipes qui font confiance à ProspectBot pour remplir leur pipeline de leads qualifiés.</p></div>
+          <div data-reveal data-delay="2" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button onClick={() => router.push('/login')}
+              style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 14, padding: '16px 36px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 60px rgba(124,106,247,0.25)', transition: 'transform 0.2s' }}>
+              Démarrer gratuitement →
+            </button>
+            <button onClick={() => document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' })}
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: '16px 32px', fontSize: 16, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}>
+              Voir la démo
+            </button>
+          </div>
+          <p data-reveal data-delay="3" style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+            14 jours gratuits · Sans carte de crédit · Support 7j/7
+          </p>
+        </div>
+      </section>
 
-          {/* ── Workflows ── */}
-          {activeTab === 'workflows' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Workflows</h2>
-                <p className="page-subtitle">Automatisez vos séquences de prospection</p>
-              </div>
-              <div className="two-col" style={{ alignItems: 'flex-start' }}>
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Créer un workflow</div>
-                  {workflowStatus?.success && <div className="alert alert-success">Workflow créé</div>}
-                  <form onSubmit={handleCreateWorkflow}>
-                    <div className="form-group"><label>Nom *</label><input type="text" value={workflowForm.name} onChange={e => setWorkflowForm({ ...workflowForm, name: e.target.value })} placeholder="Nurturing nouveaux leads" required /></div>
-                    <div className="form-group">
-                      <label>Déclencheur</label>
-                      <select value={workflowForm.trigger} onChange={e => setWorkflowForm({ ...workflowForm, trigger: e.target.value })}>
-                        {WORKFLOW_TRIGGERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Actions</label>
-                      <div className="action-btns">
-                        {WORKFLOW_ACTIONS.map(a => (
-                          <button key={a.type} type="button" className="action-btn" onClick={() => addAction(a.type)}>+ {a.label}</button>
-                        ))}
-                      </div>
-                      {workflowForm.actions.length === 0
-                        ? <p style={{ fontSize: 12.5, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Aucune action ajoutée</p>
-                        : workflowForm.actions.map((a, i) => (
-                          <div key={a.id} className="action-item">
-                            <span>{i + 1}. {WORKFLOW_ACTIONS.find(wa => wa.type === a.type)?.label || a.type}</span>
-                            <button type="button" onClick={() => removeAction(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>×</button>
-                          </div>
-                        ))
-                      }
-                    </div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={workflowForm.actions.length === 0}>Créer le workflow</button>
-                  </form>
-                </div>
-                <div>
-                  <div className="card-title" style={{ marginBottom: 14, fontSize: 13 }}>Workflows actifs</div>
-                  {workflows.length === 0
-                    ? <div className="empty"><strong>Aucun workflow</strong>Configurez votre première automatisation</div>
-                    : workflows.map((w, i) => (
-                      <div key={i} className="workflow-card">
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{w.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                            {WORKFLOW_TRIGGERS.find(t => t.value === w.trigger)?.label} · {w.actions.length} action{w.actions.length > 1 ? 's' : ''}
-                          </div>
-                        </div>
-                        <span className="badge badge-green">Actif</span>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            </>
-          )}
+      {/* ── FOOTER ── */}
+      <footer className="footer">
+        <div className="footer-logo">ProspectBot</div>
+        <div className="footer-links">
+          <a href="/login" className="footer-link">Connexion</a>
+          <a href="/immobilier" className="footer-link">Version Immobilier</a>
+          <a href="#" className="footer-link">Mentions légales</a>
+          <a href="#" className="footer-link">Contact</a>
+        </div>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.15)' }}>© 2025 ProspectBot</span>
+      </footer>
 
-        </main>
-      </div>
-
-      {/* Onboarding B2B */}
-      {showOnboarding && (
-        <OnboardingB2B
-          agentName={agent?.name || 'Agent'}
-          onComplete={handleOnboardingComplete}
-        />
-      )}
+      {/* Floating CTA */}
+      <FloatingCTA onCapture={handleCapture} />
     </>
   );
 }
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+
+const TESTIMONIALS = [
+  {
+    quote: "Avant ProspectBot B2B, je passais 4h par semaine à chercher des contacts manuellement. Maintenant mon pipeline se remplit tout seul. J'ai signé 3 nouveaux clients le premier mois.",
+    name: 'Alexis R.',
+    role: 'Fondateur, SaaS B2B, Paris',
+    initials: 'A',
+  },
+  {
+    quote: "Le chatbot de qualification est bluffant. Mes visiteurs repartent avec une proposition en moins de 5 minutes et moi j'ai leurs coordonnées qualifiées directement dans mon dashboard.",
+    name: 'Claire M.',
+    role: 'Directrice marketing, Agence digitale, Lyon',
+    initials: 'C',
+  },
+  {
+    quote: "J'ai testé 4 outils de prospection avant ProspectBot. Aucun n'avait ce niveau d'automatisation. Le scraper + les workflows email, c'est une combinaison imbattable.",
+    name: 'Hugo D.',
+    role: 'Consultant indépendant, Bordeaux',
+    initials: 'H',
+  },
+  {
+    quote: "Notre taux d'ouverture est passé de 18% à 41% en 6 semaines grâce aux séquences personnalisées par IA. Le ROI est évident dès le premier mois.",
+    name: 'Nadia B.',
+    role: 'Head of Sales, Scale-up Tech, Nantes',
+    initials: 'N',
+  },
+];
