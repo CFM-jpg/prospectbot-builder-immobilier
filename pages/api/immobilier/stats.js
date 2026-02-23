@@ -1,84 +1,48 @@
 // pages/api/immobilier/stats.js
-// API Statistiques - Version Supabase
 
 import { supabaseAdmin } from '../../../lib/supabase';
+import { getSession } from '../../../lib/auth';
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Méthode non autorisée' });
-  }
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Méthode non autorisée' });
+
+  const session = getSession(req);
+  if (!session) return res.status(401).json({ error: 'Non authentifié' });
+  const agentEmail = session.email;
 
   try {
-    // 1. Total biens
     const { count: totalBiens } = await supabaseAdmin
-      .from('biens')
-      .select('*', { count: 'exact', head: true });
+      .from('biens').select('*', { count: 'exact', head: true }).eq('agent_email', agentEmail);
 
-    // 2. Total acheteurs
     const { count: totalAcheteurs } = await supabaseAdmin
-      .from('acheteurs')
-      .select('*', { count: 'exact', head: true });
+      .from('acheteurs').select('*', { count: 'exact', head: true }).eq('agent_email', agentEmail);
 
-    // 3. Total matches
     const { count: totalMatches } = await supabaseAdmin
-      .from('matches')
-      .select('*', { count: 'exact', head: true });
+      .from('matches').select('*', { count: 'exact', head: true }).eq('agent_email', agentEmail);
 
-    // 4. Prix moyen des biens
     const { data: biensData } = await supabaseAdmin
-      .from('biens')
-      .select('prix')
-      .not('prix', 'is', null);
+      .from('biens').select('prix').eq('agent_email', agentEmail).not('prix', 'is', null);
+    const prixMoyen = biensData?.length
+      ? Math.round(biensData.reduce((s, b) => s + (b.prix || 0), 0) / biensData.length) : 0;
 
-    const prixMoyen = biensData && biensData.length > 0
-      ? Math.round(biensData.reduce((sum, b) => sum + (b.prix || 0), 0) / biensData.length)
-      : 0;
-
-    // 5. Budget moyen des acheteurs
     const { data: acheteursData } = await supabaseAdmin
-      .from('acheteurs')
-      .select('budget_max')
-      .not('budget_max', 'is', null);
+      .from('acheteurs').select('budget_max').eq('agent_email', agentEmail).not('budget_max', 'is', null);
+    const budgetMoyen = acheteursData?.length
+      ? Math.round(acheteursData.reduce((s, a) => s + (a.budget_max || 0), 0) / acheteursData.length) : 0;
 
-    const budgetMoyen = acheteursData && acheteursData.length > 0
-      ? Math.round(acheteursData.reduce((sum, a) => sum + (a.budget_max || 0), 0) / acheteursData.length)
-      : 0;
+    const tauxMatching = totalAcheteurs > 0 ? Math.round((totalMatches / totalAcheteurs) * 100) : 0;
 
-    // 6. Calcul du taux de matching
-    const tauxMatching = totalAcheteurs > 0
-      ? Math.round((totalMatches / totalAcheteurs) * 100)
-      : 0;
-
-    // 7. Nouveaux matches cette semaine
     const dateSemainePassee = new Date();
     dateSemainePassee.setDate(dateSemainePassee.getDate() - 7);
-
     const { count: nouveauxMatches } = await supabaseAdmin
-      .from('matches')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', dateSemainePassee.toISOString());
-
-    const stats = {
-      totalBiens: totalBiens || 0,
-      totalAcheteurs: totalAcheteurs || 0,
-      totalMatches: totalMatches || 0,
-      prixMoyen: prixMoyen,
-      budgetMoyen: budgetMoyen,
-      tauxMatching: tauxMatching,
-      nouveauxMatches: nouveauxMatches || 0
-    };
+      .from('matches').select('*', { count: 'exact', head: true })
+      .eq('agent_email', agentEmail).gte('created_at', dateSemainePassee.toISOString());
 
     return res.status(200).json({
       success: true,
-      data: stats
+      data: { totalBiens: totalBiens || 0, totalAcheteurs: totalAcheteurs || 0, totalMatches: totalMatches || 0, prixMoyen, budgetMoyen, tauxMatching, nouveauxMatches: nouveauxMatches || 0 }
     });
-
   } catch (error) {
-    console.error('Erreur récupération stats:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erreur lors de la récupération des statistiques',
-      details: error.message
-    });
+    return res.status(500).json({ success: false, error: 'Erreur statistiques', details: error.message });
   }
 }
