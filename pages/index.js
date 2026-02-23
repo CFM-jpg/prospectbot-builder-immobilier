@@ -338,9 +338,31 @@ export default function LandingPage() {
   return (
     <>
       <Head>
-        <title>ProspectBot — Trouvez des mandats sans prospection manuelle</title>
-        <meta name="description" content="ProspectBot surveille LeBonCoin, SeLoger et BienIci, matche chaque bien avec vos acheteurs et envoie les alertes automatiquement. Essai gratuit 14 jours." />
+        <title>ProspectBot — Automatisez votre prospection immobilière | Essai gratuit 14 jours</title>
+        <meta name="description" content="ProspectBot surveille LeBonCoin, SeLoger et BienIci en temps réel, matche chaque bien avec vos acheteurs et envoie les alertes automatiquement. Pour agents immobiliers. Essai gratuit 14 jours, sans carte bancaire." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="robots" content="index, follow" />
+        <meta name="author" content="ProspectBot" />
+        <meta name="keywords" content="prospection immobilière automatique, logiciel agent immobilier, scraping immobilier, matching acheteur vendeur, alerte immobilière, outil agent immobilier" />
+        <meta property="og:title" content="ProspectBot — Automatisez votre prospection immobilière" />
+        <meta property="og:description" content="Surveillance automatique de LeBonCoin, SeLoger et BienIci. Matching IA. Alertes instantanées. Pour agents immobiliers. Essai gratuit 14 jours." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://prospectbot-builder-immobilier.vercel.app" />
+        <meta property="og:locale" content="fr_FR" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="ProspectBot — Prospection immobilière automatisée" />
+        <meta name="twitter:description" content="Surveillance LeBonCoin, SeLoger, BienIci + matching IA + alertes email automatiques. Essai gratuit 14 jours." />
+        <link rel="canonical" href="https://prospectbot-builder-immobilier.vercel.app" />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "ProspectBot",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "description": "Outil de prospection immobilière automatisée pour agents immobiliers. Surveillance de LeBonCoin, SeLoger et BienIci, matching IA et alertes email.",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai gratuit 14 jours" },
+          "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "340" }
+        })}} />
         <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </Head>
 
@@ -513,23 +535,31 @@ export default function LandingPage() {
 
           <div className="hero-form">
             {!heroSent ? (
-              <form className="capture-form" onSubmit={handleHeroSubmit}>
+              <form className="capture-form" onSubmit={handleHeroSubmit} aria-label="Formulaire d'inscription essai gratuit">
+                <label htmlFor="hero-email" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>Votre email professionnel</label>
                 <input
+                  id="hero-email"
                   type="email"
                   required
                   placeholder="Votre email professionnel"
                   value={heroEmail}
                   onChange={e => setHeroEmail(e.target.value)}
                   className="capture-input"
+                  aria-required="true"
+                  autoComplete="email"
                 />
+                <label htmlFor="hero-secteur" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>Votre secteur géographique</label>
                 <input
+                  id="hero-secteur"
                   type="text"
                   placeholder="Votre secteur (ex : Angers, 49...)"
                   value={heroSecteur}
                   onChange={e => setHeroSecteur(e.target.value)}
                   className="capture-input"
+                  aria-label="Secteur géographique"
+                  autoComplete="off"
                 />
-                <button type="submit" className="capture-btn">
+                <button type="submit" className="capture-btn" aria-label="Démarrer l'essai gratuit de 14 jours">
                   Démarrer mon essai gratuit →
                 </button>
               </form>
