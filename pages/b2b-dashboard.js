@@ -130,6 +130,8 @@ export default function B2BDashboard() {
 
   const [chatbotForm, setChatbotForm] = useState({ name: '', greeting: '', targetAudience: '' });
   const [chatbotStatus, setChatbotStatus] = useState(null);
+  const [createdChatbot, setCreatedChatbot] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const [campaignForm, setCampaignForm] = useState({ name: '', subject: '', content: '' });
   const [campaignStatus, setCampaignStatus] = useState(null);
@@ -191,7 +193,7 @@ export default function B2BDashboard() {
         body: JSON.stringify({ name: chatbotForm.name, welcomeMessage: chatbotForm.greeting, questions: [{ text: chatbotForm.targetAudience || 'Comment puis-je vous aider ?' }] }),
       });
       const data = await res.json();
-      if (res.ok) { setChatbotStatus({ success: true }); setChatbotForm({ name: '', greeting: '', targetAudience: '' }); }
+      if (res.ok) { setChatbotStatus({ success: true }); setCreatedChatbot(data.chatbot); setChatbotForm({ name: '', greeting: '', targetAudience: '' }); }
       else { setChatbotStatus({ success: false, error: data.error }); }
     } catch (err) { setChatbotStatus({ success: false, error: err.message }); }
     finally { setLoading(false); }
@@ -536,7 +538,28 @@ export default function B2BDashboard() {
               <div className="two-col" style={{ alignItems: 'flex-start' }}>
                 <div className="card">
                   <div className="card-title" style={{ marginBottom: 20 }}>Créer un chatbot</div>
-                  {chatbotStatus?.success && <div className="alert alert-success">Chatbot créé avec succès</div>}
+                  {chatbotStatus?.success && (
+                    <div className="alert alert-success" style={{ marginBottom: 16 }}>
+                      <div style={{ marginBottom: 10 }}>✅ Chatbot créé avec succès !</div>
+                      {createdChatbot && (() => {
+                        const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/chatbot/${createdChatbot.id}`;
+                        return (
+                          <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ flex: 1, fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all', opacity: 0.9 }}>{link}</span>
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(link); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
+                              style={{ background: linkCopied ? '#22c55e' : '#6366f1', border: 'none', borderRadius: 6, color: '#fff', padding: '5px 10px', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}
+                            >
+                              {linkCopied ? '✓ Copié' : 'Copier'}
+                            </button>
+                            <a href={link} target="_blank" rel="noreferrer" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 6, color: '#fff', padding: '5px 10px', cursor: 'pointer', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Ouvrir →
+                            </a>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                   {chatbotStatus?.error && <div className="alert alert-error">{chatbotStatus.error}</div>}
                   <form onSubmit={handleCreateChatbot}>
                     <div className="form-group"><label>Nom *</label><input type="text" value={chatbotForm.name} onChange={e => setChatbotForm({ ...chatbotForm, name: e.target.value })} placeholder="Assistant commercial" required /></div>
