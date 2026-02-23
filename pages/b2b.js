@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useAuth } from '../lib/useAuth';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -28,47 +30,115 @@ const WORKFLOW_ACTIONS = [
   { type: 'notify_team', label: 'Notifier l\'équipe' },
 ];
 
+const ONBOARDING_STEPS = [
+  { id: 'welcome', icon: '🚀', title: null, desc: 'Votre outil de prospection B2B automatisé. Chatbot, campagnes email, scraper et workflows — tout en un.', highlight: null },
+  { id: 'chatbot', icon: '🤖', title: 'Chatbot de qualification', desc: 'Créez un chatbot qui qualifie automatiquement vos visiteurs et capture leurs emails. Les leads arrivent directement dans votre tableau de bord.', highlight: 'Onglet "Chatbot"' },
+  { id: 'scraper', icon: '🔍', title: 'Scraper web', desc: 'Extrayez des adresses email depuis n\'importe quel site. Alimentez vos campagnes avec des contacts frais en quelques secondes.', highlight: 'Onglet "Scraper web"' },
+  { id: 'campaigns', icon: '📧', title: 'Campagnes email', desc: 'Créez des séquences email automatisées pour nurture vos prospects. Personnalisez le contenu et suivez les performances.', highlight: 'Onglet "Campagnes email"' },
+  { id: 'workflows', icon: '⚙️', title: 'Workflows automatiques', desc: 'Déclenchez des actions automatiques selon le comportement de vos prospects : email ouvert, lien cliqué, formulaire soumis.', highlight: 'Onglet "Workflows"' },
+];
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+function OnboardingB2B({ agentName, onComplete }) {
+  const [step, setStep] = useState(0);
+  const [animating, setAnimating] = useState(false);
+
+  const goNext = () => {
+    if (animating) return;
+    setAnimating(true);
+    setTimeout(() => { setStep(s => Math.min(s + 1, ONBOARDING_STEPS.length - 1)); setAnimating(false); }, 180);
+  };
+  const goPrev = () => {
+    if (animating || step === 0) return;
+    setAnimating(true);
+    setTimeout(() => { setStep(s => Math.max(s - 1, 0)); setAnimating(false); }, 180);
+  };
+
+  const cur = ONBOARDING_STEPS[step];
+  const isLast = step === ONBOARDING_STEPS.length - 1;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 500, margin: 20, overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
+        <div style={{ height: 3, background: '#1f1f24' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg, #5a45d4, #7c6af7)', width: `${((step + 1) / ONBOARDING_STEPS.length) * 100}%`, transition: 'width 0.4s ease' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '20px 32px 0' }}>
+          {ONBOARDING_STEPS.map((s, i) => (
+            <div key={s.id} onClick={() => i < step && setStep(i)} style={{ width: 7, height: 7, borderRadius: '50%', background: i === step ? '#7c6af7' : i < step ? 'rgba(124,106,247,0.5)' : '#2a2a30', transform: i === step ? 'scale(1.4)' : 'scale(1)', transition: 'all 0.3s', cursor: i < step ? 'pointer' : 'default' }} />
+          ))}
+        </div>
+        <div style={{ padding: '24px 36px 12px', textAlign: 'center', opacity: animating ? 0 : 1, transition: 'opacity 0.18s' }}>
+          <div style={{ fontSize: 46, marginBottom: 18 }}>{cur.icon}</div>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, color: '#e8e8e8', fontWeight: 400, margin: '0 0 12px 0' }}>
+            {step === 0 ? `Bonjour, ${agentName} 👋` : cur.title}
+          </h2>
+          <p style={{ fontSize: 14, color: '#6b6b78', lineHeight: 1.65, margin: '0 0 18px 0' }}>{cur.desc}</p>
+          {cur.highlight && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.25)', borderRadius: 8, padding: '7px 14px', color: '#7c6af7', fontSize: 13, marginBottom: 8 }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {cur.highlight}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 36px 26px', gap: 12 }}>
+          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Précédent</button>
+          <button onClick={onComplete} style={{ background: 'none', border: 'none', color: '#4b5563', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'underline' }}>Passer</button>
+          {isLast
+            ? <button onClick={onComplete} style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Commencer →</button>
+            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Suivant →</button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function B2BDashboard() {
   const { agent, logout } = useAuth();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const [conversations, setConversations] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
 
-  const [stats, setStats] = useState({
-    prospects: 0,
-    leads: 0,
-    emailsSent: 0,
-    conversions: 0,
-  });
+  const [stats, setStats] = useState({ prospects: 0, leads: 0, emailsSent: 0, conversions: 0 });
 
-  // Chatbot form
   const [chatbotForm, setChatbotForm] = useState({ name: '', greeting: '', targetAudience: '' });
   const [chatbotStatus, setChatbotStatus] = useState(null);
 
-  // Campaign form
   const [campaignForm, setCampaignForm] = useState({ name: '', subject: '', content: '' });
   const [campaignStatus, setCampaignStatus] = useState(null);
 
-  // Email sender
   const [emailForm, setEmailForm] = useState({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' });
   const [selectedProspects, setSelectedProspects] = useState([]);
   const [emailStatus, setEmailStatus] = useState(null);
 
-  // Scraper
   const [scraperForm, setScraperForm] = useState({ url: '', selector: '' });
   const [scrapedEmails, setScrapedEmails] = useState([]);
   const [scraperStatus, setScraperStatus] = useState(null);
 
-  // Workflows
   const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect', actions: [] });
   const [workflows, setWorkflows] = useState([]);
   const [workflowStatus, setWorkflowStatus] = useState(null);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    loadAll();
+    try {
+      const done = localStorage.getItem('pb_b2b_onboarding_done');
+      if (!done) setTimeout(() => setShowOnboarding(true), 400);
+    } catch {}
+  }, []);
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    try { localStorage.setItem('pb_b2b_onboarding_done', '1'); } catch {}
+  };
 
   const loadAll = async () => {
     try {
@@ -91,8 +161,6 @@ export default function B2BDashboard() {
     } catch (err) { console.error(err); }
   };
 
-  // ── Chatbot ────────────────────────────────────────────────────────────────
-
   const handleCreateChatbot = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -101,27 +169,14 @@ export default function B2BDashboard() {
       const res = await fetch('/api/B2B/chatbot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: chatbotForm.name,
-          welcomeMessage: chatbotForm.greeting,
-          questions: [{ text: chatbotForm.targetAudience || 'Comment puis-je vous aider ?' }],
-        }),
+        body: JSON.stringify({ name: chatbotForm.name, welcomeMessage: chatbotForm.greeting, questions: [{ text: chatbotForm.targetAudience || 'Comment puis-je vous aider ?' }] }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setChatbotStatus({ success: true });
-        setChatbotForm({ name: '', greeting: '', targetAudience: '' });
-      } else {
-        setChatbotStatus({ success: false, error: data.error });
-      }
-    } catch (err) {
-      setChatbotStatus({ success: false, error: err.message });
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) { setChatbotStatus({ success: true }); setChatbotForm({ name: '', greeting: '', targetAudience: '' }); }
+      else { setChatbotStatus({ success: false, error: data.error }); }
+    } catch (err) { setChatbotStatus({ success: false, error: err.message }); }
+    finally { setLoading(false); }
   };
-
-  // ── Campaigns ──────────────────────────────────────────────────────────────
 
   const handleCreateCampaign = async (e) => {
     e.preventDefault();
@@ -134,21 +189,11 @@ export default function B2BDashboard() {
         body: JSON.stringify({ action: 'create_campaign', title: campaignForm.name, description: campaignForm.content }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setCampaignStatus({ success: true });
-        setCampaignForm({ name: '', subject: '', content: '' });
-        loadAll();
-      } else {
-        setCampaignStatus({ success: false, error: data.error });
-      }
-    } catch (err) {
-      setCampaignStatus({ success: false, error: err.message });
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) { setCampaignStatus({ success: true }); setCampaignForm({ name: '', subject: '', content: '' }); loadAll(); }
+      else { setCampaignStatus({ success: false, error: data.error }); }
+    } catch (err) { setCampaignStatus({ success: false, error: err.message }); }
+    finally { setLoading(false); }
   };
-
-  // ── Email Sender ───────────────────────────────────────────────────────────
 
   const handleSendEmail = async (e) => {
     e.preventDefault();
@@ -162,34 +207,18 @@ export default function B2BDashboard() {
       const res = await fetch('/api/B2B/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients,
-          subject: emailForm.subject,
-          template: emailForm.content,
-          senderName: emailForm.senderName,
-          senderEmail: emailForm.senderEmail,
-        }),
+        body: JSON.stringify({ recipients, subject: emailForm.subject, template: emailForm.content, senderName: emailForm.senderName, senderEmail: emailForm.senderEmail }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setEmailStatus({ success: true, sent: data.sent });
-        setEmailForm({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' });
-        setSelectedProspects([]);
-      } else {
-        setEmailStatus({ success: false, error: data.error });
-      }
-    } catch (err) {
-      setEmailStatus({ success: false, error: err.message });
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) { setEmailStatus({ success: true, sent: data.sent }); setEmailForm({ recipients: '', subject: '', content: '', senderName: '', senderEmail: '' }); setSelectedProspects([]); }
+      else { setEmailStatus({ success: false, error: data.error }); }
+    } catch (err) { setEmailStatus({ success: false, error: err.message }); }
+    finally { setLoading(false); }
   };
 
   const toggleProspect = (email) => {
     setSelectedProspects(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
   };
-
-  // ── Scraper ────────────────────────────────────────────────────────────────
 
   const handleScrape = async (e) => {
     e.preventDefault();
@@ -203,28 +232,14 @@ export default function B2BDashboard() {
         body: JSON.stringify({ url: scraperForm.url, selector: scraperForm.selector }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setScrapedEmails(data.emails || []);
-        setScraperStatus({ success: true, count: (data.emails || []).length });
-      } else {
-        setScraperStatus({ success: false, error: data.error || 'Erreur lors du scraping' });
-      }
-    } catch (err) {
-      setScraperStatus({ success: false, error: err.message });
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) { setScrapedEmails(data.emails || []); setScraperStatus({ success: true, count: (data.emails || []).length }); }
+      else { setScraperStatus({ success: false, error: data.error || 'Erreur lors du scraping' }); }
+    } catch (err) { setScraperStatus({ success: false, error: err.message }); }
+    finally { setLoading(false); }
   };
 
-  // ── Workflows ──────────────────────────────────────────────────────────────
-
-  const addAction = (type) => {
-    setWorkflowForm(prev => ({ ...prev, actions: [...prev.actions, { id: Date.now(), type }] }));
-  };
-
-  const removeAction = (id) => {
-    setWorkflowForm(prev => ({ ...prev, actions: prev.actions.filter(a => a.id !== id) }));
-  };
+  const addAction = (type) => setWorkflowForm(prev => ({ ...prev, actions: [...prev.actions, { id: Date.now(), type }] }));
+  const removeAction = (id) => setWorkflowForm(prev => ({ ...prev, actions: prev.actions.filter(a => a.id !== id) }));
 
   const handleCreateWorkflow = (e) => {
     e.preventDefault();
@@ -235,12 +250,10 @@ export default function B2BDashboard() {
     setTimeout(() => setWorkflowStatus(null), 3000);
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <>
       <Head>
-        <title>B2B Dashboard</title>
+        <title>B2B Dashboard — ProspectBot</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet" />
       </Head>
@@ -248,39 +261,19 @@ export default function B2BDashboard() {
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; background: #0f0f11; color: #e8e8e8; min-height: 100vh; }
-
         :root {
-          --bg: #0f0f11;
-          --surface: #17171a;
-          --surface2: #1f1f24;
-          --border: rgba(255,255,255,0.07);
-          --border-hover: rgba(255,255,255,0.14);
-          --text: #e8e8e8;
-          --text-muted: #6b6b78;
-          --text-dim: #a0a0ae;
-          --accent: #7c6af7;
-          --accent-dim: rgba(124,106,247,0.12);
-          --accent-border: rgba(124,106,247,0.3);
-          --green: #3ecf8e;
-          --green-dim: rgba(62,207,142,0.1);
-          --red: #f04444;
-          --red-dim: rgba(240,68,68,0.1);
-          --blue: #5b8dee;
-          --blue-dim: rgba(91,141,238,0.1);
+          --bg: #0f0f11; --surface: #17171a; --surface2: #1f1f24;
+          --border: rgba(255,255,255,0.07); --border-hover: rgba(255,255,255,0.14);
+          --text: #e8e8e8; --text-muted: #6b6b78; --text-dim: #a0a0ae;
+          --accent: #7c6af7; --accent-dim: rgba(124,106,247,0.12); --accent-border: rgba(124,106,247,0.3);
+          --green: #3ecf8e; --green-dim: rgba(62,207,142,0.1);
+          --red: #f04444; --red-dim: rgba(240,68,68,0.1);
+          --blue: #5b8dee; --blue-dim: rgba(91,141,238,0.1);
         }
-
         ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 2px; }
-
         .layout { display: flex; min-height: 100vh; }
-
-        .sidebar {
-          width: 220px; flex-shrink: 0;
-          background: var(--surface); border-right: 1px solid var(--border);
-          display: flex; flex-direction: column;
-          position: sticky; top: 0; height: 100vh; overflow-y: auto;
-        }
+        .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
         .sidebar-logo { padding: 28px 20px 20px; border-bottom: 1px solid var(--border); }
         .sidebar-logo h1 { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--accent); letter-spacing: -0.3px; }
         .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
@@ -289,80 +282,54 @@ export default function B2BDashboard() {
         .agent-info { padding: 10px 12px; background: var(--surface2); border-radius: 8px; margin-bottom: 8px; }
         .agent-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .agent-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-        .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; }
+        .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; margin-top: 6px; }
         .logout-btn:hover { color: #f04444; border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.05); }
-
-        .nav-item {
-          display: flex; align-items: center; padding: 9px 12px;
-          border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 400;
-          color: var(--text-muted); transition: all 0.15s; margin-bottom: 2px;
-          border: none; background: none; width: 100%; text-align: left;
-        }
+        .help-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 12px; font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: color 0.15s; text-align: left; margin-bottom: 4px; }
+        .help-btn:hover { color: var(--accent); }
+        .switch-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 12.5px; color: var(--text-muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-decoration: none; margin-bottom: 6px; }
+        .switch-btn:hover { color: var(--text); border-color: var(--border-hover); }
+        .nav-item { display: flex; align-items: center; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 400; color: var(--text-muted); transition: all 0.15s; margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left; }
         .nav-item:hover { color: var(--text); background: var(--surface2); }
         .nav-item.active { color: var(--accent); background: var(--accent-dim); font-weight: 500; }
         .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: 10px; opacity: 0.5; }
         .nav-item.active .nav-dot { opacity: 1; }
-
-        .back-btn {
-          display: block; width: 100%; padding: 9px 12px;
-          font-size: 12.5px; color: var(--text-muted); background: none;
-          border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
-          text-align: left; transition: all 0.15s;
-        }
-        .back-btn:hover { color: var(--text); border-color: var(--border-hover); }
-
+        .nav-section { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 12px 12px 6px; opacity: 0.6; }
         .main { flex: 1; overflow-y: auto; padding: 40px 48px; max-width: 1100px; }
         .page-header { margin-bottom: 36px; }
         .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: var(--text); letter-spacing: -0.5px; }
         .page-subtitle { font-size: 13.5px; color: var(--text-muted); margin-top: 6px; }
-
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 36px; }
-        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 20px; transition: border-color 0.15s; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 20px; transition: border-color 0.15s; cursor: pointer; }
         .stat-card:hover { border-color: var(--border-hover); }
         .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 500; }
         .stat-value { font-size: 30px; font-family: 'DM Serif Display', serif; color: var(--text); margin-top: 8px; letter-spacing: -1px; }
         .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 20px; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .card-title { font-size: 14px; font-weight: 500; color: var(--text); }
         .card-link { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
         .card-link:hover { opacity: 0.8; }
-
         .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-
         .list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
         .list-item:last-child { border-bottom: none; }
         .list-item-main { font-size: 13.5px; color: var(--text); font-weight: 500; }
         .list-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         .list-item-right { text-align: right; font-size: 13px; color: var(--text); font-weight: 500; }
         .list-item-right small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; }
-
         .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
         .badge-accent { background: var(--accent-dim); color: var(--accent); }
         .badge-green { background: var(--green-dim); color: var(--green); }
         .badge-neutral { background: var(--surface2); color: var(--text-muted); }
         .badge-red { background: var(--red-dim); color: var(--red); }
-
         label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
-        input[type="text"], input[type="email"], input[type="url"], select, textarea {
-          width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-          padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif;
-          outline: none; transition: border-color 0.15s;
-        }
+        input[type="text"], input[type="email"], input[type="url"], select, textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
         input:focus, select:focus, textarea:focus { border-color: var(--accent-border); }
         input::placeholder, textarea::placeholder { color: var(--text-muted); }
         select option { background: #1f1f24; }
         textarea { resize: vertical; line-height: 1.6; }
-
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .form-group { margin-bottom: 16px; }
-
-        .btn {
-          display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-          padding: 10px 20px; border-radius: 8px; font-size: 13.5px; font-weight: 500;
-          font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s;
-        }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 13.5px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s; }
         .btn-primary { background: var(--accent); color: #fff; }
         .btn-primary:hover { opacity: 0.9; }
         .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -370,45 +337,30 @@ export default function B2BDashboard() {
         .btn-secondary:hover { border-color: var(--border-hover); color: var(--text); }
         .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
         .btn-ghost:hover { color: var(--text); border-color: var(--border-hover); }
-        .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid transparent; }
         .btn-full { width: 100%; }
-
         .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
-
         .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; border: 1px solid; }
         .alert-success { background: var(--green-dim); border-color: var(--green); color: var(--green); }
         .alert-error { background: var(--red-dim); border-color: var(--red); color: var(--red); }
-        .alert-warning { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
-
         .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 13.5px; }
         .empty strong { display: block; font-size: 15px; color: var(--text-dim); margin-bottom: 8px; }
-
-        /* Prospects list */
         .prospect-row { display: flex; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
         .prospect-row:hover { border-color: var(--border-hover); }
         .prospect-row.selected { border-color: var(--accent-border); background: var(--accent-dim); }
         .prospect-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border); margin-right: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
         .prospect-check.checked { background: var(--accent); border-color: var(--accent); }
         .prospect-check.checked::after { content: ''; width: 8px; height: 5px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
-
-        /* Workflow */
         .action-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
         .action-btn { padding: 12px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: center; }
         .action-btn:hover { border-color: var(--accent-border); color: var(--text); }
         .action-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: var(--text-dim); }
-
-        /* Scraper results */
         .email-pill { display: inline-flex; align-items: center; padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; color: var(--text-dim); font-family: monospace; margin: 4px; }
-
-        /* Quick actions */
         .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         .quick-action-btn { padding: 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-size: 13.5px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.15s; text-align: left; }
         .quick-action-btn:hover { border-color: var(--accent-border); color: var(--text); }
         .quick-action-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-
         .workflow-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-
         @media (max-width: 900px) {
           .sidebar { display: none; }
           .main { padding: 24px 20px; }
@@ -428,30 +380,34 @@ export default function B2BDashboard() {
             <p>Prospection</p>
           </div>
           <nav className="sidebar-nav">
+            <div className="nav-section">Navigation</div>
             {NAV_ITEMS.map(item => (
-              <button
-                key={item.id}
-                className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(item.id)}
-              >
+              <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
                 <span className="nav-dot" />
                 {item.label}
               </button>
             ))}
+            <div className="nav-section" style={{ marginTop: 12 }}>Modules</div>
+            <Link href="/immobilier" className="switch-btn">
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              Passer à Immobilier
+            </Link>
           </nav>
-          <div className="sidebar-footer">
-            {agent && (
-              <>
-                <div className="agent-info">
-                  <div className="agent-name">{agent.name}</div>
-                  <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
-                </div>
-                <button className="logout-btn" onClick={logout}>
-                  <span>←</span> Déconnexion
-                </button>
-              </>
-            )}
-          </div>
+          {agent && (
+            <div className="sidebar-footer">
+              <div className="agent-info">
+                <div className="agent-name">{agent.name}</div>
+                <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
+              </div>
+              <button className="help-btn" onClick={() => setShowOnboarding(true)}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Revoir le tutoriel
+              </button>
+              <button className="logout-btn" onClick={logout}>
+                <span>←</span> Déconnexion
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Main */}
@@ -460,19 +416,22 @@ export default function B2BDashboard() {
           {/* ── Dashboard ── */}
           {activeTab === 'dashboard' && (
             <>
-              <div className="page-header">
-                <h2 className="page-title">Vue d'ensemble</h2>
-                <p className="page-subtitle">Performances de prospection B2B</p>
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <h2 className="page-title">Vue d'ensemble</h2>
+                  <p className="page-subtitle">Performances de prospection B2B</p>
+                </div>
+                <button className="btn btn-secondary" onClick={loadAll}>↻ Actualiser</button>
               </div>
 
               <div className="stats-grid">
                 {[
-                  { label: 'Prospects', value: stats.prospects, sub: 'conversations entrantes' },
-                  { label: 'Leads qualifiés', value: stats.leads, sub: 'avec email identifié' },
-                  { label: 'Emails envoyés', value: stats.emailsSent, sub: 'via Brevo' },
-                  { label: 'Workflows actifs', value: workflows.length, sub: 'automatisations' },
+                  { label: 'Prospects', value: stats.prospects, sub: 'conversations entrantes', tab: 'chatbot' },
+                  { label: 'Leads qualifiés', value: stats.leads, sub: 'avec email identifié', tab: 'chatbot' },
+                  { label: 'Emails envoyés', value: stats.emailsSent, sub: 'via Brevo', tab: 'email-sender' },
+                  { label: 'Workflows actifs', value: workflows.length, sub: 'automatisations', tab: 'workflows' },
                 ].map((s, i) => (
-                  <div key={i} className="stat-card">
+                  <div key={i} className="stat-card" onClick={() => setActiveTab(s.tab)}>
                     <div className="stat-label">{s.label}</div>
                     <div className="stat-value">{s.value}</div>
                     <div className="stat-sub">{s.sub}</div>
@@ -495,9 +454,7 @@ export default function B2BDashboard() {
                           <div className="list-item-sub">{c.qualification_reason || 'Non catégorisé'}</div>
                         </div>
                         <div className="list-item-right">
-                          <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>
-                            {c.qualified ? 'Qualifié' : 'Froid'}
-                          </span>
+                          <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>{c.qualified ? 'Qualifié' : 'Froid'}</span>
                           <small>{new Date(c.created_at).toLocaleDateString('fr-FR')}</small>
                         </div>
                       </div>
@@ -519,9 +476,7 @@ export default function B2BDashboard() {
                           <div className="list-item-sub">{c.campaign_type || 'manuel'}</div>
                         </div>
                         <div className="list-item-right">
-                          <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>
-                            {c.status === 'active' ? 'Actif' : c.status || 'Brouillon'}
-                          </span>
+                          <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>{c.status === 'active' ? 'Actif' : c.status || 'Brouillon'}</span>
                         </div>
                       </div>
                     ))
@@ -530,21 +485,16 @@ export default function B2BDashboard() {
               </div>
 
               <div className="card">
-                <div className="card-header">
-                  <span className="card-title">Actions rapides</span>
-                </div>
+                <div className="card-header"><span className="card-title">Actions rapides</span></div>
                 <div className="quick-actions">
                   <button className="quick-action-btn" onClick={() => setActiveTab('chatbot')}>
-                    <div className="quick-action-label">Chatbot</div>
-                    Créer un chatbot
+                    <div className="quick-action-label">Chatbot</div>Créer un chatbot
                   </button>
                   <button className="quick-action-btn" onClick={() => setActiveTab('campaigns')}>
-                    <div className="quick-action-label">Email</div>
-                    Nouvelle campagne
+                    <div className="quick-action-label">Email</div>Nouvelle campagne
                   </button>
                   <button className="quick-action-btn" onClick={() => setActiveTab('workflows')}>
-                    <div className="quick-action-label">Automation</div>
-                    Configurer un workflow
+                    <div className="quick-action-label">Automation</div>Configurer un workflow
                   </button>
                 </div>
               </div>
@@ -572,7 +522,6 @@ export default function B2BDashboard() {
                     </button>
                   </form>
                 </div>
-
                 <div className="card">
                   <div className="card-title" style={{ marginBottom: 20 }}>Conversations reçues</div>
                   {conversations.length === 0
@@ -583,9 +532,7 @@ export default function B2BDashboard() {
                           <div className="list-item-main">{c.visitor_email || c.lead_email || 'Anonyme'}</div>
                           <div className="list-item-sub">{c.qualification_reason || '—'}</div>
                         </div>
-                        <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>
-                          {c.qualified ? 'Qualifié' : 'Froid'}
-                        </span>
+                        <span className={`badge ${c.qualified ? 'badge-green' : 'badge-neutral'}`}>{c.qualified ? 'Qualifié' : 'Froid'}</span>
                       </div>
                     ))
                   }
@@ -615,7 +562,6 @@ export default function B2BDashboard() {
                     </button>
                   </form>
                 </div>
-
                 <div className="card">
                   <div className="card-title" style={{ marginBottom: 20 }}>Campagnes actives</div>
                   {campaigns.length === 0
@@ -626,9 +572,7 @@ export default function B2BDashboard() {
                           <div className="list-item-main">{c.title || c.name}</div>
                           <div className="list-item-sub">{c.campaign_type || 'manuel'} · {new Date(c.created_at).toLocaleDateString('fr-FR')}</div>
                         </div>
-                        <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>
-                          {c.status === 'active' ? 'Actif' : 'Brouillon'}
-                        </span>
+                        <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-neutral'}`}>{c.status === 'active' ? 'Actif' : 'Brouillon'}</span>
                       </div>
                     ))
                   }
@@ -647,9 +591,7 @@ export default function B2BDashboard() {
               <div className="two-col" style={{ alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-                      {selectedProspects.length > 0 ? `${selectedProspects.length} sélectionné${selectedProspects.length > 1 ? 's' : ''}` : 'Leads qualifiés'}
-                    </span>
+                    <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{selectedProspects.length > 0 ? `${selectedProspects.length} sélectionné${selectedProspects.length > 1 ? 's' : ''}` : 'Leads qualifiés'}</span>
                   </div>
                   {conversations.filter(c => c.visitor_email || c.lead_email).length === 0
                     ? <div className="empty"><strong>Aucun lead</strong>Les leads avec email apparaîtront ici</div>
@@ -668,7 +610,6 @@ export default function B2BDashboard() {
                     })
                   }
                 </div>
-
                 <div className="card">
                   <div className="card-title" style={{ marginBottom: 20 }}>Composer</div>
                   {emailStatus?.success && <div className="alert alert-success">{emailStatus.sent} email{emailStatus.sent > 1 ? 's' : ''} envoyé{emailStatus.sent > 1 ? 's' : ''}</div>}
@@ -703,9 +644,7 @@ export default function B2BDashboard() {
                 <p className="page-subtitle">Extrayez des contacts depuis n'importe quel site</p>
               </div>
               <div className="card">
-                {scraperStatus?.success && (
-                  <div className="alert alert-success">{scraperStatus.count} email{scraperStatus.count > 1 ? 's' : ''} extrait{scraperStatus.count > 1 ? 's' : ''}</div>
-                )}
+                {scraperStatus?.success && <div className="alert alert-success">{scraperStatus.count} email{scraperStatus.count > 1 ? 's' : ''} extrait{scraperStatus.count > 1 ? 's' : ''}</div>}
                 {scraperStatus?.error && <div className="alert alert-error">{scraperStatus.error}</div>}
                 <form onSubmit={handleScrape}>
                   <div className="form-group"><label>URL du site *</label><input type="url" value={scraperForm.url} onChange={e => setScraperForm({ ...scraperForm, url: e.target.value })} placeholder="https://example.com/contact" required /></div>
@@ -718,19 +657,14 @@ export default function B2BDashboard() {
                     {loading ? <><span className="spinner" /> Extraction…</> : 'Lancer l\'extraction'}
                   </button>
                 </form>
-
                 {scrapedEmails.length > 0 && (
                   <div style={{ marginTop: 28 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                       <span className="card-title">{scrapedEmails.length} email{scrapedEmails.length > 1 ? 's' : ''} trouvé{scrapedEmails.length > 1 ? 's' : ''}</span>
-                      <button className="btn btn-secondary" onClick={() => setActiveTab('email-sender')}>
-                        Envoyer un email à ces contacts
-                      </button>
+                      <button className="btn btn-secondary" onClick={() => setActiveTab('email-sender')}>Envoyer un email à ces contacts</button>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                      {scrapedEmails.map((email, i) => (
-                        <span key={i} className="email-pill">{email}</span>
-                      ))}
+                      {scrapedEmails.map((email, i) => <span key={i} className="email-pill">{email}</span>)}
                     </div>
                   </div>
                 )}
@@ -761,9 +695,7 @@ export default function B2BDashboard() {
                       <label>Actions</label>
                       <div className="action-btns">
                         {WORKFLOW_ACTIONS.map(a => (
-                          <button key={a.type} type="button" className="action-btn" onClick={() => addAction(a.type)}>
-                            + {a.label}
-                          </button>
+                          <button key={a.type} type="button" className="action-btn" onClick={() => addAction(a.type)}>+ {a.label}</button>
                         ))}
                       </div>
                       {workflowForm.actions.length === 0
@@ -776,12 +708,9 @@ export default function B2BDashboard() {
                         ))
                       }
                     </div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={workflowForm.actions.length === 0}>
-                      Créer le workflow
-                    </button>
+                    <button type="submit" className="btn btn-primary btn-full" disabled={workflowForm.actions.length === 0}>Créer le workflow</button>
                   </form>
                 </div>
-
                 <div>
                   <div className="card-title" style={{ marginBottom: 14, fontSize: 13 }}>Workflows actifs</div>
                   {workflows.length === 0
@@ -805,6 +734,14 @@ export default function B2BDashboard() {
 
         </main>
       </div>
+
+      {/* Onboarding B2B */}
+      {showOnboarding && (
+        <OnboardingB2B
+          agentName={agent?.name || 'Agent'}
+          onComplete={handleOnboardingComplete}
+        />
+      )}
     </>
   );
 }
