@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (router.query.registered === '1') setSuccess('Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse.');
+    if (router.query.registered === '1') setSuccess('Compte créé ! Un email de confirmation vous a été envoyé. Vérifiez votre boîte mail ainsi que vos spams.');
     if (router.query.verified === '1') setSuccess('Email confirmé ! Vous pouvez maintenant vous connecter.');
     if (router.query.error === 'token_invalide') setError('Lien de vérification invalide ou expiré.');
     if (router.query.not_verified) setError('Confirmez votre adresse email avant de vous connecter. Vérifiez votre boîte mail.');
