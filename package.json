@@ -13,6 +13,7 @@
     "react-dom": "^18.2.0",
     "@supabase/supabase-js": "^2.38.0",
     "cheerio": "^1.0.0-rc.12",
-    "cookie": "^0.7.2"
+    "cookie": "^0.7.2",
+    "stripe": "^14.21.0"
   }
 }
