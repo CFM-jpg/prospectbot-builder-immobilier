@@ -877,7 +877,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <button
-                onClick={() => router.push('/register')
+                onClick={() => router.push('/register')}
                 style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#e8e8e8'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}>
@@ -920,7 +920,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <button
-                onClick={() => router.push('/register')
+                onClick={() => router.push('/register')}
                 style={{ width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 12, padding: '14px', fontSize: 14, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 8px 32px rgba(212,168,83,0.25)', transition: 'transform 0.2s, box-shadow 0.2s' }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(212,168,83,0.4)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(212,168,83,0.25)'; }}>
@@ -957,7 +957,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <button
-                onClick={() => router.push('/register')
+                onClick={() => router.push('/register')}
                 style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#e8e8e8'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}>
@@ -980,7 +980,7 @@ export default function LandingPage() {
           <div data-reveal><h2 className="cta-title">Prêt à automatiser<br /><em>votre prospection ?</em></h2></div>
           <div data-reveal data-delay="1"><p className="cta-sub">Rejoignez les 340+ agents qui font confiance à ProspectBot pour gérer leur portefeuille acheteurs.</p></div>
           <div data-reveal data-delay="2" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => router.push('/register')
+            <button onClick={() => router.push('/register')}
               style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0a0a0a', border: 'none', borderRadius: 14, padding: '16px 36px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 60px rgba(212,168,83,0.25)', transition: 'transform 0.2s' }}>
               Démarrer mon essai gratuit →
             </button>
