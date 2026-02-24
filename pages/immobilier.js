@@ -879,6 +879,68 @@ function UpgradeGate({ planRequired, plan, featureLabel }) {
   );
 }
 
+// ─── Sidebar Plan Block ───────────────────────────────────────────────────────
+
+function SidebarPlanBlock({ plan }) {
+  const [loading, setLoading] = useState(false);
+
+  const PLAN_CFG = {
+    gratuit: { label: 'Gratuit', color: '#6b6b78', bg: 'rgba(107,107,120,0.1)', border: 'rgba(107,107,120,0.25)' },
+    pro:     { label: 'Pro',     color: '#3ecf8e', bg: 'rgba(62,207,142,0.1)',  border: 'rgba(62,207,142,0.25)'  },
+    agence:  { label: 'Agence',  color: '#d4a853', bg: 'rgba(212,168,83,0.1)',  border: 'rgba(212,168,83,0.25)'  },
+  };
+  const cfg = PLAN_CFG[plan] || PLAN_CFG.gratuit;
+
+  const handleManage = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert(data.error || 'Erreur. Réessaie.');
+    } catch { alert('Erreur réseau.'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      {/* Badge plan */}
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '4px 10px', borderRadius: 20, marginBottom: 8,
+        background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color,
+        fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+      }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
+        {cfg.label}
+      </div>
+
+      {/* CTA */}
+      {plan === 'gratuit' ? (
+        <a href="/register" style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '8px 12px', background: 'linear-gradient(135deg, #8b6914, #d4a853)',
+          color: '#0a0a0a', borderRadius: 8, fontSize: 11.5, fontWeight: 700,
+          textDecoration: 'none', fontFamily: 'DM Sans, sans-serif', marginBottom: 4,
+        }}>
+          ⚡ Passer Pro — 59€/mois
+        </a>
+      ) : (
+        <button onClick={handleManage} disabled={loading} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)',
+          borderRadius: 8, fontSize: 11.5, fontWeight: 600,
+          cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans, sans-serif',
+          marginBottom: 4,
+        }}>
+          {loading ? '...' : '⚙ Gérer mon abonnement'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ImmobilierDashboard() {
@@ -1192,21 +1254,7 @@ export default function ImmobilierDashboard() {
                 <div className="agent-name">{agent.name}</div>
                 <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
               </div>
-              <div style={{
-                display: 'inline-block',
-                padding: '3px 10px',
-                borderRadius: 20,
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                marginBottom: 8,
-                background: plan === 'agence' ? 'rgba(201,169,110,0.15)' : plan === 'pro' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)',
-                color: plan === 'agence' ? '#c9a96e' : plan === 'pro' ? '#3ecf8e' : '#6b6b78',
-                border: `1px solid ${plan === 'agence' ? 'rgba(201,169,110,0.3)' : plan === 'pro' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
-              }}>
-                {plan === 'agence' ? 'Agence' : plan === 'pro' ? 'Pro' : 'Gratuit'}
-              </div>
+              <SidebarPlanBlock plan={plan} />
               <button className="help-btn" onClick={() => setShowOnboardingAgent(true)}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 Revoir le tutoriel
