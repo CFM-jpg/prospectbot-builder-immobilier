@@ -701,47 +701,134 @@ function PublicationModal({ onClose, onSuccess }) {
 // ─── Publication Dashboard (onglet) ──────────────────────────────────────────
 
 function PublicationDashboard() {
+  const [annonces, setAnnonces] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selected, setSelected] = useState(null);
+
+  const charger = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/immobilier/publier');
+      const data = await res.json();
+      setAnnonces(data.annonces || []);
+    } catch { setAnnonces([]); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { charger(); }, []);
+
+  const totalPublies = annonces.reduce((acc, a) => acc + Object.values(a.resultats_publication || {}).filter(r => r.status === 'publie').length, 0);
+  const totalLiens = annonces.reduce((acc, a) => acc + Object.values(a.resultats_publication || {}).filter(r => r.status === 'lien_direct').length, 0);
+
   return (
     <div>
-      <div style={{ marginBottom: 32 }}>
-        <h2 className="page-title">Publication d'annonces</h2>
-        <p className="page-subtitle">Diffusez vos annonces sur LeBonCoin, SeLoger et BienIci</p>
-      </div>
-
-      {/* Bannière principale */}
-      <div style={{ background: 'rgba(212,168,83,0.05)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 16, padding: '40px 32px', textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
-          <svg width="24" height="24" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+      {/* Top */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}>
+        <div>
+          <h2 className="page-title">Publication d'annonces</h2>
+          <p className="page-subtitle">Créez et diffusez vos annonces sur LeBonCoin, SeLoger, BienIci et PAP</p>
         </div>
-        <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, fontWeight: 400, color: '#e8e8e8', margin: '0 0 12px' }}>Disponible prochainement</h3>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.75, maxWidth: 480, margin: '0 auto 0' }}>
-          La publication automatique sur LeBonCoin, SeLoger et BienIci est en cours d'intégration via un partenaire agréé. Cette fonctionnalité sera activée dès que l'accord partenaire sera finalisé.
-        </p>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nouvelle annonce</button>
       </div>
 
-      {/* Ce qui arrive */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
-        {[
-          { plateforme: 'LeBonCoin', detail: 'Publication via compte Pro — accès flux XML en cours de négociation.' },
-          { plateforme: 'SeLoger', detail: 'Diffusion via partenaire agréé groupe SeLoger — accord partenaire en cours.' },
-          { plateforme: "BienIci", detail: 'Inclus dans l\'accord SeLoger — même partenaire, même activation.' },
-        ].map(item => (
-          <div key={item.plateforme} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 18px' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 8 }}>{item.plateforme}</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>{item.detail}</div>
-            <div style={{ marginTop: 12, display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: 'rgba(107,107,120,0.12)', border: '1px solid rgba(107,107,120,0.25)', fontSize: 11, color: '#6b6b78', fontWeight: 600 }}>En cours</div>
-          </div>
-        ))}
+      {/* Stats */}
+      <div className="stats-grid" style={{ marginBottom: 28 }}>
+        <div className="stat-card"><div className="stat-label">Annonces créées</div><div className="stat-value">{annonces.length}</div><div className="stat-sub">dans l'historique</div></div>
+        <div className="stat-card"><div className="stat-label">Publications auto</div><div className="stat-value">{totalPublies}</div><div className="stat-sub">via API</div></div>
+        <div className="stat-card"><div className="stat-label">Liens directs</div><div className="stat-value">{totalLiens}</div><div className="stat-sub">à publier manuellement</div></div>
+        <div className="stat-card"><div className="stat-label">Plateformes</div><div className="stat-value">5</div><div className="stat-sub">disponibles</div></div>
       </div>
 
-      {/* Ce que vous pouvez faire maintenant */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 22px' }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', margin: '0 0 14px' }}>En attendant, la génération IA du texte reste disponible</p>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, margin: 0 }}>
-          Dès l'activation, vos annonces seront rédigées automatiquement par IA à partir des données du bien, puis publiées en un clic sur les 3 plateformes simultanément. Vous serez notifié par email dès que la fonctionnalité est disponible.
-        </p>
+      {/* Bannière config */}
+      <div style={{ background: 'rgba(212,168,83,0.06)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 12, padding: '14px 18px', marginBottom: 24, display: 'flex', gap: 12 }}>
+        <span style={{ fontSize: 18, marginTop: 1 }}></span>
+        <div>
+          <p style={{ margin: '0 0 4px 0', fontSize: 13, color: '#d4a853', fontWeight: 600 }}>Configuration des APIs partenaires</p>
+          <p style={{ margin: 0, fontSize: 12.5, color: '#6b6b78', lineHeight: 1.6 }}>
+            Pour activer la publication automatique, ajoutez dans Vercel → Settings → Env Variables :{' '}
+            <code style={{ background: '#1f1f24', padding: '1px 6px', borderRadius: 4, color: '#d4a853', fontSize: 12 }}>LEBONCOIN_API_KEY</code>{', '}
+            <code style={{ background: '#1f1f24', padding: '1px 6px', borderRadius: 4, color: '#d4a853', fontSize: 12 }}>SELOGER_API_KEY</code>{', '}
+            <code style={{ background: '#1f1f24', padding: '1px 6px', borderRadius: 4, color: '#d4a853', fontSize: 12 }}>ANTHROPIC_API_KEY</code>.
+            Sans ces clés, les annonces fonctionnent avec des liens directs.
+          </p>
+        </div>
       </div>
 
+      {/* Liste */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: '#4b5563' }}>Chargement...</div>
+      ) : annonces.length === 0 ? (
+        <div className="empty">
+          <strong>📝 Aucune annonce publiée</strong>
+          Cliquez sur "+ Nouvelle annonce" pour créer et diffuser votre première annonce
+          <br /><br />
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Créer une annonce</button>
+        </div>
+      ) : (
+        annonces.map((annonce, i) => {
+          const b = annonce.bien_data || {};
+          const res = annonce.resultats_publication || {};
+          const isSelected = selected === i;
+          return (
+            <div key={i}>
+              <div style={{ background: isSelected ? '#1f1f24' : 'var(--surface2)', border: `1px solid ${isSelected ? 'rgba(212,168,83,0.3)' : 'var(--border)'}`, borderRadius: 10, padding: '18px 20px', marginBottom: 10, cursor: 'pointer', transition: 'all 0.15s' }}
+                onClick={() => setSelected(isSelected ? null : i)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 4 }}>
+                      {annonce.texte_genere?.titre || `${b.type} ${b.surface}m² - ${b.ville}`}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {b.surface}m² · {b.pieces}p · {b.prix?.toLocaleString('fr-FR')}€{b.transaction === 'location' ? '/mois' : ''} · {b.ville}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{annonce.created_at ? new Date(annonce.created_at).toLocaleDateString('fr-FR') : '—'}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {Object.entries(res).map(([plId, data]) => {
+                    const pl = PLATEFORMES_PUBLICATION.find(p => p.id === plId);
+                    const cfg = STATUS_CONFIG[data.status] || STATUS_CONFIG.erreur;
+                    return <span key={plId} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{pl?.logo} {pl?.nom}</span>;
+                  })}
+                </div>
+              </div>
+              {isSelected && (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '20px', marginBottom: 12, marginTop: -6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--accent)', marginBottom: 14 }}>Statut par plateforme</div>
+                  {Object.entries(res).map(([plId, data]) => {
+                    const pl = PLATEFORMES_PUBLICATION.find(p => p.id === plId);
+                    const cfg = STATUS_CONFIG[data.status] || STATUS_CONFIG.erreur;
+                    return (
+                      <div key={plId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 18 }}>{pl?.logo}</span>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{pl?.nom}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{data.message || cfg.label}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
+                          {data.url && <a href={data.url} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--border)', textDecoration: 'none' }}>{data.status === 'publie' ? 'Voir →' : 'Publier →'}</a>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {annonce.texte_genere?.description && (
+                    <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Texte généré</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>{annonce.texte_genere.description}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+
+      {showModal && <PublicationModal onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); charger(); }} />}
     </div>
   );
 }
