@@ -1855,10 +1855,10 @@ export default function ImmobilierDashboard() {
                   </p>
                   <div style={{ marginBottom: 28, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {[
-                      { icon: '🌐', t: 'Scraper web', d: 'Extraire des emails depuis des sites de promoteurs, notaires, agences' },
-                      { icon: '📧', t: 'Email groupé', d: 'Contacter en masse vos prospects B2B avec personnalisation' },
-                      { icon: '🤖', t: 'Chatbot IA', d: 'Qualifier automatiquement les visiteurs de votre site' },
-                      { icon: '⚡', t: 'Workflows', d: 'Automatiser le suivi : email de bienvenue + notification équipe' },
+                      { icon: '', t: 'Scraper web', d: 'Extraire des emails depuis des sites de promoteurs, notaires, agences' },
+                      { icon: '', t: 'Email groupé', d: 'Contacter en masse vos prospects B2B avec personnalisation' },
+                      { icon: '', t: 'Chatbot IA', d: 'Qualifier automatiquement les visiteurs de votre site' },
+                      { icon: '', t: 'Workflows', d: 'Automatiser le suivi : email de bienvenue + notification équipe' },
                     ].map(f => (
                       <div key={f.t} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
                         <span style={{ fontSize: 18 }}>{f.icon}</span>
@@ -1872,6 +1872,14 @@ export default function ImmobilierDashboard() {
                   <button onClick={() => router.push('/upgrade')} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 10, padding: '13px 32px', fontSize: 14, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.3px' }}>
                     Passer au plan Agence — 169€/mois →
                   </button>
+                  <div style={{ marginTop: 14 }}>
+                    <a href="/b2b-guide" style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 1, transition: 'color 0.2s' }}
+                      onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.6)'}
+                      onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.3)'}
+                    >
+                      Voir le guide complet du Module B2B
+                    </a>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1884,10 +1892,10 @@ export default function ImmobilierDashboard() {
                 {/* Sous-onglets */}
                 <div style={{ display: 'flex', gap: 6, marginBottom: 28, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 0 }}>
                   {[
-                    { id: 'scraper', label: '🌐 Scraper web' },
-                    { id: 'email', label: '📧 Email groupé' },
-                    { id: 'chatbot', label: '🤖 Chatbot' },
-                    { id: 'workflows', label: '⚡ Workflows' },
+                    { id: 'scraper', label: 'Scraper web' },
+                    { id: 'email', label: 'Email groupé' },
+                    { id: 'chatbot', label: 'Chatbot' },
+                    { id: 'workflows', label: 'Workflows' },
                   ].map(tab => (
                     <button key={tab.id} onClick={() => setB2bSubTab(tab.id)} style={{ padding: '9px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${b2bSubTab === tab.id ? '#d4a853' : 'transparent'}`, color: b2bSubTab === tab.id ? '#d4a853' : 'rgba(255,255,255,0.35)', fontSize: 13, fontWeight: b2bSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s', marginBottom: -1 }}>
                       {tab.label}
@@ -1915,11 +1923,11 @@ export default function ImmobilierDashboard() {
                         />
                       </div>
                       <button className="btn btn-primary btn-full" onClick={handleB2BScrape} disabled={b2bScraperLoading || !b2bScraperUrl.trim()}>
-                        {b2bScraperLoading ? '⏳ Analyse en cours…' : '🔍 Lancer le scraping'}
+                        {b2bScraperLoading ? 'Analyse en cours…' : 'Lancer le scraping'}
                       </button>
                       {b2bScraperError && (
                         <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(240,68,68,0.08)', border: '1px solid rgba(240,68,68,0.2)', borderRadius: 8, fontSize: 12.5, color: '#f04444' }}>
-                          ❌ {b2bScraperError}
+                          {b2bScraperError}
                         </div>
                       )}
                     </div>
@@ -1953,7 +1961,7 @@ export default function ImmobilierDashboard() {
                           </div>
                           {b2bSelectedEmails.length > 0 && (
                             <button onClick={() => setB2bSubTab('email')} className="btn btn-secondary btn-full">
-                              📧 Envoyer un email à ces {b2bSelectedEmails.length} contact(s) →
+                              Envoyer un email à ces {b2bSelectedEmails.length} contact(s) →
                             </button>
                           )}
                         </>
@@ -1984,11 +1992,11 @@ export default function ImmobilierDashboard() {
                         <textarea className="form-input" value={b2bEmailForm.template} onChange={e => setB2bEmailForm(p => ({ ...p, template: e.target.value }))} placeholder="Bonjour {name}, je suis agent immobilier dans votre secteur…" rows={6} style={{ resize: 'vertical' }} />
                       </div>
                       <button className="btn btn-primary btn-full" onClick={handleB2BSendEmail} disabled={b2bEmailLoading || b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template}>
-                        {b2bEmailLoading ? '⏳ Envoi en cours…' : b2bSelectedEmails.length === 0 ? 'Sélectionnez des destinataires' : `📨 Envoyer à ${b2bSelectedEmails.length} contact(s)`}
+                        {b2bEmailLoading ? 'Envoi en cours…' : b2bSelectedEmails.length === 0 ? 'Sélectionnez des destinataires' : `Envoyer à ${b2bSelectedEmails.length} contact(s)`}
                       </button>
                       {b2bEmailStatus && (
                         <div style={{ marginTop: 12, padding: '10px 12px', background: b2bEmailStatus.success ? 'rgba(62,207,142,0.08)' : 'rgba(240,68,68,0.08)', border: `1px solid ${b2bEmailStatus.success ? 'rgba(62,207,142,0.2)' : 'rgba(240,68,68,0.2)'}`, borderRadius: 8, fontSize: 12.5, color: b2bEmailStatus.success ? '#3ecf8e' : '#f04444' }}>
-                          {b2bEmailStatus.success ? `✅ ${b2bEmailStatus.sent}/${b2bEmailStatus.total} email(s) envoyé(s)` : `❌ ${b2bEmailStatus.error}`}
+                          {b2bEmailStatus.success ? `${b2bEmailStatus.sent}/${b2bEmailStatus.total} email(s) envoyé(s)` : `${b2bEmailStatus.error}`}
                         </div>
                       )}
                     </div>
@@ -2046,7 +2054,7 @@ export default function ImmobilierDashboard() {
                       )}
                       {chatbots.length === 0 ? (
                         <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-                          <div style={{ fontSize: 32, marginBottom: 10 }}>🤖</div>
+                          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
                           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez un chatbot pour qualifier les visiteurs de votre site.</p>
                         </div>
                       ) : (
@@ -2062,7 +2070,7 @@ export default function ImmobilierDashboard() {
                                   <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 20, background: bot.status === 'active' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: bot.status === 'active' ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${bot.status === 'active' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
                                     {bot.status === 'active' ? '● Actif' : '○ Inactif'}
                                   </span>
-                                  <button onClick={() => handleDeleteChatbot(bot.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>🗑</button>
+                                  <button onClick={() => handleDeleteChatbot(bot.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                                 </div>
                               </div>
                               <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
@@ -2072,10 +2080,10 @@ export default function ImmobilierDashboard() {
                                 </div>
                                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                                   <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/chatbot/${bot.id}`).then(() => { setChatbotCopied(bot.id); setTimeout(() => setChatbotCopied(null), 2000); }); }} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: chatbotCopied === bot.id ? 'rgba(62,207,142,0.1)' : 'rgba(212,168,83,0.08)', color: chatbotCopied === bot.id ? '#3ecf8e' : '#d4a853', border: `1px solid ${chatbotCopied === bot.id ? 'rgba(62,207,142,0.2)' : 'rgba(212,168,83,0.2)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                                    {chatbotCopied === bot.id ? '✓ Copié !' : '📋 Copier le lien'}
+                                    {chatbotCopied === bot.id ? '✓ Copié !' : 'Copier le lien'}
                                   </button>
                                   <button onClick={() => window.open(`/chatbot/${bot.id}`, '_blank')} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                                    🔗 Ouvrir
+                                    Ouvrir
                                   </button>
                                 </div>
                               </div>
@@ -2147,7 +2155,7 @@ export default function ImmobilierDashboard() {
                         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', padding: 16 }}>Chargement…</p>
                       ) : workflows.length === 0 ? (
                         <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-                          <div style={{ fontSize: 32, marginBottom: 10 }}>⚡</div>
+                          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
                           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez un workflow pour automatiser votre suivi.</p>
                         </div>
                       ) : (
@@ -2156,16 +2164,16 @@ export default function ImmobilierDashboard() {
                             <div key={wf.id} className="card" style={{ borderColor: wf.active ? 'rgba(62,207,142,0.15)' : undefined }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
-                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>⚡ {wf.name}</div>
+                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{wf.name}</div>
                                   <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
-                                    {wf.trigger === 'new_prospect' ? '🤖 Nouveau prospect' : wf.trigger === 'new_match' ? '🏠 Nouveau match' : '🖱 Manuel'}
+                                    {wf.trigger === 'new_prospect' ? 'Nouveau prospect' : wf.trigger === 'new_match' ? 'Nouveau match' : 'Manuel'}
                                   </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                   <button onClick={() => handleToggleWorkflow(wf.id, wf.active)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: wf.active ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: wf.active ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${wf.active ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                                     {wf.active ? '● Actif' : '○ Inactif'}
                                   </button>
-                                  <button onClick={() => handleDeleteWorkflow(wf.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>🗑</button>
+                                  <button onClick={() => handleDeleteWorkflow(wf.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                                 </div>
                               </div>
                             </div>
