@@ -1252,20 +1252,44 @@ export default function ImmobilierDashboard() {
                 <div className="agent-name">{agent.name}</div>
                 <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
               </div>
-              <div style={{
-                display: 'inline-block',
-                padding: '3px 10px',
-                borderRadius: 20,
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                marginBottom: 8,
-                background: plan === 'agence' ? 'rgba(201,169,110,0.15)' : plan === 'pro' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)',
-                color: plan === 'agence' ? '#c9a96e' : plan === 'pro' ? '#3ecf8e' : '#6b6b78',
-                border: `1px solid ${plan === 'agence' ? 'rgba(201,169,110,0.3)' : plan === 'pro' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
-              }}>
-                {plan === 'agence' ? 'Agence' : plan === 'pro' ? 'Pro' : 'Gratuit'}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '3px 10px',
+                  borderRadius: 20,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                  background: plan === 'agence' ? 'rgba(201,169,110,0.15)' : plan === 'pro' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)',
+                  color: plan === 'agence' ? '#c9a96e' : plan === 'pro' ? '#3ecf8e' : '#6b6b78',
+                  border: `1px solid ${plan === 'agence' ? 'rgba(201,169,110,0.3)' : plan === 'pro' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
+                }}>
+                  {plan === 'agence' ? 'Agence' : plan === 'pro' ? 'Pro' : 'Gratuit'}
+                </div>
+                {(plan === 'pro' || plan === 'agence') ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/billing/portal', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.url) window.location.href = data.url;
+                        else alert('Erreur portail : ' + (data.error || 'inconnu'));
+                      } catch { alert('Erreur réseau'); }
+                    }}
+                    style={{ display: 'block', width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 10px', fontSize: 12, color: '#a0a0ae', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textAlign: 'center', marginBottom: 6 }}
+                  >
+                    ⚙ Gérer mon abonnement
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => router.push('/upgrade')}
+                    style={{ display: 'block', width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 8, padding: '7px 10px', fontSize: 12, color: '#0f0f11', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, textAlign: 'center', marginBottom: 6 }}
+                  >
+                    ⚡ Passer Pro — 59€/mois
+                  </button>
+                )}
               </div>
               <button className="help-btn" onClick={() => setShowOnboardingAgent(true)}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
