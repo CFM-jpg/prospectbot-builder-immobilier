@@ -9,6 +9,16 @@ const PRICE_IDS = {
   agence: process.env.STRIPE_PRICE_AGENCE,
 };
 
+async function sendConfirmationEmail(name, email, plan) {
+  try {
+    await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth/send-confirmation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, plan }),
+    });
+  } catch {}
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -39,6 +49,7 @@ export default async function handler(req, res) {
       plan: 'gratuit',
     });
     if (error) return res.status(500).json({ error: 'Erreur lors de la création du compte.' });
+    await sendConfirmationEmail(name, email, plan);
     return res.status(200).json({ success: true });
   }
 
@@ -70,7 +81,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ checkoutUrl: session.url });
   } catch (err) {
     console.error('Stripe error:', err);
-    // Supprime le compte créé en avance si Stripe échoue
     await supabaseAdmin.from('agents').delete().eq('email', email.toLowerCase());
     return res.status(500).json({ error: 'Erreur de paiement. Réessaie.' });
   }
