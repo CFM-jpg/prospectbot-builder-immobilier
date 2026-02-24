@@ -11,8 +11,16 @@ export default function LoginPage() {
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (router.query.registered === '1') setSuccess('Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse.');
+    if (router.query.verified === '1') setSuccess('Email confirmé ! Vous pouvez maintenant vous connecter.');
+    if (router.query.error === 'token_invalide') setError('Lien de vérification invalide ou expiré.');
+    if (router.query.not_verified) setError('Confirmez votre adresse email avant de vous connecter. Vérifiez votre boîte mail.');
+  }, [router.query]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -73,6 +81,8 @@ export default function LoginPage() {
       const data = await res.json();
       if (res.ok) {
         router.push(redirect || '/immobilier');
+      } else if (data.error === 'not_verified') {
+        setError('Confirmez votre adresse email avant de vous connecter. Vérifiez votre boîte mail.');
       } else {
         setError(data.error || 'Identifiants incorrects');
       }
@@ -256,6 +266,13 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {success && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'rgba(62,207,142,0.08)', border: '1px solid rgba(62,207,142,0.25)', borderRadius: 10, fontSize: 13, color: '#3ecf8e', marginBottom: 24 }}>
+                  <span style={{ flexShrink: 0 }}>✓</span>
+                  {success}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} autoComplete="off">
                 <div className="field">
                   <label className="field-label">Adresse email</label>
@@ -297,6 +314,9 @@ export default function LoginPage() {
               </form>
 
               <div className="form-footer">
+                <p style={{ marginBottom: 12 }}>
+                  Pas encore de compte ? <a href="/register" style={{ color: '#d4a853', textDecoration: 'none', fontWeight: 500 }}>Créer un compte</a>
+                </p>
                 <p>
                   Accès réservé aux agents autorisés.<br />
                   Contactez votre administrateur pour obtenir vos identifiants.

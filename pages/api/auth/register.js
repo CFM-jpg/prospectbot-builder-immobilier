@@ -1,6 +1,7 @@
 // pages/api/auth/register.js
 import { supabaseAdmin } from '../../../lib/supabase';
 import Stripe from 'stripe';
+import crypto from 'crypto';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -9,12 +10,12 @@ const PRICE_IDS = {
   agence: process.env.STRIPE_PRICE_AGENCE,
 };
 
-async function sendConfirmationEmail(name, email, plan) {
+async function sendConfirmationEmail(name, email, plan, verificationToken) {
   try {
     await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth/send-confirmation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, plan }),
+      body: JSON.stringify({ name, email, plan, verificationToken }),
     });
   } catch {}
 }
@@ -39,6 +40,9 @@ export default async function handler(req, res) {
     return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
   }
 
+  // Génère un token de vérification
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+
   // Plan gratuit — création directe
   if (plan === 'gratuit') {
     const { error } = await supabaseAdmin.from('agents').insert({
@@ -47,9 +51,11 @@ export default async function handler(req, res) {
       name,
       role: 'agent',
       plan: 'gratuit',
+      email_verified: false,
+      verification_token: verificationToken,
     });
     if (error) return res.status(500).json({ error: 'Erreur lors de la création du compte.' });
-    await sendConfirmationEmail(name, email, plan);
+    await sendConfirmationEmail(name, email, plan, verificationToken);
     return res.status(200).json({ success: true });
   }
 
@@ -64,9 +70,14 @@ export default async function handler(req, res) {
     name,
     role: 'agent',
     plan: 'gratuit',
+    email_verified: false,
+    verification_token: verificationToken,
   });
 
   if (insertError) return res.status(500).json({ error: 'Erreur lors de la création du compte.' });
+
+  // Envoie l'email de confirmation avant la redirection Stripe
+  await sendConfirmationEmail(name, email, plan, verificationToken);
 
   try {
     const session = await stripe.checkout.sessions.create({

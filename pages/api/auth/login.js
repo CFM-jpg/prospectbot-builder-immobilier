@@ -16,9 +16,13 @@ export default async function handler(req, res) {
   const agent = await verifyCredentials(email, password);
 
   if (!agent) {
-    // Délai artificiel pour éviter le brute-force timing
     await new Promise(resolve => setTimeout(resolve, 400));
     return res.status(401).json({ error: 'Identifiants incorrects' });
+  }
+
+  // Bloque si email non vérifié (sauf admin)
+  if (agent.role !== 'admin' && agent.email_verified === false) {
+    return res.status(403).json({ error: 'not_verified' });
   }
 
   const token = createSessionToken(agent);

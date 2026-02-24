@@ -3,10 +3,11 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { name, email, plan } = req.body;
+  const { name, email, plan, verificationToken } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'Champs manquants.' });
 
   const planLabel = plan === 'pro' ? 'Pro' : plan === 'agence' ? 'Agence' : 'Gratuit';
+  const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify?token=${verificationToken}`;
 
   try {
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
           email: process.env.BREVO_SENDER_EMAIL,
         },
         to: [{ email, name }],
-        subject: '✅ Bienvenue sur ProspectBot — Votre compte est créé',
+        subject: '✅ Confirmez votre adresse email — ProspectBot',
         htmlContent: `
 <!DOCTYPE html>
 <html>
@@ -34,102 +35,61 @@ export default async function handler(req, res) {
     <tr>
       <td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#111113;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden;max-width:560px;width:100%;">
-
-          <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#0f0f11,#1a1712);padding:36px 40px 28px;border-bottom:1px solid rgba(212,168,83,0.2);">
               <p style="margin:0;font-size:22px;color:#d4a853;font-style:italic;letter-spacing:1px;">ProspectBot</p>
             </td>
           </tr>
-
-          <!-- Body -->
           <tr>
             <td style="padding:36px 40px;">
-              <h1 style="margin:0 0 8px 0;font-size:28px;font-weight:300;color:#f0f0f0;letter-spacing:-0.5px;">
-                Bienvenue, ${name} 👋
-              </h1>
+              <h1 style="margin:0 0 8px 0;font-size:28px;font-weight:300;color:#f0f0f0;letter-spacing:-0.5px;">Bienvenue, ${name} 👋</h1>
               <p style="margin:0 0 28px 0;font-size:14px;color:rgba(255,255,255,0.4);line-height:1.6;">
-                Votre compte ProspectBot a bien été créé.
+                Votre compte ProspectBot <strong style="color:rgba(255,255,255,0.65);">Plan ${planLabel}</strong> a bien été créé.<br/>
+                Il vous reste une étape : confirmer votre adresse email.
               </p>
-
-              <!-- Plan badge -->
-              <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                <tr>
-                  <td style="background:rgba(212,168,83,0.1);border:1px solid rgba(212,168,83,0.3);border-radius:8px;padding:12px 20px;">
-                    <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Votre plan</p>
-                    <p style="margin:0;font-size:20px;color:#d4a853;font-weight:500;">${planLabel}</p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Steps -->
-              <p style="margin:0 0 16px 0;font-size:13px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;">Pour commencer</p>
-
               <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px;">
-                ${[
-                  { n: '1', text: 'Connectez-vous à votre dashboard' },
-                  { n: '2', text: 'Ajoutez vos premiers acheteurs' },
-                  { n: '3', text: 'Lancez votre premier scraping' },
-                ].map(s => `
                 <tr>
-                  <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-                    <table cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td style="width:28px;height:28px;background:rgba(212,168,83,0.1);border:1px solid rgba(212,168,83,0.25);border-radius:50%;text-align:center;vertical-align:middle;">
-                          <span style="font-size:11px;color:#d4a853;font-weight:600;">${s.n}</span>
-                        </td>
-                        <td style="padding-left:14px;font-size:13.5px;color:rgba(255,255,255,0.55);">${s.text}</td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>`).join('')}
-              </table>
-
-              <!-- CTA -->
-              <table cellpadding="0" cellspacing="0" width="100%">
-                <tr>
-                  <td align="center">
-                    <a href="${process.env.NEXT_PUBLIC_APP_URL}/login"
-                      style="display:inline-block;background:linear-gradient(135deg,#8b6914,#d4a853);color:#0a0a0a;text-decoration:none;font-size:14px;font-weight:700;padding:14px 36px;border-radius:10px;letter-spacing:0.3px;">
-                      Accéder à mon dashboard →
+                  <td align="center" style="background:rgba(212,168,83,0.06);border:1px solid rgba(212,168,83,0.2);border-radius:12px;padding:28px;">
+                    <p style="margin:0 0 20px 0;font-size:13px;color:rgba(255,255,255,0.4);">Cliquez sur le bouton ci-dessous pour activer votre compte</p>
+                    <a href="${verifyUrl}" style="display:inline-block;background:linear-gradient(135deg,#8b6914,#d4a853);color:#0a0a0a;text-decoration:none;font-size:14px;font-weight:700;padding:14px 36px;border-radius:10px;letter-spacing:0.3px;">
+                      Confirmer mon adresse email →
                     </a>
+                    <p style="margin:20px 0 0 0;font-size:11px;color:rgba(255,255,255,0.2);">Ce lien expire dans 24 heures</p>
                   </td>
                 </tr>
               </table>
+              <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.2);">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
+              <p style="margin:0;font-size:11px;color:rgba(212,168,83,0.5);word-break:break-all;">${verifyUrl}</p>
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
             <td style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.2);line-height:1.6;">
                 Vous recevez cet email car vous venez de créer un compte sur ProspectBot.<br/>
+                Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.<br/>
                 <a href="${process.env.NEXT_PUBLIC_APP_URL}/mentions-legales" style="color:rgba(212,168,83,0.5);text-decoration:none;">Mentions légales</a>
                 &nbsp;·&nbsp;
                 <a href="mailto:contact@prospectbot.fr" style="color:rgba(212,168,83,0.5);text-decoration:none;">Contact</a>
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
   </table>
 </body>
-</html>
-        `,
+</html>`,
       }),
     });
 
     if (!response.ok) {
       const err = await response.json();
       console.error('Brevo error:', err);
-      // On ne bloque pas l'inscription si l'email échoue
     }
 
     return res.status(200).json({ success: true });
   } catch (err) {
     console.error('Send confirmation error:', err);
-    return res.status(200).json({ success: true }); // Ne pas bloquer l'inscription
+    return res.status(200).json({ success: true });
   }
 }
