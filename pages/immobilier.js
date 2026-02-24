@@ -977,6 +977,7 @@ export default function ImmobilierDashboard() {
   const [chatbots, setChatbots] = useState([]);
   const [chatbotForm, setChatbotForm] = useState({ name: '', welcomeMessage: 'Bonjour ! Je suis votre assistant immobilier. Comment puis-je vous aider ?', color: '#d4a853', avatar: '🤖', questions: ['Quel est votre projet immobilier ?', 'Quel est votre budget ?', 'Dans quelle ville recherchez-vous ?'] });
   const [chatbotCreating, setChatbotCreating] = useState(false);
+  const [chatbotCopied, setChatbotCopied] = useState(null);
   const [chatbotShowForm, setChatbotShowForm] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [workflows, setWorkflows] = useState([]);
@@ -2051,16 +2052,36 @@ export default function ImmobilierDashboard() {
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {chatbots.map(bot => (
-                            <div key={bot.id} className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div>
-                                <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{bot.avatar} {bot.name}</div>
-                                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>{(bot.welcome_message || '').slice(0, 50)}…</div>
+                            <div key={bot.id} className="card">
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <div>
+                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{bot.avatar} {bot.name}</div>
+                                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>{(bot.welcome_message || '').slice(0, 50)}…</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 20, background: bot.status === 'active' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: bot.status === 'active' ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${bot.status === 'active' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
+                                    {bot.status === 'active' ? '● Actif' : '○ Inactif'}
+                                  </span>
+                                  <button onClick={() => handleDeleteChatbot(bot.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>🗑</button>
+                                </div>
                               </div>
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                                <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 20, background: bot.status === 'active' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: bot.status === 'active' ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${bot.status === 'active' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
-                                  {bot.status === 'active' ? '● Actif' : '○ Inactif'}
-                                </span>
-                                <button onClick={() => handleDeleteChatbot(bot.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>🗑</button>
+                              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Code widget à intégrer sur votre site</div>
+                                <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '10px 12px', fontFamily: 'monospace', fontSize: 11, color: 'rgba(212,168,83,0.8)', lineHeight: 1.6, wordBreak: 'break-all', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                  {`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/widget.js" data-chatbot-id="${bot.id}"></script>`}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    const code = `<script src="${window.location.origin}/widget.js" data-chatbot-id="${bot.id}"></script>`;
+                                    navigator.clipboard.writeText(code).then(() => {
+                                      setChatbotCopied(bot.id);
+                                      setTimeout(() => setChatbotCopied(null), 2000);
+                                    });
+                                  }}
+                                  style={{ marginTop: 8, fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: chatbotCopied === bot.id ? 'rgba(62,207,142,0.1)' : 'rgba(212,168,83,0.08)', color: chatbotCopied === bot.id ? '#3ecf8e' : '#d4a853', border: `1px solid ${chatbotCopied === bot.id ? 'rgba(62,207,142,0.2)' : 'rgba(212,168,83,0.2)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
+                                >
+                                  {chatbotCopied === bot.id ? '✓ Copié !' : '📋 Copier le code'}
+                                </button>
                               </div>
                             </div>
                           ))}
