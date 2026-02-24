@@ -965,6 +965,35 @@ export default function ImmobilierDashboard() {
   const [showOnboardingAgent, setShowOnboardingAgent] = useState(false);
   const [showOnboardingAcheteur, setShowOnboardingAcheteur] = useState(false);
 
+  // ── B2B States ──
+  const [b2bSubTab, setB2bSubTab] = useState('scraper');
+
+  // Scraper B2B
+  const [b2bScraperUrl, setB2bScraperUrl] = useState(');
+  const [b2bScraperLoading, setB2bScraperLoading] = useState(false);
+  const [b2bScraperResult, setB2bScraperResult] = useState(null);
+  const [b2bScraperError, setB2bScraperError] = useState(');
+  const [b2bSelectedEmails, setB2bSelectedEmails] = useState([]);
+
+  // Email groupé B2B
+  const [b2bEmailForm, setB2bEmailForm] = useState({ senderName: ', senderEmail: ', subject: ', template: '' });
+  const [b2bEmailLoading, setB2bEmailLoading] = useState(false);
+  const [b2bEmailStatus, setB2bEmailStatus] = useState(null);
+
+  // Chatbot
+  const [chatbots, setChatbots] = useState([]);
+  const [chatbotForm, setChatbotForm] = useState({ name: ', welcomeMessage: 'Bonjour ! Je suis votre assistant immobilier. Comment puis-je vous aider ?', color: '#d4a853', avatar: '🤖', questions: ['Quel est votre projet immobilier ?', 'Quel est votre budget ?', 'Dans quelle ville recherchez-vous ?'] });
+  const [chatbotCreating, setChatbotCreating] = useState(false);
+  const [chatbotShowForm, setChatbotShowForm] = useState(false);
+  const [conversations, setConversations] = useState([]);
+
+  // Workflows
+  const [workflows, setWorkflows] = useState([]);
+  const [workflowsLoading, setWorkflowsLoading] = useState(false);
+  const [workflowForm, setWorkflowForm] = useState({ name: ', trigger: 'new_prospect' });
+  const [workflowCreating, setWorkflowCreating] = useState(false);
+  const [workflowShowForm, setWorkflowShowForm] = useState(false);
+
   useEffect(() => {
     loadAll();
     try {
@@ -972,6 +1001,14 @@ export default function ImmobilierDashboard() {
       if (!done) setTimeout(() => setShowOnboardingAgent(true), 400);
     } catch {}
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'b2b' && plan === 'agence') {
+      loadChatbots();
+      loadConversations();
+      loadWorkflows();
+    }
+  }, [activeTab, plan]);
 
   const handleOnboardingAgentComplete = () => {
     setShowOnboardingAgent(false);
@@ -1058,6 +1095,161 @@ export default function ImmobilierDashboard() {
   const toggleProspect = (email) => {
     setSelectedProspects(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
   };
+
+
+  // ── B2B Handlers ──
+
+  const handleB2BScrape = async () => {
+    if (!b2bScraperUrl.trim()) return;
+    setB2bScraperLoading(true);
+    setB2bScraperError('');
+    setB2bScraperResult(null);
+    setB2bSelectedEmails([]);
+    try {
+      const res = await fetch('/api/B2B/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: b2bScraperUrl }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setB2bScraperResult(data);
+        setB2bSelectedEmails(data.emails || []);
+      } else {
+        setB2bScraperError(data.error || 'Erreur lors du scraping');
+      }
+    } catch (err) {
+      setB2bScraperError(err.message);
+    } finally {
+      setB2bScraperLoading(false);
+    }
+  };
+
+  const handleB2BSendEmail = async () => {
+    if (b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template) return;
+    setB2bEmailLoading(true);
+    setB2bEmailStatus(null);
+    try {
+      const res = await fetch('/api/B2B/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderName: b2bEmailForm.senderName || 'ProspectBot',
+          senderEmail: b2bEmailForm.senderEmail || 'noreply@prospectbot.fr',
+          subject: b2bEmailForm.subject,
+          template: b2bEmailForm.template,
+          recipients: b2bSelectedEmails.map(email => ({ email, name: 'Prospect' })),
+        }),
+      });
+      const data = await res.json();
+      setB2bEmailStatus(res.ok ? { success: true, sent: data.sent, total: data.total } : { success: false, error: data.error });
+    } catch (err) {
+      setB2bEmailStatus({ success: false, error: err.message });
+    } finally {
+      setB2bEmailLoading(false);
+    }
+  };
+
+  const loadChatbots = async () => {
+    try {
+      const res = await fetch('/api/B2B/chatbot');
+      const data = await res.json();
+      if (data.success) setChatbots(data.chatbots || []);
+    } catch {}
+  };
+
+  const loadConversations = async () => {
+    try {
+      const res = await fetch('/api/B2B/chatbot-conversations');
+      const data = await res.json();
+      if (data.success) setConversations(data.conversations || []);
+    } catch {}
+  };
+
+  const handleCreateChatbot = async () => {
+    if (!chatbotForm.name || !chatbotForm.welcomeMessage) return;
+    setChatbotCreating(true);
+    try {
+      const res = await fetch('/api/B2B/chatbot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chatbotForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setChatbots(prev => [data.chatbot, ...prev]);
+        setChatbotShowForm(false);
+        setChatbotForm({ name: '', welcomeMessage: 'Bonjour ! Je suis votre assistant immobilier. Comment puis-je vous aider ?', color: '#d4a853', avatar: '🤖', questions: ['Quel est votre projet immobilier ?', 'Quel est votre budget ?', 'Dans quelle ville recherchez-vous ?'] });
+      }
+    } catch {}
+    finally { setChatbotCreating(false); }
+  };
+
+  const handleDeleteChatbot = async (id) => {
+    try {
+      await fetch('/api/B2B/chatbot', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      setChatbots(prev => prev.filter(c => c.id !== id));
+    } catch {}
+  };
+
+  const loadWorkflows = async () => {
+    setWorkflowsLoading(true);
+    try {
+      const res = await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list' }),
+      });
+      const data = await res.json();
+      if (data.success) setWorkflows(data.workflows || []);
+    } catch {}
+    finally { setWorkflowsLoading(false); }
+  };
+
+  const handleCreateWorkflow = async () => {
+    if (!workflowForm.name) return;
+    setWorkflowCreating(true);
+    try {
+      const actions = workflowForm.trigger === 'new_prospect'
+        ? [{ type: 'send_email', subject: 'Merci pour votre intérêt', content: '<p>Bonjour,</p><p>Merci de nous avoir contactés. Un agent vous recontactera rapidement.</p>' }, { type: 'notify_team' }]
+        : [{ type: 'notify_team' }];
+      const res = await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', name: workflowForm.name, trigger: workflowForm.trigger, actions }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWorkflows(prev => [data.workflow, ...prev]);
+        setWorkflowShowForm(false);
+        setWorkflowForm({ name: '', trigger: 'new_prospect' });
+      }
+    } catch {}
+    finally { setWorkflowCreating(false); }
+  };
+
+  const handleToggleWorkflow = async (id, active) => {
+    try {
+      await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle', workflow_id: id, active: !active }),
+      });
+      setWorkflows(prev => prev.map(w => w.id === id ? { ...w, active: !active } : w));
+    } catch {}
+  };
+
+  const handleDeleteWorkflow = async (id) => {
+    try {
+      await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', workflow_id: id }),
+      });
+      setWorkflows(prev => prev.filter(w => w.id !== id));
+    } catch {}
+  };
+
 
   const filteredBiens = biens.filter(b => {
     const matchType = biensFilter.type === 'all' || b.type === biensFilter.type;
@@ -1671,51 +1863,315 @@ export default function ImmobilierDashboard() {
 
           {/* ── Module B2B ── */}
           {activeTab === 'b2b' && (
-            plan === 'agence' ? (
-              <div>
-                <div className="page-header">
-                  <h2 className="page-title">Module B2B</h2>
-                  <p className="page-subtitle">Prospection, campagnes email et automatisation</p>
-                </div>
-                <div style={{ padding: '24px', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>
-                  Le module B2B complet est disponible ici pour les comptes Agence.
-                </div>
-              </div>
-            ) : (
+            plan !== 'agence' ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
                 <div style={{ textAlign: 'center', maxWidth: 420, padding: '0 24px' }}>
                   <div style={{ fontSize: 52, marginBottom: 20 }}>🔒</div>
-                  <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 300, color: '#f0f0f0', marginBottom: 12, letterSpacing: '-0.3px' }}>
-                    Module B2B
-                  </h2>
-                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 10 }}>
-                    Accédez à la prospection B2B, aux campagnes email automatisées, au chatbot IA et aux workflows — exclusivement disponibles avec le plan <strong style={{ color: '#d4a853' }}>Agence</strong>.
+                  <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 300, color: '#f0f0f0', marginBottom: 12, letterSpacing: '-0.3px' }}>Module B2B</h2>
+                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 24 }}>
+                    Scraper de contacts, envoi email groupé, chatbot de qualification et workflows automatisés — réservés au plan <strong style={{ color: '#d4a853' }}>Agence</strong>.
                   </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28, textAlign: 'left' }}>
-                    {[' Chatbot IA de prospection', ' Campagnes email automatisées', ' Scraper web B2B', ' Workflows automatisés', ' Stats avancées', ' Support prioritaire'].map(f => (
-                      <div key={f} style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ opacity: 0.6 }}>{f}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => router.push('/upgrade')}
-                    style={{
-                      display: 'inline-block',
-                      background: 'linear-gradient(135deg, #8b6914, #d4a853)',
-                      border: 'none', borderRadius: 10,
-                      padding: '12px 28px', fontSize: 14,
-                      fontWeight: 700, color: '#0a0a0a',
-                      cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
-                      letterSpacing: '0.3px',
-                    }}
-                  >
+                  {['🌐 Scraper web — extraire des emails de sites', '📧 Email groupé — prospecter en masse', '🤖 Chatbot — qualifier les visiteurs', '⚡ Workflows — suivi automatique'].map(f => (
+                    <div key={f} style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textAlign: 'left', marginBottom: 8 }}>✦ {f}</div>
+                  ))}
+                  <button onClick={() => router.push('/upgrade')} style={{ marginTop: 24, background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                     Passer au plan Agence — 169€/mois →
                   </button>
-                  <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
-                    {plan === 'pro' ? 'Vous êtes sur le plan Pro.' : 'Vous êtes sur le plan Gratuit.'} Passez Agence pour débloquer tout le module B2B.
-                  </p>
                 </div>
+              </div>
+            ) : (
+              <div>
+                <div className="page-header">
+                  <h2 className="page-title">Module B2B</h2>
+                  <p className="page-subtitle">Prospection, emails et automatisation pour agents</p>
+                </div>
+
+                {/* Sous-onglets B2B */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 28, flexWrap: 'wrap' }}>
+                  {[
+                    { id: 'scraper', label: '🌐 Scraper web', desc: 'Extraire des emails' },
+                    { id: 'email', label: '📧 Email groupé', desc: 'Prospecter en masse' },
+                    { id: 'chatbot', label: '🤖 Chatbot', desc: 'Qualifier les leads' },
+                    { id: 'workflows', label: '⚡ Workflows', desc: 'Automatiser le suivi' },
+                  ].map(tab => (
+                    <button key={tab.id} onClick={() => setB2bSubTab(tab.id)} style={{ padding: '10px 18px', borderRadius: 10, border: `1px solid ${b2bSubTab === tab.id ? 'rgba(212,168,83,0.5)' : 'rgba(255,255,255,0.08)'}`, background: b2bSubTab === tab.id ? 'rgba(212,168,83,0.1)' : 'rgba(255,255,255,0.02)', color: b2bSubTab === tab.id ? '#d4a853' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: b2bSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── Scraper web ── */}
+                {b2bSubTab === 'scraper' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 24 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>Extraire des emails d'un site</h3>
+                      <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginBottom: 18, lineHeight: 1.6 }}>Entrez l'URL d'un site (agence concurrente, promoteur, notaire, syndic…) pour en extraire automatiquement les emails.</p>
+                      <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6 }}>URL du site à scraper</label>
+                      <input
+                        type="url"
+                        value={b2bScraperUrl}
+                        onChange={e => setB2bScraperUrl(e.target.value)}
+                        placeholder="https://www.agence-exemple.fr"
+                        style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', marginBottom: 12, boxSizing: 'border-box' }}
+                        onKeyDown={e => e.key === 'Enter' && handleB2BScrape()}
+                      />
+                      <button onClick={handleB2BScrape} disabled={b2bScraperLoading || !b2bScraperUrl.trim()} style={{ width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 8, padding: '11px', fontSize: 13.5, fontWeight: 700, color: '#0a0a0a', cursor: b2bScraperLoading ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: b2bScraperLoading ? 0.7 : 1 }}>
+                        {b2bScraperLoading ? '⏳ Scraping en cours…' : '🔍 Lancer le scraping'}
+                      </button>
+                      {b2bScraperError && <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(240,68,68,0.08)', border: '1px solid rgba(240,68,68,0.2)', borderRadius: 8, fontSize: 12.5, color: '#f04444' }}>❌ {b2bScraperError}</div>}
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 24 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>
+                        Résultats {b2bScraperResult && <span style={{ fontSize: 12, color: '#d4a853', fontWeight: 400 }}>— {b2bScraperResult.count} email(s) trouvé(s)</span>}
+                      </h3>
+                      {!b2bScraperResult ? (
+                        <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.2)', marginTop: 16 }}>Lance un scraping pour voir les emails extraits.</p>
+                      ) : b2bScraperResult.emails.length === 0 ? (
+                        <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.3)', marginTop: 16 }}>Aucun email trouvé sur ce site.</p>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{b2bSelectedEmails.length}/{b2bScraperResult.emails.length} sélectionnés</span>
+                            <button onClick={() => setB2bSelectedEmails(b2bSelectedEmails.length === b2bScraperResult.emails.length ? [] : [...b2bScraperResult.emails])} style={{ fontSize: 11, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                              {b2bSelectedEmails.length === b2bScraperResult.emails.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                            </button>
+                          </div>
+                          <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {b2bScraperResult.emails.map(email => (
+                              <div key={email} onClick={() => setB2bSelectedEmails(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email])} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, background: b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.3)' : 'rgba(255,255,255,0.05)'}`, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${b2bSelectedEmails.includes(email) ? '#d4a853' : 'rgba(255,255,255,0.2)'}`, background: b2bSelectedEmails.includes(email) ? '#d4a853' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {b2bSelectedEmails.includes(email) && <span style={{ fontSize: 9, color: '#000' }}>✓</span>}
+                                </div>
+                                <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{email}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {b2bSelectedEmails.length > 0 && (
+                            <button onClick={() => setB2bSubTab('email')} style={{ marginTop: 12, width: '100%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', borderRadius: 8, padding: '9px', fontSize: 13, color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>
+                              📧 Envoyer un email à ces {b2bSelectedEmails.length} contact(s) →
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Email groupé ── */}
+                {b2bSubTab === 'email' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 24 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 16 }}>Rédiger l'email</h3>
+                      {[
+                        { key: 'senderName', label: 'Votre nom', placeholder: 'Jean Dupont — Agence Dupont Immobilier' },
+                        { key: 'senderEmail', label: 'Votre email expéditeur', placeholder: 'jean@agence-dupont.fr' },
+                        { key: 'subject', label: 'Objet', placeholder: 'Collaboration — Opportunité immobilière' },
+                      ].map(f => (
+                        <div key={f.key} style={{ marginBottom: 12 }}>
+                          <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 5 }}>{f.label}</label>
+                          <input type="text" value={b2bEmailForm[f.key]} onChange={e => setB2bEmailForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' }} />
+                        </div>
+                      ))}
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 5 }}>Corps du message <span style={{ color: 'rgba(255,255,255,0.25)' }}>(utilisez {"{name}"} pour personnaliser)</span></label>
+                        <textarea value={b2bEmailForm.template} onChange={e => setB2bEmailForm(prev => ({ ...prev, template: e.target.value }))} placeholder={"Bonjour {name},
+
+Je suis agent immobilier dans votre secteur et je souhaite vous proposer une collaboration...
+
+Cordialement,"} rows={7} style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', resize: 'vertical', boxSizing: 'border-box' }} />
+                      </div>
+                      <button onClick={handleB2BSendEmail} disabled={b2bEmailLoading || b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template} style={{ width: '100%', background: b2bSelectedEmails.length === 0 ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 8, padding: '12px', fontSize: 14, fontWeight: 700, color: b2bSelectedEmails.length === 0 ? 'rgba(255,255,255,0.25)' : '#0a0a0a', cursor: b2bEmailLoading || b2bSelectedEmails.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                        {b2bEmailLoading ? '⏳ Envoi en cours…' : b2bSelectedEmails.length === 0 ? 'Sélectionnez des destinataires' : `📨 Envoyer à ${b2bSelectedEmails.length} contact(s)`}
+                      </button>
+                      {b2bEmailStatus && (
+                        <div style={{ marginTop: 12, padding: '10px 12px', background: b2bEmailStatus.success ? 'rgba(62,207,142,0.08)' : 'rgba(240,68,68,0.08)', border: `1px solid ${b2bEmailStatus.success ? 'rgba(62,207,142,0.2)' : 'rgba(240,68,68,0.2)'}`, borderRadius: 8, fontSize: 12.5, color: b2bEmailStatus.success ? '#3ecf8e' : '#f04444' }}>
+                          {b2bEmailStatus.success ? `✅ ${b2bEmailStatus.sent}/${b2bEmailStatus.total} email(s) envoyé(s) avec succès` : `❌ ${b2bEmailStatus.error}`}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 24 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 16 }}>Destinataires <span style={{ fontSize: 12, color: '#d4a853', fontWeight: 400 }}>{b2bSelectedEmails.length} contact(s)</span></h3>
+                      {b2bSelectedEmails.length === 0 ? (
+                        <div style={{ textAlign: 'center', paddingTop: 32 }}>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', marginBottom: 12 }}>Aucun destinataire sélectionné.</p>
+                          <button onClick={() => setB2bSubTab('scraper')} style={{ fontSize: 12.5, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'underline' }}>← Aller au scraper pour extraire des emails</button>
+                        </div>
+                      ) : (
+                        <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {b2bSelectedEmails.map(email => (
+                            <div key={email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 7, border: '1px solid rgba(255,255,255,0.05)' }}>
+                              <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace' }}>{email}</span>
+                              <button onClick={() => setB2bSelectedEmails(prev => prev.filter(e => e !== email))} style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Chatbot ── */}
+                {b2bSubTab === 'chatbot' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Mes chatbots</h3>
+                        <button onClick={() => setChatbotShowForm(!chatbotShowForm)} style={{ fontSize: 12.5, background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', borderRadius: 8, padding: '7px 14px', color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>
+                          {chatbotShowForm ? '✕ Annuler' : '+ Créer un chatbot'}
+                        </button>
+                      </div>
+
+                      {chatbotShowForm && (
+                        <div style={{ background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.15)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+                          <div style={{ marginBottom: 10 }}>
+                            <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 5 }}>Nom du chatbot</label>
+                            <input type="text" value={chatbotForm.name} onChange={e => setChatbotForm(p => ({ ...p, name: e.target.value }))} placeholder="Assistant Immobilier" style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' }} />
+                          </div>
+                          <div style={{ marginBottom: 14 }}>
+                            <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 5 }}>Message de bienvenue</label>
+                            <textarea value={chatbotForm.welcomeMessage} onChange={e => setChatbotForm(p => ({ ...p, welcomeMessage: e.target.value }))} rows={3} style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', resize: 'none', boxSizing: 'border-box' }} />
+                          </div>
+                          <button onClick={handleCreateChatbot} disabled={chatbotCreating || !chatbotForm.name} style={{ width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 8, padding: '10px', fontSize: 13.5, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                            {chatbotCreating ? 'Création…' : '✓ Créer le chatbot'}
+                          </button>
+                        </div>
+                      )}
+
+                      {chatbots.length === 0 ? (
+                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '32px 24px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 32, marginBottom: 10 }}>🤖</div>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez votre premier chatbot pour qualifier les leads de votre site.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {chatbots.map(bot => (
+                            <div key={bot.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{bot.avatar} {bot.name}</div>
+                                <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)' }}>{bot.welcome_message?.slice(0, 50)}…</div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 20, background: bot.status === 'active' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: bot.status === 'active' ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${bot.status === 'active' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
+                                  {bot.status === 'active' ? '● Actif' : '○ Inactif'}
+                                </span>
+                                <button onClick={() => handleDeleteChatbot(bot.id)} style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>🗑</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 16 }}>Conversations récentes <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>{conversations.length} au total</span></h3>
+                      {conversations.length === 0 ? (
+                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '32px 24px', textAlign: 'center' }}>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucune conversation pour l'instant.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 400, overflowY: 'auto' }}>
+                          {conversations.slice(0, 20).map(conv => (
+                            <div key={conv.id} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${conv.qualified ? 'rgba(62,207,142,0.15)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '12px 14px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                                <div style={{ fontSize: 13, color: '#e8e8e8', fontWeight: 500 }}>{conv.visitor_email || 'Anonyme'}</div>
+                                <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: conv.qualified ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: conv.qualified ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${conv.qualified ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`, whiteSpace: 'nowrap' }}>
+                                  {conv.qualified ? '✓ Qualifié' : 'Non qualifié'}
+                                </span>
+                              </div>
+                              {conv.qualification_reason && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>💬 {conv.qualification_reason}</div>}
+                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>{new Date(conv.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Workflows ── */}
+                {b2bSubTab === 'workflows' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Mes workflows</h3>
+                        <button onClick={() => setWorkflowShowForm(!workflowShowForm)} style={{ fontSize: 12.5, background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', borderRadius: 8, padding: '7px 14px', color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>
+                          {workflowShowForm ? '✕ Annuler' : '+ Créer un workflow'}
+                        </button>
+                      </div>
+
+                      {workflowShowForm && (
+                        <div style={{ background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.15)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+                          <div style={{ marginBottom: 10 }}>
+                            <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 5 }}>Nom du workflow</label>
+                            <input type="text" value={workflowForm.name} onChange={e => setWorkflowForm(p => ({ ...p, name: e.target.value }))} placeholder="Accueil nouveau prospect" style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' }} />
+                          </div>
+                          <div style={{ marginBottom: 14 }}>
+                            <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 5 }}>Déclencheur</label>
+                            <select value={workflowForm.trigger} onChange={e => setWorkflowForm(p => ({ ...p, trigger: e.target.value }))} style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif' }}>
+                              <option value="new_prospect">Nouveau prospect (chatbot)</option>
+                              <option value="new_match">Nouveau match immobilier</option>
+                              <option value="manual">Déclenchement manuel</option>
+                            </select>
+                          </div>
+                          <p style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', marginBottom: 14, lineHeight: 1.5 }}>Actions automatiques : email de bienvenue au prospect + notification à votre équipe.</p>
+                          <button onClick={handleCreateWorkflow} disabled={workflowCreating || !workflowForm.name} style={{ width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 8, padding: '10px', fontSize: 13.5, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                            {workflowCreating ? 'Création…' : '✓ Créer le workflow'}
+                          </button>
+                        </div>
+                      )}
+
+                      {workflowsLoading ? (
+                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', padding: 16 }}>Chargement…</p>
+                      ) : workflows.length === 0 ? (
+                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '32px 24px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 32, marginBottom: 10 }}>⚡</div>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez un workflow pour automatiser votre suivi des prospects.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {workflows.map(wf => (
+                            <div key={wf.id} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${wf.active ? 'rgba(62,207,142,0.15)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>⚡ {wf.name}</div>
+                                  <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)' }}>Déclencheur : {wf.trigger === 'new_prospect' ? 'Nouveau prospect' : wf.trigger === 'new_match' ? 'Nouveau match' : 'Manuel'}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                  <button onClick={() => handleToggleWorkflow(wf.id, wf.active)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: wf.active ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: wf.active ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${wf.active ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                                    {wf.active ? '● Actif' : '○ Inactif'}
+                                  </button>
+                                  <button onClick={() => handleDeleteWorkflow(wf.id)} style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>🗑</button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 24 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 12 }}>Comment ça marche ?</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {[
+                          { step: '1', title: 'Un prospect contacte votre chatbot', desc: 'Il laisse son email ou ses coordonnées en discutant avec votre bot.' },
+                          { step: '2', title: 'Le workflow se déclenche', desc: 'ProspectBot détecte le nouveau contact et lance les actions configurées.' },
+                          { step: '3', title: 'Email automatique envoyé', desc: 'Le prospect reçoit un email de bienvenue, votre équipe est notifiée.' },
+                          { step: '4', title: 'Vous intervenez au bon moment', desc: 'Vous n'avez plus qu'à rappeler un prospect déjà informé et engagé.' },
+                        ].map(item => (
+                          <div key={item.step} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(212,168,83,0.15)', border: '1px solid rgba(212,168,83,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#d4a853', flexShrink: 0 }}>{item.step}</div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{item.title}</div>
+                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>{item.desc}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               </div>
             )
           )}
