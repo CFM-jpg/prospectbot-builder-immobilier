@@ -1980,11 +1980,7 @@ export default function ImmobilierDashboard() {
                       </div>
                       <div className="form-group">
                         <label className="form-label">Corps du message <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}>(utilisez {'{name}'} pour personnaliser)</span></label>
-                        <textarea className="form-input" value={b2bEmailForm.template} onChange={e => setB2bEmailForm(p => ({ ...p, template: e.target.value }))} placeholder={'Bonjour {name},
-
-Je suis agent immobilier dans votre secteur…
-
-Cordialement,'} rows={6} style={{ resize: 'vertical' }} />
+                        <textarea className="form-input" value={b2bEmailForm.template} onChange={e => setB2bEmailForm(p => ({ ...p, template: e.target.value }))} placeholder="Bonjour {name}, je suis agent immobilier dans votre secteur…" rows={6} style={{ resize: 'vertical' }} />
                       </div>
                       <button className="btn btn-primary btn-full" onClick={handleB2BSendEmail} disabled={b2bEmailLoading || b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template}>
                         {b2bEmailLoading ? '⏳ Envoi en cours…' : b2bSelectedEmails.length === 0 ? 'Sélectionnez des destinataires' : `📨 Envoyer à ${b2bSelectedEmails.length} contact(s)`}
