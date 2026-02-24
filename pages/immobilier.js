@@ -1245,6 +1245,29 @@ export default function ImmobilierDashboard() {
               <span className="nav-dot" />
                Publier une annonce
             </button>
+            <div className="nav-divider" />
+            <button
+              className={`nav-item ${activeTab === 'b2b' ? 'active' : ''}`}
+              onClick={() => setActiveTab('b2b')}
+              style={{ position: 'relative' }}
+            >
+              <span className="nav-dot" />
+              Module B2B
+              {plan !== 'agence' && (
+                <span style={{
+                  marginLeft: 'auto',
+                  fontSize: 10,
+                  background: 'rgba(212,168,83,0.12)',
+                  border: '1px solid rgba(212,168,83,0.25)',
+                  color: '#d4a853',
+                  borderRadius: 4,
+                  padding: '1px 5px',
+                  fontWeight: 600,
+                  letterSpacing: '0.3px',
+                  flexShrink: 0,
+                }}>🔒 Agence</span>
+              )}
+            </button>
           </nav>
           {agent && (
             <div className="sidebar-footer">
@@ -1644,6 +1667,57 @@ export default function ImmobilierDashboard() {
             can('publicationMultiSites')
               ? <PublicationDashboard />
               : <UpgradeGate planRequired="pro" plan={plan} featureLabel="Publication multi-sites & génération IA" />
+          )}
+
+          {/* ── Module B2B ── */}
+          {activeTab === 'b2b' && (
+            plan === 'agence' ? (
+              <div>
+                <div className="page-header">
+                  <h2 className="page-title">Module B2B</h2>
+                  <p className="page-subtitle">Prospection, campagnes email et automatisation</p>
+                </div>
+                <div style={{ padding: '24px', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>
+                  Le module B2B complet est disponible ici pour les comptes Agence.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+                <div style={{ textAlign: 'center', maxWidth: 420, padding: '0 24px' }}>
+                  <div style={{ fontSize: 52, marginBottom: 20 }}>🔒</div>
+                  <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 300, color: '#f0f0f0', marginBottom: 12, letterSpacing: '-0.3px' }}>
+                    Module B2B
+                  </h2>
+                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 10 }}>
+                    Accédez à la prospection B2B, aux campagnes email automatisées, au chatbot IA et aux workflows — exclusivement disponibles avec le plan <strong style={{ color: '#d4a853' }}>Agence</strong>.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28, textAlign: 'left' }}>
+                    {['🤖 Chatbot IA de prospection', '📧 Campagnes email automatisées', '🌐 Scraper web B2B', '⚡ Workflows automatisés', '📊 Stats avancées', '🎯 Support prioritaire'].map(f => (
+                      <div key={f} style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ opacity: 0.6 }}>{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => router.push('/upgrade')}
+                    style={{
+                      display: 'inline-block',
+                      background: 'linear-gradient(135deg, #8b6914, #d4a853)',
+                      border: 'none', borderRadius: 10,
+                      padding: '12px 28px', fontSize: 14,
+                      fontWeight: 700, color: '#0a0a0a',
+                      cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+                      letterSpacing: '0.3px',
+                    }}
+                  >
+                    Passer au plan Agence — 169€/mois →
+                  </button>
+                  <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
+                    {plan === 'pro' ? 'Vous êtes sur le plan Pro.' : 'Vous êtes sur le plan Gratuit.'} Passez Agence pour débloquer tout le module B2B.
+                  </p>
+                </div>
+              </div>
+            )
           )}
 
         </main>
