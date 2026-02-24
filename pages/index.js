@@ -1001,7 +1001,7 @@ export default function LandingPage() {
         <div className="footer-links">
           <a href="/login" className="footer-link">Connexion</a>
           <a href="/register" className="footer-link">Créer un compte</a>
-          <a href="#" className="footer-link">Mentions légales</a>
+          <a href="/mentions-legales" className="footer-link">Mentions légales</a>
           <a href="#" className="footer-link">Contact</a>
         </div>
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.15)' }}>© 2025 ProspectBot</span>
