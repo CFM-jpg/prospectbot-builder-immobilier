@@ -249,12 +249,6 @@ export default function LoginPage() {
                 <p className="form-subtitle">Accédez à votre espace de travail</p>
               </div>
 
-              {router.query.registered && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(62,207,142,0.08)', border: '1px solid rgba(62,207,142,0.25)', borderRadius: 10, fontSize: 13, color: '#3ecf8e', marginBottom: 24 }}>
-                  ✓ Compte créé avec succès. Connectez-vous pour accéder à votre espace.
-                </div>
-              )}
-
               {error && (
                 <div className="error-box">
                   <div className="error-icon">!</div>
@@ -303,12 +297,18 @@ export default function LoginPage() {
               </form>
 
               <div className="form-footer">
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', marginBottom: 0 }}>
-                  Pas encore de compte ?{' '}
-                  <a href="/register" style={{ color: '#d4a853', textDecoration: 'none', fontWeight: 500 }}>
-                    Créer un compte
-                  </a>
+                <p>
+                  Accès réservé aux agents autorisés.<br />
+                  Contactez votre administrateur pour obtenir vos identifiants.
                 </p>
+                <div className="hint-box">
+                  <strong>Identifiants par défaut</strong>
+                  Email : <code>admin@prospectbot.fr</code><br />
+                  Mot de passe : <code>admin123</code><br />
+                  <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
+                    Modifiez via <code>ADMIN_EMAIL</code> et <code>ADMIN_PASSWORD</code>
+                  </span>
+                </div>
               </div>
             </div>
 

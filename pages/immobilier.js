@@ -879,6 +879,7 @@ function UpgradeGate({ planRequired, plan, featureLabel }) {
   );
 }
 
+<<<<<<< HEAD
 // ─── Sidebar Plan Block ───────────────────────────────────────────────────────
 
 function SidebarPlanBlock({ plan }) {
@@ -917,7 +918,7 @@ function SidebarPlanBlock({ plan }) {
 
       {/* CTA */}
       {plan === 'gratuit' ? (
-        <a href="/register" style={{
+        <a href="/upgrade" style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '8px 12px', background: 'linear-gradient(135deg, #8b6914, #d4a853)',
           color: '#0a0a0a', borderRadius: 8, fontSize: 11.5, fontWeight: 700,
@@ -941,6 +942,8 @@ function SidebarPlanBlock({ plan }) {
   );
 }
 
+=======
+>>>>>>> parent of b4e4a75 (payement)
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ImmobilierDashboard() {
@@ -1254,7 +1257,21 @@ export default function ImmobilierDashboard() {
                 <div className="agent-name">{agent.name}</div>
                 <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
               </div>
-              <SidebarPlanBlock plan={plan} />
+              <div style={{
+                display: 'inline-block',
+                padding: '3px 10px',
+                borderRadius: 20,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                marginBottom: 8,
+                background: plan === 'agence' ? 'rgba(201,169,110,0.15)' : plan === 'pro' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)',
+                color: plan === 'agence' ? '#c9a96e' : plan === 'pro' ? '#3ecf8e' : '#6b6b78',
+                border: `1px solid ${plan === 'agence' ? 'rgba(201,169,110,0.3)' : plan === 'pro' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
+              }}>
+                {plan === 'agence' ? 'Agence' : plan === 'pro' ? 'Pro' : 'Gratuit'}
+              </div>
               <button className="help-btn" onClick={() => setShowOnboardingAgent(true)}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 Revoir le tutoriel
