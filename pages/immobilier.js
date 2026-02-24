@@ -1692,7 +1692,7 @@ export default function ImmobilierDashboard() {
                     Accédez à la prospection B2B, aux campagnes email automatisées, au chatbot IA et aux workflows — exclusivement disponibles avec le plan <strong style={{ color: '#d4a853' }}>Agence</strong>.
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28, textAlign: 'left' }}>
-                    {['🤖 Chatbot IA de prospection', '📧 Campagnes email automatisées', '🌐 Scraper web B2B', '⚡ Workflows automatisés', '📊 Stats avancées', '🎯 Support prioritaire'].map(f => (
+                    {[' Chatbot IA de prospection', ' Campagnes email automatisées', ' Scraper web B2B', ' Workflows automatisés', ' Stats avancées', ' Support prioritaire'].map(f => (
                       <div key={f} style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ opacity: 0.6 }}>{f}</span>
                       </div>

@@ -955,13 +955,23 @@ export default function LandingPage() {
                     <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.65)' }}>{f.text}</span>
                   </div>
                 ))}
+                <div style={{ height: 1, background: 'rgba(212,168,83,0.15)', margin: '18px 0 14px' }} />
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, color: '#d4a853', marginBottom: 12, fontWeight: 700 }}>
+                  + Module B2B inclus
+                </div>
+                {['🤖 Chatbot IA de prospection', '📧 Campagnes email auto', '🌐 Scraper web B2B', '⚡ Workflows automatisés', '🎯 Support prioritaire'].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{f}</span>
+                  </div>
+                ))}
               </div>
               <button
                 onClick={() => router.push('/register')}
-                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#e8e8e8'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}>
-                Contacter l'équipe →
+                style={{ width: '100%', background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.3)', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 600, color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(212,168,83,0.15)'; e.currentTarget.style.borderColor = 'rgba(212,168,83,0.5)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(212,168,83,0.08)'; e.currentTarget.style.borderColor = 'rgba(212,168,83,0.3)'; }}>
+                Démarrer avec Agence →
               </button>
             </div>
           </div>
@@ -970,6 +980,41 @@ export default function LandingPage() {
           <p data-reveal style={{ textAlign: 'center', marginTop: 32, fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
             Prix hors taxes · Engagement mensuel ou annuel · Résiliation à tout moment
           </p>
+
+          {/* ── Section B2B ── */}
+          <div data-reveal data-delay="4" style={{ marginTop: 72, background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.15)', borderRadius: 20, padding: '48px 44px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 48, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 300px' }}>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 2, color: '#d4a853', marginBottom: 14, fontWeight: 700 }}>Plan Agence · Exclusif</div>
+                <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 34, fontWeight: 300, color: '#f0f0f0', lineHeight: 1.2, marginBottom: 16, letterSpacing: '-0.3px' }}>
+                  Le module B2B,<br /><em>inclus dans votre plan.</em>
+                </h3>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.75, marginBottom: 24 }}>
+                  ProspectBot Agence ne se limite pas à l'immobilier. Accédez directement à une suite d'outils B2B — prospection, automatisation et campagnes — sans abonnement supplémentaire.
+                </p>
+                <button
+                  onClick={() => router.push('/register')}
+                  style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 10, padding: '12px 26px', fontSize: 13.5, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                >
+                  Démarrer avec Agence — 169€/mois →
+                </button>
+              </div>
+              <div style={{ flex: '1 1 280px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {[
+                  { icon: '🤖', title: 'Chatbot IA', desc: 'Qualifie vos prospects automatiquement' },
+                  { icon: '📧', title: 'Campagnes email', desc: 'Séquences automatisées et personnalisées' },
+                  { icon: '🌐', title: 'Scraper B2B', desc: 'Extrayez des contacts et entreprises' },
+                  { icon: '⚡', title: 'Workflows', desc: 'Automatisez vos processus métier' },
+                ].map((item, i) => (
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '16px 14px' }}>
+                    <div style={{ fontSize: 22, marginBottom: 8 }}>{item.icon}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 4 }}>{item.title}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>{item.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
