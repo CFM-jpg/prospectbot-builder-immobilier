@@ -2245,4 +2245,4 @@ export default function ImmobilierDashboard() {
       )}
     </>
   );
-}
+} 
