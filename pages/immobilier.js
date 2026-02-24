@@ -1898,9 +1898,9 @@ export default function ImmobilierDashboard() {
                 {b2bSubTab === 'scraper' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                     <div className="card">
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>Extraire des emails d'un site</h3>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>Extraire des emails d\'un site</h3>
                       <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginBottom: 20, lineHeight: 1.6 }}>
-                        Saisissez l'URL d'un site (promoteur, notaire, agence concurrente, syndic…) pour en extraire les emails de contact.
+                        Saisissez l\'URL d\'un site (promoteur, notaire, agence concurrente, syndic…) pour en extraire les emails de contact.
                       </p>
                       <div className="form-group">
                         <label className="form-label">URL du site</label>
@@ -1965,7 +1965,7 @@ export default function ImmobilierDashboard() {
                 {b2bSubTab === 'email' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                     <div className="card">
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 18 }}>Rédiger l'email</h3>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 18 }}>Rédiger l\'email</h3>
                       <div className="form-group">
                         <label className="form-label">Votre nom</label>
                         <input type="text" className="form-input" value={b2bEmailForm.senderName} onChange={e => setB2bEmailForm(p => ({ ...p, senderName: e.target.value }))} placeholder="Jean Dupont — Agence Dupont Immobilier" />
@@ -2002,7 +2002,7 @@ export default function ImmobilierDashboard() {
                       {b2bSelectedEmails.length === 0 ? (
                         <div style={{ textAlign: 'center', paddingTop: 32 }}>
                           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', marginBottom: 12 }}>Aucun destinataire.</p>
-                          <button onClick={() => setB2bSubTab('scraper')} style={{ fontSize: 12.5, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>← Scraper des emails d'abord</button>
+                          <button onClick={() => setB2bSubTab('scraper')} style={{ fontSize: 12.5, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>← Scraper des emails d\'abord</button>
                         </div>
                       ) : (
                         <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -2074,7 +2074,7 @@ export default function ImmobilierDashboard() {
                       </h3>
                       {conversations.length === 0 ? (
                         <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucune conversation pour l'instant.</p>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucune conversation pour l\'instant.</p>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
@@ -2164,7 +2164,7 @@ export default function ImmobilierDashboard() {
                           { n: '1', t: 'Un prospect contacte votre chatbot', d: 'Il laisse son email ou ses coordonnées en discutant avec votre bot.' },
                           { n: '2', t: 'Le workflow se déclenche', d: 'ProspectBot détecte le nouveau contact et exécute les actions configurées.' },
                           { n: '3', t: 'Email automatique envoyé', d: 'Le prospect reçoit un email de bienvenue, votre équipe est notifiée.' },
-                          { n: '4', t: 'Vous intervenez au bon moment', d: 'Vous ne rappelez qu'un prospect déjà informé et engagé.' },
+                          { n: '4', t: 'Vous intervenez au bon moment', d: 'Vous ne rappelez qu\'un prospect déjà informé et engagé.' },
                         ].map(item => (
                           <div key={item.n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                             <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#d4a853', flexShrink: 0 }}>{item.n}</div>
