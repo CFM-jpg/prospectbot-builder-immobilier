@@ -21,7 +21,8 @@ export default async function handler(req, res) {
   }
 
   // Bloque si email non vérifié (sauf admin)
-  if (agent.role !== 'admin' && agent.email_verified === false) {
+  // On bloque si email_verified est false OU null (compte non vérifié)
+  if (agent.role !== 'admin' && !agent.email_verified) {
     return res.status(403).json({ error: 'not_verified' });
   }
 
