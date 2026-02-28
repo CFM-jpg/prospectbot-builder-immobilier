@@ -2,7 +2,13 @@
   "buildCommand": "npm run build",
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/email-cron", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/workflow-cron", "schedule": "*/5 * * * *" }
+    {
+      "path": "/api/cron/email-cron",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/workflow-cron",
+      "schedule": "0 10 * * *"
+    }
   ]
 }
