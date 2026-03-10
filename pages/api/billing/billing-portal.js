@@ -1,5 +1,5 @@
 import { getSession } from '../../../lib/auth';
-import { supabase } from '../../../lib/supabase';
+import { supabaseAdmin } from '../../../lib/supabase';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: 'Non authentifié.' });
 
   // Récupère le stripe_customer_id de l'agent
-  const { data: agent } = await supabase
+  const { data: agent } = await supabaseAdmin
     .from('agents')
     .select('stripe_customer_id, plan')
     .eq('email', session.email)

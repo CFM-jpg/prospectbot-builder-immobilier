@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     const date90Jours = new Date(maintenant);
     date90Jours.setDate(date90Jours.getDate() - 90);
 
-    const { count: biensArchives, error: errorArchive } = await supabaseAdmin
+    const { data: biensArchivesData, error: errorArchive } = await supabaseAdmin
       .from('biens')
       .update({
         archive: true,
@@ -36,44 +36,46 @@ export default async function handler(req, res) {
       .eq('statut', 'vendu')
       .lt('date_vente', date90Jours.toISOString())
       .neq('archive', true)
-      .select('*', { count: 'exact', head: true });
+      .select('id');
 
     if (!errorArchive) {
-      stats.biensArchives = biensArchives || 0;
+      stats.biensArchives = biensArchivesData?.length || 0;
     }
 
     // 2. Supprimer les matchs "rejetés" depuis plus de 30 jours
     const date30Jours = new Date(maintenant);
     date30Jours.setDate(date30Jours.getDate() - 30);
 
-    const { count: matchsSupprimes, error: errorMatches } = await supabaseAdmin
+    const { data: matchsSupprimesData, error: errorMatches } = await supabaseAdmin
       .from('matches')
-      .delete({ count: 'exact' })
+      .delete()
       .eq('statut', 'rejete')
-      .lt('date_rejet', date30Jours.toISOString());
+      .lt('date_rejet', date30Jours.toISOString())
+      .select('id');
 
     if (!errorMatches) {
-      stats.matchsSupprimes = matchsSupprimes || 0;
+      stats.matchsSupprimes = matchsSupprimesData?.length || 0;
     }
 
     // 3. Supprimer les logs de cron de plus de 180 jours
     const date180Jours = new Date(maintenant);
     date180Jours.setDate(date180Jours.getDate() - 180);
 
-    const { count: logsSupprimes, error: errorLogs } = await supabaseAdmin
+    const { data: logsSupprimesData, error: errorLogs } = await supabaseAdmin
       .from('cron_logs')
-      .delete({ count: 'exact' })
-      .lt('date', date180Jours.toISOString());
+      .delete()
+      .lt('date', date180Jours.toISOString())
+      .select('id');
 
     if (!errorLogs) {
-      stats.logsSupprimes = logsSupprimes || 0;
+      stats.logsSupprimes = logsSupprimesData?.length || 0;
     }
 
     // 4. Désactiver les acheteurs inactifs depuis plus de 6 mois
     const date6Mois = new Date(maintenant);
     date6Mois.setMonth(date6Mois.getMonth() - 6);
 
-    const { count: acheteursDesactives, error: errorAcheteurs } = await supabaseAdmin
+    const { data: acheteursDesactivesData, error: errorAcheteurs } = await supabaseAdmin
       .from('acheteurs')
       .update({
         statut: 'inactif',
@@ -82,10 +84,10 @@ export default async function handler(req, res) {
       })
       .eq('statut', 'actif')
       .or(`derniere_connexion.lt.${date6Mois.toISOString()},derniere_connexion.is.null`)
-      .select('*', { count: 'exact', head: true });
+      .select('id');
 
     if (!errorAcheteurs) {
-      stats.acheteursDesactives = acheteursDesactives || 0;
+      stats.acheteursDesactives = acheteursDesactivesData?.length || 0;
     }
 
     // 5. Logger l'exécution

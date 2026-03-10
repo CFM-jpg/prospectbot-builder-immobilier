@@ -2,6 +2,7 @@
 import { supabaseAdmin } from '../../../lib/supabase';
 import Stripe from 'stripe';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -106,6 +107,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Champs manquants.' });
   }
 
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  }
+
   // Email déjà utilisé ?
   const { data: existing } = await supabaseAdmin
     .from('agents')
@@ -117,6 +122,9 @@ export default async function handler(req, res) {
     return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
   }
 
+  // Hash du mot de passe (OBLIGATOIRE — ne jamais stocker en clair)
+  const hashedPassword = await bcrypt.hash(password, 12);
+
   // Génère un token de vérification
   const verificationToken = crypto.randomBytes(32).toString('hex');
 
@@ -124,7 +132,7 @@ export default async function handler(req, res) {
   if (plan === 'gratuit') {
     const { error } = await supabaseAdmin.from('agents').insert({
       email: email.toLowerCase(),
-      password,
+      password: hashedPassword,
       name,
       role: 'agent',
       plan: 'gratuit',
@@ -143,7 +151,7 @@ export default async function handler(req, res) {
   // Crée le compte en avance (plan gratuit, sera upgradé par le webhook)
   const { error: insertError } = await supabaseAdmin.from('agents').insert({
     email: email.toLowerCase(),
-    password,
+    password: hashedPassword,
     name,
     role: 'agent',
     plan: 'gratuit',

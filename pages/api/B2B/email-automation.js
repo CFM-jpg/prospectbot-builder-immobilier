@@ -1,52 +1,42 @@
 // pages/api/B2B/email-automation.js
 import { supabaseAdmin } from '../../../lib/supabase';
+import { getSession } from '../../../lib/auth';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const session = getSession(req);
+  if (!session) return res.status(401).json({ error: 'Non authentifié' });
+  const agentEmail = session.email;
+
   const { action } = req.body;
 
   try {
     switch (action) {
-      // ========== CAMPAGNES ==========
       case 'list_campaigns':
-        return await listCampaigns(req, res);
-      
+        return await listCampaigns(req, res, agentEmail);
       case 'create_campaign':
-        return await createCampaign(req, res);
-      
+        return await createCampaign(req, res, agentEmail);
       case 'update_campaign_status':
-        return await updateCampaignStatus(req, res);
-      
+        return await updateCampaignStatus(req, res, agentEmail);
       case 'delete_campaign':
-        return await deleteCampaign(req, res);
-
-      // ========== TEMPLATES ==========
+        return await deleteCampaign(req, res, agentEmail);
       case 'list_templates':
-        return await listTemplates(req, res);
-      
+        return await listTemplates(req, res, agentEmail);
       case 'create_template':
-        return await createTemplate(req, res);
-      
+        return await createTemplate(req, res, agentEmail);
       case 'delete_template':
-        return await deleteTemplate(req, res);
-
-      // ========== SÉQUENCES ==========
+        return await deleteTemplate(req, res, agentEmail);
       case 'list_sequences':
-        return await listSequences(req, res);
-      
+        return await listSequences(req, res, agentEmail);
       case 'add_sequence':
-        return await addSequence(req, res);
-      
+        return await addSequence(req, res, agentEmail);
       case 'delete_sequence':
-        return await deleteSequence(req, res);
-
-      // ========== STATS ==========
+        return await deleteSequence(req, res, agentEmail);
       case 'get_stats':
-        return await getStats(req, res);
-
+        return await getStats(req, res, agentEmail);
       default:
         return res.status(400).json({ error: 'Action invalide' });
     }
@@ -57,26 +47,20 @@ export default async function handler(req, res) {
 }
 
 // ========== FONCTIONS CAMPAGNES ==========
-async function listCampaigns(req, res) {
+async function listCampaigns(req, res, agentEmail) {
   const { data, error } = await supabaseAdmin
     .from('email_campaigns')
     .select('*')
+    .eq('agent_email', agentEmail)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-
-  return res.status(200).json({
-    success: true,
-    campaigns: data || []
-  });
+  return res.status(200).json({ success: true, campaigns: data || [] });
 }
 
-async function createCampaign(req, res) {
+async function createCampaign(req, res, agentEmail) {
   const { title, description, campaign_type, status } = req.body;
-
-  if (!title) {
-    return res.status(400).json({ error: 'Titre requis' });
-  }
+  if (!title) return res.status(400).json({ error: 'Titre requis' });
 
   const { data, error } = await supabaseAdmin
     .from('email_campaigns')
@@ -84,147 +68,105 @@ async function createCampaign(req, res) {
       title,
       description: description || '',
       campaign_type: campaign_type || 'manual',
-      status: status || 'draft'
+      status: status || 'draft',
+      agent_email: agentEmail
     }])
     .select()
     .single();
 
   if (error) throw error;
-
-  return res.status(200).json({
-    success: true,
-    campaign: data
-  });
+  return res.status(200).json({ success: true, campaign: data });
 }
 
-async function updateCampaignStatus(req, res) {
+async function updateCampaignStatus(req, res, agentEmail) {
   const { campaign_id, status } = req.body;
-
-  if (!campaign_id || !status) {
-    return res.status(400).json({ error: 'campaign_id et status requis' });
-  }
+  if (!campaign_id || !status) return res.status(400).json({ error: 'campaign_id et status requis' });
 
   const { error } = await supabaseAdmin
     .from('email_campaigns')
     .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', campaign_id);
+    .eq('id', campaign_id)
+    .eq('agent_email', agentEmail);
 
   if (error) throw error;
-
   return res.status(200).json({ success: true });
 }
 
-async function deleteCampaign(req, res) {
+async function deleteCampaign(req, res, agentEmail) {
   const { campaign_id } = req.body;
-
-  if (!campaign_id) {
-    return res.status(400).json({ error: 'campaign_id requis' });
-  }
+  if (!campaign_id) return res.status(400).json({ error: 'campaign_id requis' });
 
   const { error } = await supabaseAdmin
     .from('email_campaigns')
     .delete()
-    .eq('id', campaign_id);
+    .eq('id', campaign_id)
+    .eq('agent_email', agentEmail);
 
   if (error) throw error;
-
   return res.status(200).json({ success: true });
 }
 
 // ========== FONCTIONS TEMPLATES ==========
-async function listTemplates(req, res) {
+async function listTemplates(req, res, agentEmail) {
   const { data, error } = await supabaseAdmin
     .from('email_templates')
     .select('*')
+    .eq('agent_email', agentEmail)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-
-  return res.status(200).json({
-    success: true,
-    templates: data || []
-  });
+  return res.status(200).json({ success: true, templates: data || [] });
 }
 
-async function createTemplate(req, res) {
+async function createTemplate(req, res, agentEmail) {
   const { name, subject, body } = req.body;
+  if (!name || !subject || !body) return res.status(400).json({ error: 'Tous les champs sont requis' });
 
-  if (!name || !subject || !body) {
-    return res.status(400).json({ error: 'Tous les champs sont requis' });
-  }
-
-  // Extraire les variables du template
   const variables = extractVariables(body + ' ' + subject);
 
   const { data, error } = await supabaseAdmin
     .from('email_templates')
-    .insert([{
-      name,
-      subject,
-      body,
-      variables
-    }])
+    .insert([{ name, subject, body, variables, agent_email: agentEmail }])
     .select()
     .single();
 
   if (error) throw error;
-
-  return res.status(200).json({
-    success: true,
-    template: data
-  });
+  return res.status(200).json({ success: true, template: data });
 }
 
-async function deleteTemplate(req, res) {
+async function deleteTemplate(req, res, agentEmail) {
   const { template_id } = req.body;
-
-  if (!template_id) {
-    return res.status(400).json({ error: 'template_id requis' });
-  }
+  if (!template_id) return res.status(400).json({ error: 'template_id requis' });
 
   const { error } = await supabaseAdmin
     .from('email_templates')
     .delete()
-    .eq('id', template_id);
+    .eq('id', template_id)
+    .eq('agent_email', agentEmail);
 
   if (error) throw error;
-
   return res.status(200).json({ success: true });
 }
 
 // ========== FONCTIONS SÉQUENCES ==========
-async function listSequences(req, res) {
+async function listSequences(req, res, agentEmail) {
   const { campaign_id } = req.body;
-
-  if (!campaign_id) {
-    return res.status(400).json({ error: 'campaign_id requis' });
-  }
+  if (!campaign_id) return res.status(400).json({ error: 'campaign_id requis' });
 
   const { data, error } = await supabaseAdmin
     .from('email_sequences')
-    .select(`
-      *,
-      template:email_templates(*)
-    `)
+    .select('*, template:email_templates(*)')
     .eq('campaign_id', campaign_id)
     .order('sequence_order', { ascending: true });
 
   if (error) throw error;
-
-  return res.status(200).json({
-    success: true,
-    sequences: data || []
-  });
+  return res.status(200).json({ success: true, sequences: data || [] });
 }
 
-async function addSequence(req, res) {
+async function addSequence(req, res, agentEmail) {
   const { campaign_id, template_id, delay_minutes } = req.body;
+  if (!campaign_id || !template_id) return res.status(400).json({ error: 'campaign_id et template_id requis' });
 
-  if (!campaign_id || !template_id) {
-    return res.status(400).json({ error: 'campaign_id et template_id requis' });
-  }
-
-  // Trouver le prochain ordre
   const { data: existingSequences } = await supabaseAdmin
     .from('email_sequences')
     .select('sequence_order')
@@ -232,38 +174,21 @@ async function addSequence(req, res) {
     .order('sequence_order', { ascending: false })
     .limit(1);
 
-  const nextOrder = existingSequences && existingSequences.length > 0 
-    ? existingSequences[0].sequence_order + 1 
-    : 1;
+  const nextOrder = existingSequences?.length > 0 ? existingSequences[0].sequence_order + 1 : 1;
 
   const { data, error } = await supabaseAdmin
     .from('email_sequences')
-    .insert([{
-      campaign_id,
-      template_id,
-      sequence_order: nextOrder,
-      delay_minutes: delay_minutes || 0
-    }])
-    .select(`
-      *,
-      template:email_templates(*)
-    `)
+    .insert([{ campaign_id, template_id, sequence_order: nextOrder, delay_minutes: delay_minutes || 0 }])
+    .select('*, template:email_templates(*)')
     .single();
 
   if (error) throw error;
-
-  return res.status(200).json({
-    success: true,
-    sequence: data
-  });
+  return res.status(200).json({ success: true, sequence: data });
 }
 
-async function deleteSequence(req, res) {
+async function deleteSequence(req, res, agentEmail) {
   const { sequence_id } = req.body;
-
-  if (!sequence_id) {
-    return res.status(400).json({ error: 'sequence_id requis' });
-  }
+  if (!sequence_id) return res.status(400).json({ error: 'sequence_id requis' });
 
   const { error } = await supabaseAdmin
     .from('email_sequences')
@@ -271,15 +196,15 @@ async function deleteSequence(req, res) {
     .eq('id', sequence_id);
 
   if (error) throw error;
-
   return res.status(200).json({ success: true });
 }
 
 // ========== FONCTIONS STATS ==========
-async function getStats(req, res) {
+async function getStats(req, res, agentEmail) {
   const { data: logs, error } = await supabaseAdmin
     .from('email_logs')
-    .select('status, opened_at, clicked_at, bounced_at');
+    .select('status, opened_at, clicked_at, bounced_at')
+    .eq('agent_email', agentEmail);
 
   if (error) throw error;
 
@@ -290,10 +215,7 @@ async function getStats(req, res) {
     total_bounced: logs.filter(l => l.bounced_at).length
   };
 
-  return res.status(200).json({
-    success: true,
-    stats
-  });
+  return res.status(200).json({ success: true, stats });
 }
 
 // ========== HELPER FUNCTIONS ==========

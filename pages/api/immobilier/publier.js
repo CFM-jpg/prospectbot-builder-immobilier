@@ -42,7 +42,7 @@ Génère un JSON avec ces champs UNIQUEMENT (sans markdown, sans backticks) :
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-6',
+        model: 'claude-opus-4-5',
         max_tokens: 1024,
         messages: [{ role: 'user', content: prompt }],
       }),
