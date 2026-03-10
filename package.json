@@ -14,7 +14,7 @@
     "@supabase/supabase-js": "^2.38.0",
     "cheerio": "^1.0.0-rc.12",
     "cookie": "^0.7.2",
-    "stripe": "^14.21.0"
+    "stripe": "^14.21.0",
     "bcryptjs": "^2.4.3"
   }
 }
