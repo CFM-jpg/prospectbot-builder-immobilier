@@ -192,9 +192,8 @@ export default function OnboardingAgent({ onComplete, agentName = 'Agent', initi
             ← Précédent
           </button>
           <button
-            onClick={step === 0 ? () => {} : undefined}
-            style={skipBtn}
             onClick={onComplete}
+            style={skipBtn}
           >
             Passer l'intro
           </button>
