@@ -339,9 +339,7 @@ export default function B2BLandingPage() {
       <Head>
         <title>ProspectBot B2B — La prospection automatisée</title>
         <meta name="description" content="ProspectBot B2B scrape les contacts, qualifie vos leads et envoie les séquences email automatiquement. Gagnez 5h par semaine." />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-      </Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

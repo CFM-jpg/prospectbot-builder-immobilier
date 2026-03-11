@@ -362,9 +362,7 @@ export default function LandingPage() {
           "description": "Outil de prospection immobilière automatisée pour agents immobiliers. Surveillance de LeBonCoin, SeLoger et BienIci, matching IA et alertes email.",
           "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai gratuit 14 jours" },
           "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "340" }
-        })}} />
-        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-      </Head>
+        })}} />      </Head>
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

@@ -84,9 +84,7 @@ export default function B2BGuide() {
     <>
       <Head>
         <title>Module B2B — Guide ProspectBot</title>
-        <meta name="description" content="Découvrez comment le Module B2B de ProspectBot vous aide à prospecter, qualifier et automatiser votre activité immobilière." />
-        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet" />
-      </Head>
+        <meta name="description" content="Découvrez comment le Module B2B de ProspectBot vous aide à prospecter, qualifier et automatiser votre activité immobilière." />      </Head>
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
