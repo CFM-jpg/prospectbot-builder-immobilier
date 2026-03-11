@@ -1,9 +1,35 @@
-// pages/api/scrapers/immobilier.js
-// Scraper unifié — résultats RÉELS uniquement (0 si rien trouvé, jamais de données fictives)
+// pages/api/scraper/immobilier.js
+// Scraper unifié — appels directs sans ScraperAPI
 
 import { supabaseAdmin } from '../../../lib/supabase';
 import { getSession } from '../../../lib/auth';
 import * as cheerio from 'cheerio';
+
+// Headers communs qui imitent un vrai navigateur Chrome français
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+};
+
+// Fetch robuste avec retry automatique (2 tentatives)
+async function fetchWithRetry(url, options = {}, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(options.timeout || 20000),
+      });
+      return res;
+    } catch (err) {
+      if (i === retries) throw err;
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST' && req.method !== 'GET') {
@@ -15,46 +41,33 @@ export default async function handler(req, res) {
   const agentEmail = session.email;
 
   const {
-    source = 'bienici',   // 'bienici' | 'leboncoin' | 'seloger'
+    source = 'bienici',
     ville = 'paris',
     prixMin = 0,
     prixMax = 1000000,
     surfaceMin = 0,
-    type = 'appartement', // 'appartement' | 'maison'
+    type = 'appartement',
     rayon = 20,
   } = req.method === 'POST' ? req.body : req.query;
-
-  const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
-  if (!SCRAPER_API_KEY) {
-    return res.status(500).json({
-      success: false,
-      error: 'SCRAPER_API_KEY non configurée',
-      annonces: [],
-      stats: { annoncesTouvees: 0, nouvellesAnnonces: 0, source },
-    });
-  }
 
   try {
     let annonces = [];
 
     if (source === 'bienici') {
-      annonces = await scraperBienici({ ville, prixMin, prixMax, surfaceMin, type, SCRAPER_API_KEY });
+      annonces = await scraperBienici({ ville, prixMin, prixMax, surfaceMin, type });
     } else if (source === 'leboncoin') {
-      annonces = await scraperLeBonCoin({ ville, prixMin, prixMax, type, rayon, SCRAPER_API_KEY });
+      annonces = await scraperLeBonCoin({ ville, prixMin, prixMax, type, rayon });
     } else if (source === 'seloger') {
-      annonces = await scraperSeLoger({ ville, prixMin, prixMax, surfaceMin, type, SCRAPER_API_KEY });
+      annonces = await scraperSeLoger({ ville, prixMin, prixMax, surfaceMin, type });
     } else {
       return res.status(400).json({ success: false, error: `Source inconnue : ${source}`, annonces: [] });
     }
 
-    // Sauvegarde en base — uniquement les vraies annonces avec données réelles
     let nouvellesAnnonces = 0;
     const annoncesInsereees = [];
 
     for (const annonce of annonces) {
-      // On n'insère pas une annonce sans données essentielles
       if (!annonce.prix || !annonce.titre) continue;
-
       try {
         const { data: existe } = await supabaseAdmin
           .from('biens')
@@ -80,7 +93,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // Log scraper
     await supabaseAdmin.from('scraper_logs').insert([{
       source,
       agent_email: agentEmail,
@@ -94,34 +106,27 @@ export default async function handler(req, res) {
       message: annonces.length === 0
         ? `Aucune annonce trouvée sur ${source} pour ces critères`
         : `${nouvellesAnnonces} nouvelles annonces importées (${annonces.length} trouvées)`,
-      stats: {
-        annoncesTouvees: annonces.length,
-        nouvellesAnnonces,
-        source,
-      },
+      stats: { annoncesTouvees: annonces.length, nouvellesAnnonces, source },
       annonces: annoncesInsereees,
     });
 
   } catch (error) {
     console.error(`Erreur scraper ${source}:`, error.message);
-
-    // Distinguer les erreurs de blocage des vraies erreurs
-    const isBlocked = error.message?.includes('403') || error.message?.includes('blocked') || error.message?.includes('captcha');
-
+    const isBlocked = error.message?.includes('403') || error.message?.includes('bloqué') || error.message?.includes('captcha');
     return res.status(isBlocked ? 429 : 500).json({
       success: false,
       error: isBlocked
-        ? `${source} a bloqué la requête. Essayez plus tard ou vérifiez votre quota ScraperAPI.`
-        : `Erreur lors du scraping de ${source} : ${error.message}`,
+        ? `${source} a bloqué la requête. Réessayez dans quelques minutes.`
+        : `Erreur scraping ${source} : ${error.message}`,
       annonces: [],
       stats: { annoncesTouvees: 0, nouvellesAnnonces: 0, source },
     });
   }
 }
 
-// ─── BienIci ─────────────────────────────────────────────────────────────────
+// ─── BienIci — API JSON directe ──────────────────────────────────────────────
 
-async function scraperBienici({ ville, prixMin, prixMax, surfaceMin, type, SCRAPER_API_KEY }) {
+async function scraperBienici({ ville, prixMin, prixMax, surfaceMin, type }) {
   const filters = {
     size: 24,
     from: 0,
@@ -140,31 +145,32 @@ async function scraperBienici({ ville, prixMin, prixMax, surfaceMin, type, SCRAP
   };
 
   const targetUrl = `https://www.bienici.com/realEstateAds.json?filters=${encodeURIComponent(JSON.stringify(filters))}`;
-  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true&country_code=fr&premium=true`;
 
-  const response = await fetch(scraperUrl, { signal: AbortSignal.timeout(20000) });
-  if (!response.ok) throw new Error(`ScraperAPI HTTP ${response.status}`);
+  const response = await fetchWithRetry(targetUrl, {
+    headers: {
+      ...BROWSER_HEADERS,
+      'Accept': 'application/json, text/plain, */*',
+      'Referer': 'https://www.bienici.com/recherche/achat/france/appartement',
+      'sec-fetch-dest': 'empty',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'same-origin',
+    },
+    timeout: 20000,
+  });
+
+  if (!response.ok) throw new Error(`BienIci HTTP ${response.status}`);
 
   const text = await response.text();
-
-  // Détection blocage — ScraperAPI renvoie du HTML en cas d'erreur
-  if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
-    throw new Error('BienIci a bloqué la requête (captcha ou rate limit ScraperAPI)');
-  }
+  if (text.trim().startsWith('<')) throw new Error('BienIci a bloqué la requête (réponse HTML)');
 
   let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error("Réponse non-JSON de BienIci — site probablement bloqué");
-  }
+  try { data = JSON.parse(text); }
+  catch { throw new Error('Réponse non-JSON de BienIci'); }
 
-  if (!data.realEstateAds || !Array.isArray(data.realEstateAds)) {
-    return []; // Pas d'annonces — résultat vide réel
-  }
+  if (!data.realEstateAds || !Array.isArray(data.realEstateAds)) return [];
 
   return data.realEstateAds
-    .filter(ad => ad.id && ad.price && ad.city) // Uniquement annonces avec données essentielles
+    .filter(ad => ad.id && ad.price && ad.city)
     .map(ad => ({
       source: 'bienici',
       reference: `BI-${ad.id}`,
@@ -186,142 +192,198 @@ async function scraperBienici({ ville, prixMin, prixMax, surfaceMin, type, SCRAP
     }));
 }
 
-// ─── LeBonCoin ───────────────────────────────────────────────────────────────
+// ─── LeBonCoin — API interne JSON ────────────────────────────────────────────
 
-async function scraperLeBonCoin({ ville, prixMin, prixMax, type, rayon, SCRAPER_API_KEY }) {
-  const params = new URLSearchParams({
-    category: type === 'appartement' ? '10' : '9',
-    locations: ville,
-    price: `${prixMin}-${prixMax}`,
+async function scraperLeBonCoin({ ville, prixMin, prixMax, type, rayon }) {
+  // Coordonnées principales des villes françaises
+  const COORDS = {
+    paris: { lat: 48.8566, lng: 2.3522 },
+    lyon: { lat: 45.7640, lng: 4.8357 },
+    marseille: { lat: 43.2965, lng: 5.3698 },
+    bordeaux: { lat: 44.8378, lng: -0.5792 },
+    toulouse: { lat: 43.6047, lng: 1.4442 },
+    nantes: { lat: 47.2184, lng: -1.5536 },
+    nice: { lat: 43.7102, lng: 7.2620 },
+    lille: { lat: 50.6292, lng: 3.0573 },
+    strasbourg: { lat: 48.5734, lng: 7.7521 },
+    rennes: { lat: 48.1173, lng: -1.6778 },
+  };
+
+  const villeKey = ville.toLowerCase().replace(/[^a-z]/g, '');
+  const coords = COORDS[villeKey] || COORDS['paris'];
+
+  const payload = JSON.stringify({
+    filters: {
+      category: { id: type === 'appartement' ? '10' : '9' },
+      enums: { ad_type: ['offer'] },
+      location: {
+        area: { lat: coords.lat, lng: coords.lng, radius: parseInt(rayon) * 1000 },
+      },
+      ranges: {
+        price: { min: parseInt(prixMin), max: parseInt(prixMax) },
+      },
+    },
+    limit: 35,
+    offset: 0,
+    sort_by: 'time',
+    sort_order: 'desc',
+    owner_type: 'all',
   });
-  if (parseInt(rayon) > 0) params.set('searchRadius', parseInt(rayon) * 1000);
 
-  const targetUrl = `https://www.leboncoin.fr/recherche?${params.toString()}`;
-  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true&country_code=fr&premium=true`;
+  const response = await fetchWithRetry('https://api.leboncoin.fr/api/adfinder/v1/search', {
+    method: 'POST',
+    headers: {
+      ...BROWSER_HEADERS,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'api_key': 'ba0c2dad52b3565c9eabb20a0b1d0b44',
+      'Referer': 'https://www.leboncoin.fr/',
+      'Origin': 'https://www.leboncoin.fr',
+    },
+    body: payload,
+    timeout: 25000,
+  });
 
-  const response = await fetch(scraperUrl, { signal: AbortSignal.timeout(25000) });
-  if (!response.ok) throw new Error(`ScraperAPI HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`LeBonCoin API HTTP ${response.status}`);
 
-  const html = await response.text();
+  const text = await response.text();
+  if (text.trim().startsWith('<')) throw new Error('LeBonCoin a bloqué la requête');
 
-  // Vérifier que c'est bien de l'HTML et pas une page d'erreur
-  if (html.trim().startsWith('<html') && html.includes('Unauthorized')) {
-    throw new Error('Clé ScraperAPI invalide ou quota épuisé');
-  }
-  if (!html.includes('leboncoin') && !html.includes('annonce')) {
-    throw new Error('LeBonCoin a bloqué la requête (captcha ou rate limit)');
-  }
+  let data;
+  try { data = JSON.parse(text); }
+  catch { throw new Error('Réponse non-JSON de LeBonCoin'); }
 
-  const $ = cheerio.load(html);
-  const annonces = [];
+  if (!data.ads || !Array.isArray(data.ads)) return [];
 
-  $('[data-qa-id="aditem_container"]').each((index, element) => {
-    try {
-      const $a = $(element);
-      const titre = $a.find('[data-qa-id="aditem_title"]').text().trim();
-      const prixText = $a.find('[data-qa-id="aditem_price"]').text();
-      const prix = extrairePrix(prixText);
-      const lien = $a.find('a').attr('href');
-      const localisation = $a.find('[data-qa-id="aditem_location"]').text().trim();
-      const image = $a.find('img').attr('src');
-      const description = $a.find('[data-qa-id="aditem_description"]').text().trim();
-
-      // Skip les annonces sans données essentielles
-      if (!titre || !prix || !lien) return;
-
-      // Référence stable basée sur le lien (pas sur Date.now)
-      const refBase = lien.replace(/[^a-zA-Z0-9]/g, '').slice(-20);
-
-      annonces.push({
+  return data.ads
+    .filter(ad => ad.subject && ad.price?.[0])
+    .map(ad => {
+      const attrs = {};
+      (ad.attributes || []).forEach(a => { attrs[a.key] = a.value; });
+      return {
         source: 'leboncoin',
-        reference: `LBC-${refBase}`,
-        titre,
-        prix,
-        adresse: localisation,
-        ville: extraireVille(localisation),
-        surface: extraireSurface(description + ' ' + titre),
-        pieces: extrairePieces(titre + ' ' + description),
-        description,
-        lien: `https://www.leboncoin.fr${lien}`,
-        image: image || null,
+        reference: `LBC-${ad.list_id}`,
+        titre: ad.subject,
+        prix: ad.price?.[0] || null,
+        adresse: ad.location?.city_label || ad.location?.city || '',
+        ville: ad.location?.city || '',
+        code_postal: ad.location?.zipcode || '',
+        surface: attrs.square ? parseInt(attrs.square) : null,
+        pieces: attrs.rooms ? parseInt(attrs.rooms) : null,
+        chambres: attrs.bedrooms ? parseInt(attrs.bedrooms) : null,
+        description: ad.body || '',
+        lien: `https://www.leboncoin.fr/annonce/${ad.list_id}`,
+        image: ad.images?.urls_large?.[0] || ad.images?.urls?.[0] || null,
         type: type === 'appartement' ? 'appartement' : 'maison',
         statut: 'disponible',
         created_at: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.error('Erreur extraction LBC:', e.message);
-    }
-  });
-
-  return annonces;
+      };
+    });
 }
 
-// ─── SeLoger ─────────────────────────────────────────────────────────────────
+// ─── SeLoger — API JSON interne ──────────────────────────────────────────────
 
-async function scraperSeLoger({ ville, prixMin, prixMax, surfaceMin, type, SCRAPER_API_KEY }) {
+async function scraperSeLoger({ ville, prixMin, prixMax, surfaceMin, type }) {
   const typeCode = type === 'appartement' ? '2' : '1';
+
+  // Utiliser l'endpoint de recherche JSON de SeLoger
   const params = new URLSearchParams({
     types: typeCode,
-    places: `[{"inseeCodes":["${ville}"]}]`,
+    places: JSON.stringify([{ summary: ville }]),
     price: `${prixMin}/${prixMax}`,
     surface: `${surfaceMin || 0}/NaN`,
     enterprise: '0',
     qsVersion: '1.0',
+    nb_results: '25',
   });
 
   const targetUrl = `https://www.seloger.com/list.htm?${params.toString()}`;
-  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true&country_code=fr&premium=true`;
 
-  const response = await fetch(scraperUrl, { signal: AbortSignal.timeout(25000) });
-  if (!response.ok) throw new Error(`ScraperAPI HTTP ${response.status}`);
+  const response = await fetchWithRetry(targetUrl, {
+    headers: {
+      ...BROWSER_HEADERS,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Referer': 'https://www.seloger.com/',
+      'sec-fetch-dest': 'document',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-site': 'same-origin',
+    },
+    timeout: 25000,
+  });
+
+  if (!response.ok) throw new Error(`SeLoger HTTP ${response.status}`);
 
   const html = await response.text();
 
-  if (html.trim().startsWith('<html') && html.includes('Unauthorized')) {
-    throw new Error('Clé ScraperAPI invalide ou quota épuisé');
+  // Extraire le JSON embarqué dans le HTML (SeLoger injecte les données en JSON dans le HTML)
+  const jsonMatch = html.match(/window\.__REDUXSTORE__\s*=\s*({.+?});\s*<\/script>/s)
+    || html.match(/window\.__INITIAL_STATE__\s*=\s*({.+?});\s*<\/script>/s)
+    || html.match(/"classified":\s*(\[.+?\])/s);
+
+  if (jsonMatch) {
+    try {
+      const storeData = JSON.parse(jsonMatch[1]);
+      const listings = storeData?.results?.listings
+        || storeData?.classified
+        || storeData?.listingData?.listings
+        || [];
+
+      if (Array.isArray(listings) && listings.length > 0) {
+        return listings.slice(0, 25).map(ad => ({
+          source: 'seloger',
+          reference: `SL-${ad.id || ad.classifiedId}`,
+          titre: ad.title || ad.publicationTitle || `${type} à ${ville}`,
+          prix: ad.pricing?.squareMeterPrice ? null : (ad.pricing?.price || ad.price || null),
+          adresse: ad.location?.displayAddress || ad.city || '',
+          ville: ad.city || ville,
+          code_postal: ad.postalCode || '',
+          surface: ad.surface || null,
+          pieces: ad.rooms || null,
+          chambres: ad.bedRoomsQuantity || null,
+          description: ad.description || '',
+          lien: ad.classifiedURL || `https://www.seloger.com/annonces/${ad.id}.htm`,
+          image: ad.photos?.[0] || null,
+          type,
+          statut: 'disponible',
+          created_at: new Date().toISOString(),
+        })).filter(a => a.prix && a.titre);
+      }
+    } catch {}
   }
-  if (!html.includes('seloger') && !html.includes('annonce')) {
-    throw new Error('SeLoger a bloqué la requête (captcha ou rate limit)');
-  }
+
+  // Fallback : parsing HTML avec cheerio
+  if (!html.includes('seloger')) throw new Error('SeLoger a bloqué la requête');
 
   const $ = cheerio.load(html);
   const annonces = [];
 
-  $('.c-pa-list article').each((index, element) => {
+  $('.c-pa-list article, [data-testid="sl.list-item"]').each((i, el) => {
     try {
-      const $a = $(element);
-      const titre = $a.find('.c-pa-link').text().trim();
-      const prixText = $a.find('.c-pa-price').text();
+      const $a = $(el);
+      const titre = $a.find('.c-pa-link, [data-testid="sl.title"]').text().trim();
+      const prixText = $a.find('.c-pa-price, [data-testid="sl.price"]').text();
       const prix = extrairePrix(prixText);
-      const lien = $a.find('.c-pa-link').attr('href');
-      const localisation = $a.find('.c-pa-city').text().trim();
-      const image = $a.find('img').attr('src') || $a.find('img').attr('data-src');
+      const lien = $a.find('a').attr('href');
+      const localisation = $a.find('.c-pa-city, [data-testid="sl.location"]').text().trim();
       const carac = $a.find('.c-pa-criteria').text();
-      const description = $a.find('.c-pa-description').text().trim();
-
       if (!titre || !prix) return;
-
       const refBase = (lien || titre + prix).replace(/[^a-zA-Z0-9]/g, '').slice(-20);
-
       annonces.push({
         source: 'seloger',
         reference: `SL-${refBase}`,
-        titre,
-        prix,
+        titre, prix,
         adresse: localisation,
         ville: extraireVille(localisation),
         surface: extraireSurface(carac),
         pieces: extrairePieces(carac),
-        description: description || carac,
+        description: carac,
         lien: lien ? `https://www.seloger.com${lien}` : null,
-        image: image || null,
-        type: type === 'appartement' ? 'appartement' : 'maison',
+        image: $a.find('img').attr('src') || null,
+        type,
         statut: 'disponible',
         created_at: new Date().toISOString(),
       });
-    } catch (e) {
-      console.error('Erreur extraction SeLoger:', e.message);
-    }
+    } catch {}
   });
 
   return annonces;
