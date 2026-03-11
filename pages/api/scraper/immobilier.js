@@ -140,12 +140,17 @@ async function scraperBienici({ ville, prixMin, prixMax, surfaceMin, type, SCRAP
   };
 
   const targetUrl = `https://www.bienici.com/realEstateAds.json?filters=${encodeURIComponent(JSON.stringify(filters))}`;
-  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}`;
+  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true&country_code=fr&premium=true`;
 
   const response = await fetch(scraperUrl, { signal: AbortSignal.timeout(20000) });
   if (!response.ok) throw new Error(`ScraperAPI HTTP ${response.status}`);
 
   const text = await response.text();
+
+  // Détection blocage — ScraperAPI renvoie du HTML en cas d'erreur
+  if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
+    throw new Error('BienIci a bloqué la requête (captcha ou rate limit ScraperAPI)');
+  }
 
   let data;
   try {
@@ -192,7 +197,7 @@ async function scraperLeBonCoin({ ville, prixMin, prixMax, type, rayon, SCRAPER_
   if (parseInt(rayon) > 0) params.set('searchRadius', parseInt(rayon) * 1000);
 
   const targetUrl = `https://www.leboncoin.fr/recherche?${params.toString()}`;
-  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true`;
+  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true&country_code=fr&premium=true`;
 
   const response = await fetch(scraperUrl, { signal: AbortSignal.timeout(25000) });
   if (!response.ok) throw new Error(`ScraperAPI HTTP ${response.status}`);
@@ -200,6 +205,9 @@ async function scraperLeBonCoin({ ville, prixMin, prixMax, type, rayon, SCRAPER_
   const html = await response.text();
 
   // Vérifier que c'est bien de l'HTML et pas une page d'erreur
+  if (html.trim().startsWith('<html') && html.includes('Unauthorized')) {
+    throw new Error('Clé ScraperAPI invalide ou quota épuisé');
+  }
   if (!html.includes('leboncoin') && !html.includes('annonce')) {
     throw new Error('LeBonCoin a bloqué la requête (captcha ou rate limit)');
   }
@@ -262,13 +270,16 @@ async function scraperSeLoger({ ville, prixMin, prixMax, surfaceMin, type, SCRAP
   });
 
   const targetUrl = `https://www.seloger.com/list.htm?${params.toString()}`;
-  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true`;
+  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true&country_code=fr&premium=true`;
 
   const response = await fetch(scraperUrl, { signal: AbortSignal.timeout(25000) });
   if (!response.ok) throw new Error(`ScraperAPI HTTP ${response.status}`);
 
   const html = await response.text();
 
+  if (html.trim().startsWith('<html') && html.includes('Unauthorized')) {
+    throw new Error('Clé ScraperAPI invalide ou quota épuisé');
+  }
   if (!html.includes('seloger') && !html.includes('annonce')) {
     throw new Error('SeLoger a bloqué la requête (captcha ou rate limit)');
   }
