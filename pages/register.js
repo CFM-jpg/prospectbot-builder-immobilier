@@ -12,7 +12,7 @@ const PLANS = [
     color: '#6b7280',
     accentBg: 'rgba(107,114,128,0.06)',
     accentBorder: 'rgba(107,114,128,0.3)',
-    features: ['5 acheteurs max', 'Scraping limité', 'Accès basique'],
+    features: ['5 acheteurs max', 'Analyse de marché limité', 'Accès basique'],
   },
   {
     id: 'pro',
@@ -23,7 +23,7 @@ const PLANS = [
     color: '#d4a853',
     accentBg: 'rgba(212,168,83,0.06)',
     accentBorder: 'rgba(212,168,83,0.4)',
-    features: ['Acheteurs illimités', 'Scraping illimité', 'Alertes email', 'Match automatique', 'Publication multi-sites', 'Génération IA', 'CRM'],
+    features: ['Acheteurs illimités', 'Analyse de marché illimité', 'Alertes email', 'Match automatique', 'Publication multi-sites', 'Génération IA', 'CRM'],
   },
   {
     id: 'agence',
@@ -229,7 +229,7 @@ export default function RegisterPage() {
 
       <div className="page">
 
-        {/* ── Panneau gauche ── */}
+        {/*  Panneau gauche  */}
         <div className="panel-left">
           <div className="panel-grid" />
           <div className="panel-brand">
@@ -244,7 +244,7 @@ export default function RegisterPage() {
               Rejoignez les agents<br />qui automatisent <em>leur prospection.</em>
             </h2>
             <p className="panel-sub">
-              Scraping d'annonces, matching acheteurs et publication multi-sites — tout ce dont un agent immobilier a besoin.
+              Analyse de marché d'annonces, matching acheteurs et publication multi-sites — tout ce dont un agent immobilier a besoin.
             </p>
             <div className="perks">
               {[
@@ -269,13 +269,13 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* ── Panneau droit ── */}
+        {/*  Panneau droit  */}
         <div className="panel-right">
           <div className="form-wrapper">
 
             <div className="stepper">
               <div className={`step-item ${step === 1 ? 'active' : 'done'}`}>
-                <div className="step-num">{step > 1 ? '✓' : '1'}</div>
+                <div className="step-num">{step > 1 ? '' : '1'}</div>
                 Informations
               </div>
               <div className="step-line" />
@@ -294,7 +294,7 @@ export default function RegisterPage() {
 
             {error && <div className="error-box"><div className="error-icon">!</div>{error}</div>}
             {router.query.registered === '1' && !error && (
-              <div className="success-box">✓ Compte créé. Connectez-vous.</div>
+              <div className="success-box"> Compte créé. Connectez-vous.</div>
             )}
 
             {step === 1 && (
@@ -360,7 +360,7 @@ export default function RegisterPage() {
                         </div>
                       </div>
                       <div className="plan-feats">
-                        {p.features.map(f => <span key={f} className="plan-feat">✓ {f}</span>)}
+                        {p.features.map(f => <span key={f} className="plan-feat"> {f}</span>)}
                       </div>
                     </div>
                   ))}

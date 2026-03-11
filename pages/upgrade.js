@@ -13,7 +13,7 @@ const PLANS = [
     color: '#6b6b78',
     accentBg: 'rgba(107,107,120,0.06)',
     accentBorder: 'rgba(107,107,120,0.3)',
-    features: ['5 acheteurs max', 'Scraping limité', 'Accès basique'],
+    features: ['5 acheteurs max', 'Analyse de marché limitée', 'Accès basique'],
   },
   {
     id: 'pro',
@@ -24,7 +24,7 @@ const PLANS = [
     color: '#d4a853',
     accentBg: 'rgba(212,168,83,0.06)',
     accentBorder: 'rgba(212,168,83,0.4)',
-    features: ['Acheteurs illimités', 'Scraping illimité', 'Alertes email', 'Match automatique', 'Publication multi-sites', 'Génération IA', 'CRM'],
+    features: ['Acheteurs illimités', 'Analyse de marché illimitée', 'Alertes email', 'Match automatique', 'Publication multi-sites', 'Génération IA', 'CRM'],
   },
   {
     id: 'agence',
@@ -201,7 +201,7 @@ export default function UpgradePage() {
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                     {p.features.map(f => (
-                      <span key={f} style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '2px 7px' }}>✓ {f}</span>
+                      <span key={f} style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '2px 7px' }}> {f}</span>
                     ))}
                   </div>
                 </div>

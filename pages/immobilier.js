@@ -8,9 +8,9 @@ import { canAccess } from '../lib/planConfig';
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const SITES = [
-  { id: 'bienici', label: "Bien'ici", sublabel: 'Annonces premium', apiRoute: '/api/scrapers/bienici', active: true },
-  { id: 'seloger', label: 'SeLoger', sublabel: 'Agences immobilières', apiRoute: '/api/scrapers/seloger', active: true },
-  { id: 'leboncoin', label: 'Le Bon Coin', sublabel: 'Particuliers & agences', apiRoute: '/api/scrapers/leboncoin', active: true },
+  { id: 'bienici', label: "Bien'ici", sublabel: 'Données de marché', apiRoute: '/api/scraper/immobilier', active: true },
+  { id: 'seloger', label: 'SeLoger', sublabel: 'Données de marché', apiRoute: '/api/scraper/immobilier', active: true },
+  { id: 'leboncoin', label: 'DVF Notaires', sublabel: 'Transactions officielles', apiRoute: '/api/scraper/immobilier', active: true },
 ];
 
 const PROPERTY_TYPES = [
@@ -23,8 +23,8 @@ const PROPERTY_TYPES = [
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Vue d\'ensemble' },
-  { id: 'scraper', label: 'Recherche' },
-  { id: 'biens', label: 'Annonces' },
+  { id: 'scraper', label: 'Marché' },
+  { id: 'biens', label: 'Données marché' },
   { id: 'acheteurs', label: 'Acheteurs' },
   { id: 'matches', label: 'Correspondances' },
   { id: 'email', label: 'Emails' },
@@ -35,7 +35,7 @@ const TYPES_BIEN = ['Appartement', 'Maison', 'Villa', 'Studio', 'Loft', 'Terrain
 
 const ONBOARDING_STEPS = [
   { id: 'bienvenue', icon: '🏠', title: null, desc: 'Votre assistant immobilier automatisé. En quelques minutes, découvrez comment ProspectBot trouve, trie et notifie vos acheteurs automatiquement.', highlight: null },
-  { id: 'biens', icon: '🏗️', title: 'Les annonces', desc: 'ProspectBot scrape automatiquement LeBonCoin, SeLoger et BienIci pour récupérer les nouvelles annonces. Vous pouvez aussi importer des biens manuellement.', highlight: 'Onglet "Annonces" dans la sidebar' },
+  { id: 'biens', icon: '🏗️', title: 'Données de marché', desc: 'ProspectBot collecte les transactions immobilières officielles (DVF) pour analyser les prix du marché. Utilisez ces données pour conseiller vos clients avec des chiffres réels.', highlight: 'Onglet "Données marché" dans la sidebar' },
   { id: 'acheteurs', icon: '👤', title: 'Gérez vos acheteurs', desc: 'Ajoutez vos clients avec leurs critères de recherche : budget, localisation, surface, type de bien. Plus les critères sont précis, meilleurs sont les matchs.', highlight: 'Onglet "Acheteurs" dans la sidebar' },
   { id: 'matching', icon: '⚡', title: 'Le matching automatique', desc: 'Chaque bien est comparé à chaque acheteur. Un score de 0 à 100% est calculé selon le budget, la surface, la localisation et les critères spécifiques.', highlight: 'Onglet "Correspondances"' },
   { id: 'emails', icon: '✉️', title: 'Alertes email automatiques', desc: 'Quand un bien correspond à plus de 60% aux critères d\'un acheteur, un email lui est envoyé automatiquement via Brevo. Vous pouvez aussi envoyer manuellement.', highlight: 'Onglet "Emails"' },
@@ -47,7 +47,7 @@ const CHECKLIST_ITEMS = [
   { id: 'supabase', label: 'Supabase connecté (NEXT_PUBLIC_SUPABASE_URL)' },
   { id: 'brevo', label: 'Clé API Brevo configurée pour les emails' },
   { id: 'acheteur', label: 'Au moins 1 acheteur ajouté dans le système' },
-  { id: 'scraper', label: 'Premier scraping lancé pour récupérer des biens' },
+  { id: 'scraper', label: 'Première analyse de marché lancée' },
   { id: 'match', label: 'Matching calculé au moins une fois' },
 ];
 
@@ -944,7 +944,7 @@ export default function ImmobilierDashboard() {
     if (!scraperForm.siteId || !scraperForm.location.trim()) return;
     const site = SITES.find(s => s.id === scraperForm.siteId);
     setLoading(true);
-    setScrapingProgress({ status: 'running', message: `Recherche sur ${site.label}…` });
+    setScrapingProgress({ status: 'running', message: `Analyse du marché ${site.label}…` });
     try {
       const params = new URLSearchParams({
         ville: scraperForm.location,
@@ -1439,7 +1439,7 @@ export default function ImmobilierDashboard() {
                 <div className="stat-card" onClick={() => setActiveTab('publication')}>
                   <div className="stat-label">Prix moyen</div>
                   <div className="stat-value">{stats?.prixMoyen ? (stats.prixMoyen / 1000).toFixed(0) + 'k' : '—'}</div>
-                  <div className="stat-sub">euros sur le marché</div>
+                  <div className="stat-sub">euros de transactions analysées</div>
                 </div>
               </div>
               <div className="two-col">
@@ -1492,8 +1492,8 @@ export default function ImmobilierDashboard() {
           {activeTab === 'scraper' && (
             <>
               <div className="page-header">
-                <h2 className="page-title">Recherche d'annonces</h2>
-                <p className="page-subtitle">Sélectionnez une source et définissez vos critères</p>
+                <h2 className="page-title">Analyse de marché</h2>
+                <p className="page-subtitle">Collectez les données de transactions immobilières officielles pour analyser le marché</p>
               </div>
               {scrapingProgress && (
                 <div className={`progress-box ${scrapingProgress.status === 'running' ? 'progress-running' : scrapingProgress.status === 'done' ? 'progress-done' : 'progress-error'}`}>
@@ -1505,9 +1505,9 @@ export default function ImmobilierDashboard() {
                   )}
                   {scrapingProgress.status === 'done' && (
                     <div>
-                      <div className="progress-title" style={{ color: 'var(--green)' }}>Recherche terminée</div>
-                      <div className="progress-sub">{scrapingProgress.count} annonces trouvées · {scrapingProgress.nouvelles} nouvelles ajoutées</div>
-                      <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={resetScraper}>Nouvelle recherche</button>
+                      <div className="progress-title" style={{ color: 'var(--green)' }}>Analyse terminée</div>
+                      <div className="progress-sub">{scrapingProgress.count} transactions analysées · {scrapingProgress.nouvelles} nouvelles données importées</div>
+                      <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={resetScraper}>Nouvelle analyse</button>
                     </div>
                   )}
                   {scrapingProgress.status === 'error' && (
@@ -1522,7 +1522,7 @@ export default function ImmobilierDashboard() {
               {!scrapingProgress && (
                 <div className="card">
                   <div className="step-block">
-                    <div className="step-label">1 — Source</div>
+                    <div className="step-label">1 — Zone géographique à analyser</div>
                     <div className="site-grid">
                       {SITES.map(site => (
                         <div key={site.id} className={`site-card ${scraperForm.siteId === site.id ? 'selected' : ''}`} onClick={() => setScraperForm({ ...scraperForm, siteId: site.id })}>
@@ -1534,11 +1534,11 @@ export default function ImmobilierDashboard() {
                     </div>
                   </div>
                   <div className="step-block">
-                    <div className="step-label">2 — Localisation</div>
+                    <div className="step-label">2 — Ville</div>
                     <input type="text" value={scraperForm.location} onChange={e => setScraperForm({ ...scraperForm, location: e.target.value })} placeholder="Paris, Lyon, Nantes…" />
                   </div>
                   <div className="step-block">
-                    <div className="step-label">3 — Filtres optionnels</div>
+                    <div className="step-label">3 — Critères de marché</div>
                     <div className="form-grid-4">
                       <div><label>Type</label><select value={scraperForm.propertyType} onChange={e => setScraperForm({ ...scraperForm, propertyType: e.target.value })}>{PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
                       <div><label>Prix min (€)</label><input type="number" value={scraperForm.prixMin} onChange={e => setScraperForm({ ...scraperForm, prixMin: e.target.value })} placeholder="100 000" /></div>
@@ -1547,11 +1547,11 @@ export default function ImmobilierDashboard() {
                     </div>
                   </div>
                   <button className="btn btn-primary btn-full" onClick={handleScrape} disabled={loading || !scraperForm.siteId || !scraperForm.location.trim()}>
-                    {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Recherche en cours…</> : 'Lancer la recherche'}
+                    {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Analyse en cours…</> : 'Analyser le marché'}
                   </button>
                   {(!scraperForm.siteId || !scraperForm.location.trim()) && (
                     <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
-                      {!scraperForm.siteId ? 'Sélectionnez une source pour continuer' : 'Entrez une ville pour continuer'}
+                      {!scraperForm.siteId ? 'Sélectionnez une zone pour continuer' : 'Entrez une ville pour continuer'}
                     </p>
                   )}
                 </div>
@@ -1564,10 +1564,10 @@ export default function ImmobilierDashboard() {
             <>
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div>
-                  <h2 className="page-title">Annonces</h2>
-                  <p className="page-subtitle">{biens.length} bien{biens.length > 1 ? 's' : ''} dans la base</p>
+                  <h2 className="page-title">Données de marché</h2>
+                  <p className="page-subtitle">{biens.length} transaction{biens.length > 1 ? 's' : ''} analysée{biens.length > 1 ? 's' : ''}</p>
                 </div>
-                <button className="btn btn-secondary" onClick={() => setActiveTab('scraper')}>Nouvelle recherche</button>
+                <button className="btn btn-secondary" onClick={() => setActiveTab('scraper')}>Nouvelle analyse</button>
               </div>
               <div className="filter-row">
                 <input type="text" placeholder="Rechercher par ville, titre…" value={biensFilter.search} onChange={e => setBiensFilter({ ...biensFilter, search: e.target.value })} />

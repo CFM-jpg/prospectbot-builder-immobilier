@@ -3,7 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import QuestionnaireOffre from '../components/QuestionnaireOffre';
 
-// ─── Lead capture API (simple Supabase insert) ────────────────────────────────
+//  Lead capture API (simple Supabase insert) 
 async function saveLead(data) {
   try {
     await fetch('/api/leads', {
@@ -14,7 +14,7 @@ async function saveLead(data) {
   } catch {}
 }
 
-// ─── Hook scroll reveal ───────────────────────────────────────────────────────
+//  Hook scroll reveal 
 function useScrollReveal() {
   useEffect(() => {
     const els = document.querySelectorAll('[data-reveal]');
@@ -31,7 +31,7 @@ function useScrollReveal() {
   }, []);
 }
 
-// ─── Animated counter ────────────────────────────────────────────────────────
+//  Animated counter 
 function Counter({ target, suffix = '', duration = 1800 }) {
   const [val, setVal] = useState(0);
   const ref = useRef(null);
@@ -56,7 +56,7 @@ function Counter({ target, suffix = '', duration = 1800 }) {
   return <span ref={ref}>{val.toLocaleString('fr-FR')}{suffix}</span>;
 }
 
-// ─── Live demo simulator ──────────────────────────────────────────────────────
+//  Live demo simulator 
 const DEMO_BIENS = [
   { titre: 'Appartement 3P Haussmannien', ville: 'Paris 8e', prix: '680 000 €', surface: '78m²', dpe: 'C', source: 'SeLoger' },
   { titre: 'Maison avec jardin', ville: 'Lyon Confluence', prix: '420 000 €', surface: '112m²', dpe: 'B', source: 'LeBonCoin' },
@@ -191,7 +191,7 @@ function LiveDemo() {
   );
 }
 
-// ─── Floating CTA ─────────────────────────────────────────────────────────────
+//  Floating CTA 
 function FloatingCTA({ onCapture }) {
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -251,7 +251,7 @@ function FloatingCTA({ onCapture }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+//  Main Page 
 export default function LandingPage() {
   const router = useRouter();
   const canvasRef = useRef(null);
@@ -339,20 +339,20 @@ export default function LandingPage() {
   return (
     <>
       <Head>
-        <title>ProspectBot — Automatisez votre prospection immobilière | Essai gratuit 14 jours</title>
-        <meta name="description" content="ProspectBot surveille LeBonCoin, SeLoger et BienIci en temps réel, matche chaque bien avec vos acheteurs et envoie les alertes automatiquement. Pour agents immobiliers. Essai gratuit 14 jours, sans carte bancaire." />
+        <title>ProspectBot — Analysez le marché immobilier et gérez vos acheteurs | Essai gratuit 14 jours</title>
+        <meta name="description" content="ProspectBot analyse les transactions du marché immobilier, matche les biens avec vos acheteurs et envoie les alertes automatiquement. Pour agents immobiliers. Essai gratuit 14 jours, sans carte bancaire." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="robots" content="index, follow" />
         <meta name="author" content="ProspectBot" />
         <meta name="keywords" content="prospection immobilière automatique, logiciel agent immobilier, scraping immobilier, matching acheteur vendeur, alerte immobilière, outil agent immobilier" />
-        <meta property="og:title" content="ProspectBot — Automatisez votre prospection immobilière" />
-        <meta property="og:description" content="Surveillance automatique de LeBonCoin, SeLoger et BienIci. Matching IA. Alertes instantanées. Pour agents immobiliers. Essai gratuit 14 jours." />
+        <meta property="og:title" content="ProspectBot — Analysez le marché et gérez vos acheteurs" />
+        <meta property="og:description" content="Analyse du marché immobilier via données officielles. Matching IA. Alertes instantanées. Pour agents immobiliers. Essai gratuit 14 jours." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://prospectbot-builder-immobilier.vercel.app" />
         <meta property="og:locale" content="fr_FR" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="ProspectBot — Prospection immobilière automatisée" />
-        <meta name="twitter:description" content="Surveillance LeBonCoin, SeLoger, BienIci + matching IA + alertes email automatiques. Essai gratuit 14 jours." />
+        <meta name="twitter:title" content="ProspectBot — Marché immobilier et gestion acheteurs" />
+        <meta name="twitter:description" content="Analyse du marché immobilier + matching IA + alertes email automatiques. Essai gratuit 14 jours." />
         <link rel="canonical" href="https://prospectbot-builder-immobilier.vercel.app" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
           "@context": "https://schema.org",
@@ -360,7 +360,7 @@ export default function LandingPage() {
           "name": "ProspectBot",
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web",
-          "description": "Outil de prospection immobilière automatisée pour agents immobiliers. Surveillance de LeBonCoin, SeLoger et BienIci, matching IA et alertes email.",
+          "description": "Outil d'analyse de marché immobilier pour agents immobiliers. Données officielles DVF, matching IA et alertes email.",
           "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai gratuit 14 jours" },
           "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "340" }
         })}} />      </Head>
@@ -462,7 +462,7 @@ export default function LandingPage() {
         .profile-card { border-radius: 16px; padding: 32px 28px; cursor: pointer; transition: all 0.3s; border: 1px solid; }
         .profile-card:hover { transform: translateY(-6px); }
 
-        /* ── Anti-objections section ── */
+        /*  Anti-objections section  */
         .trust-section { padding: 80px 48px; border-top: 1px solid rgba(255,255,255,0.05); }
         .trust-inner { max-width: 900px; margin: 0 auto; }
         .trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: hidden; margin-top: 48px; }
@@ -520,7 +520,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ── HERO ── */}
+      {/*  HERO  */}
       <section className="hero">
         <div className="hero-glow" />
         <div style={{ position: 'relative', zIndex: 2 }}>
@@ -530,13 +530,13 @@ export default function LandingPage() {
           </div>
 
           <h1 className="hero-title">
-            Trouvez des mandats<br />
-            <em>sans prospection manuelle.</em>
+            Analysez le marché,<br />
+            <em>conseillez avec des données réelles.</em>
           </h1>
 
           <p className="hero-sub">
-            ProspectBot surveille LeBonCoin, SeLoger et BienIci, détecte les opportunités
-            et contacte vos acheteurs automatiquement — pendant que vous vous concentrez sur vos clients.
+            ProspectBot analyse les transactions immobilières officielles, matche chaque bien avec vos acheteurs
+            et envoie les alertes automatiquement — pendant que vous vous concentrez sur vos clients.
           </p>
 
           <div className="hero-form">
@@ -592,7 +592,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── STATS ── */}
+      {/*  STATS  */}
       <div className="stats-band">
         <div className="stats-grid">
           {[
@@ -609,23 +609,23 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ── FONCTIONNALITÉS ── */}
+      {/*  FONCTIONNALITÉS  */}
       <section id="fonctionnalites">
         <div className="section">
           <div data-reveal><div className="section-tag">Fonctionnalités</div></div>
           <div data-reveal data-delay="1">
             <h2 className="section-title">Tout ce dont un agent<br /><em>a besoin, en un seul endroit.</em></h2>
           </div>
-          <div data-reveal data-delay="2"><p className="section-sub">De la veille automatique à la publication multi-plateforme — ProspectBot couvre l'intégralité du workflow immobilier.</p></div>
+          <div data-reveal data-delay="2"><p className="section-sub">De l'analyse de marché à la publication multi-plateforme — ProspectBot couvre l'intégralité du workflow immobilier.</p></div>
 
           <div className="features-grid">
             {[
-              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>), title: 'Scraping automatique', desc: 'LeBonCoin, SeLoger, BienIci scraped en temps réel. Nouvelles annonces détectées en moins de 15 minutes.', tag: 'Automatique', delay: '1' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>), title: 'Analyse de marché', desc: 'Données de transactions officielles (DVF) analysées en temps réel. Prix au m², volumes, tendances par secteur.', tag: 'Automatique', delay: '1' },
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>), title: 'Matching intelligent', desc: 'Algorithme de scoring 0-100% par budget, surface, localisation et critères spécifiques. Chaque acheteur reçoit uniquement les biens qui lui correspondent.', tag: 'IA', delay: '2' },
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>), title: 'Alertes instantanées', desc: "Email automatique envoyé à chaque acheteur dès qu'un bien dépasse 60% de compatibilité. Via Brevo, delivrabilité optimale.", tag: 'Brevo', delay: '3' },
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>), title: 'Publication multi-sites', desc: "Rédigez une annonce, publiez-la sur LeBonCoin, SeLoger, BienIci et PAP en un clic. Texte généré par IA.", tag: 'Nouveau', delay: '4' },
               { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>), title: 'CRM acheteurs', desc: 'Fiche complète par acheteur : critères, budget, historique des alertes reçues, correspondances en cours.', tag: 'CRM', delay: '5' },
-              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>), title: 'Analytics & stats', desc: 'Tableau de bord temps réel : prix moyen du marché, taux de matching, évolution du portefeuille.', tag: 'Data', delay: '6' },
+              { icon: (<svg width="22" height="22" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>), title: 'Analytics & stats', desc: 'Tableau de bord temps réel : prix moyen du marché, taux de matching, évolution du portefeuille acheteurs.', tag: 'Data', delay: '6' },
             ].map((f, i) => (
               <div key={i} className="feature-card" data-reveal data-delay={f.delay}>
                 <span className="feature-icon" style={{ animationDelay: `${i * 0.5}s`, display: 'block', marginBottom: 16 }}>{f.icon}</span>
@@ -638,7 +638,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── COMMENT ÇA MARCHE ── */}
+      {/*  COMMENT ÇA MARCHE  */}
       <section style={{ borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(212,168,83,0.02)' }}>
         <div className="section">
           <div style={{ textAlign: 'center', marginBottom: 0 }}>
@@ -649,7 +649,7 @@ export default function LandingPage() {
             {[
               { n: '1', title: 'Créez votre compte', desc: 'Inscription en 2 minutes, aucune carte de crédit requise.', delay: '1' },
               { n: '2', title: 'Ajoutez vos acheteurs', desc: 'Budget, localisation, type de bien — les critères de matching.', delay: '2' },
-              { n: '3', title: 'Lancez le scraping', desc: 'ProspectBot analyse les sites et importe automatiquement les nouvelles annonces.', delay: '3' },
+              { n: '3', title: 'Analysez le marché', desc: 'ProspectBot collecte les transactions officielles et identifie les opportunités pour vos acheteurs.', delay: '3' },
               { n: '4', title: 'Recevez les matchs', desc: 'Chaque correspondance est envoyée directement à votre acheteur.', delay: '4' },
             ].map((s, i) => (
               <div key={i} className="step-item" data-reveal data-delay={s.delay}>
@@ -662,7 +662,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── DEMO INTERACTIVE ── */}
+      {/*  DEMO INTERACTIVE  */}
       <section id="demo">
         <div className="section">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
@@ -695,7 +695,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── PROFILS ── */}
+      {/*  PROFILS  */}
       <section id="profils">
         <div className="section">
           <div style={{ textAlign: 'center' }}>
@@ -707,14 +707,14 @@ export default function LandingPage() {
               {
                 icon: (<svg width="28" height="28" fill="none" stroke="#d4a853" strokeWidth="1.3" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>),
                 title: 'Agents immobiliers',
-                desc: 'Automatisez votre veille concurrentielle, gérez votre portefeuille acheteurs et publiez vos annonces sur tous les sites en un clic.',
+                desc: 'Analysez le marché en temps réel, gérez votre portefeuille acheteurs et publiez vos annonces sur tous les sites en un clic.',
                 color: 'rgba(212,168,83,0.08)', border: 'rgba(212,168,83,0.2)',
                 cta: 'Essai gratuit 14j', delay: '1',
               },
               {
                 icon: (<svg width="28" height="28" fill="none" stroke="rgba(91,141,238,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>),
                 title: 'Acheteurs',
-                desc: "Recevez une alerte dès qu'un bien correspondant à vos critères est publié. Ne ratez plus jamais la bonne affaire.",
+                desc: "Recevez une alerte dès qu'un bien correspondant à vos critères est disponible. Ne ratez plus jamais la bonne opportunité.",
                 color: 'rgba(91,141,238,0.06)', border: 'rgba(91,141,238,0.2)',
                 cta: 'Créer mon alerte', delay: '2',
               },
@@ -741,7 +741,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── TÉMOIGNAGES ── */}
+      {/*  TÉMOIGNAGES  */}
       <section id="temoignages" className="testimonials-section">
         <div className="testimonials-inner">
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -775,7 +775,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── ANTI-OBJECTIONS ── */}
+      {/*  ANTI-OBJECTIONS  */}
       <section className="trust-section">
         <div className="trust-inner">
           <div style={{ textAlign: 'center' }}>
@@ -829,7 +829,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── PRICING ── */}
+      {/*  PRICING  */}
       <section id="tarifs" style={{ padding: '100px 48px', position: 'relative', zIndex: 2 }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
@@ -859,7 +859,7 @@ export default function LandingPage() {
               <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 28 }} />
               <div style={{ marginBottom: 32 }}>
                 {[
-                  { text: '50 annonces surveillées / jour', included: true },
+                  { text: '50 transactions analysées / jour', included: true },
                   { text: '5 acheteurs en portefeuille', included: true },
                   { text: 'Alertes email automatiques', included: true },
                   { text: 'Publication multi-sites', included: false },
@@ -980,7 +980,7 @@ export default function LandingPage() {
             Prix hors taxes · Engagement mensuel ou annuel · Résiliation à tout moment
           </p>
 
-          {/* ── Questionnaire de recommandation ── */}
+          {/*  Questionnaire de recommandation  */}
           <div data-reveal data-delay="3" style={{ marginTop: 64 }}>
             <div style={{ textAlign: 'center', marginBottom: 32 }}>
               <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#d4a853', marginBottom: 12 }}>Aide au choix</div>
@@ -994,7 +994,7 @@ export default function LandingPage() {
             <QuestionnaireOffre />
           </div>
 
-          {/* ── Section B2B ── */}
+          {/*  Section B2B  */}
           <div data-reveal data-delay="4" style={{ marginTop: 72, background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.15)', borderRadius: 20, padding: '48px 44px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 48, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 300px' }}>
@@ -1031,7 +1031,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── CTA FINAL ── */}
+      {/*  CTA FINAL  */}
       <section className="cta-section">
         <div className="cta-bg" />
         <div style={{ position: 'relative', zIndex: 2 }}>
@@ -1053,7 +1053,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
+      {/*  FOOTER  */}
       <footer className="footer">
         <div className="footer-logo">ProspectBot</div>
         <div className="footer-links">
@@ -1070,11 +1070,11 @@ export default function LandingPage() {
   );
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+//  Data 
 
 const TESTIMONIALS = [
   {
-    quote: "Avant ProspectBot, je passais 3h par jour à scraper manuellement les annonces. Maintenant, tout arrive tout seul dans mon dashboard. J'ai doublé mon portefeuille acheteurs en 2 mois.",
+    quote: "Avant ProspectBot, je passais 3h par jour à chercher des données de marché manuellement. Maintenant, tout arrive dans mon dashboard. J'ai doublé mon portefeuille acheteurs en 2 mois.",
     name: 'Sarah M.',
     role: 'Agente immobilière indépendante, Paris',
     initials: 'S',
