@@ -1932,12 +1932,12 @@ export default function ImmobilierDashboard() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
                     <div>
                       <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' }}>
-                        {vendeursData.stats.total} vendeurs potentiels · {vendeursData.ville}
+                        {vendeursData.stats?.total ?? vendeursData.vendeurs?.length ?? 0} vendeurs potentiels · {vendeursData.ville}
                       </h3>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span className="badge badge-gold">{vendeursData.stats.forts} score fort</span>
-                        <span className="badge badge-blue">{vendeursData.stats.moyens} score moyen</span>
-                        <span className="badge badge-neutral">{vendeursData.stats.faibles} score faible</span>
+                        <span className="badge badge-gold">{vendeursData.stats?.forts ?? 0} score fort</span>
+                        <span className="badge badge-blue">{vendeursData.stats?.moyens ?? 0} score moyen</span>
+                        <span className="badge badge-neutral">{vendeursData.stats?.faibles ?? 0} score faible</span>
                         {vendeursData.fromCache && <span className="badge badge-neutral">Cache 6h</span>}
                       </div>
                     </div>
@@ -1949,10 +1949,10 @@ export default function ImmobilierDashboard() {
                   {/* Stats */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
                     {[
-                      { l: 'Score moyen', v: vendeursData.stats.scoreMoyen + '/100', c: 'var(--accent)' },
-                      vendeursData.stats.plusValueMoyennePct !== null && { l: 'Plus-value moy.', v: '+' + vendeursData.stats.plusValueMoyennePct + '%', c: 'var(--green)' },
-                      { l: 'Ancienneté moy.', v: vendeursData.stats.ancienneteMoyenne + ' ans' },
-                      vendeursData.stats.prixM2Actuel && { l: 'Prix m² actuel', v: vendeursData.stats.prixM2Actuel.toLocaleString('fr-FR') + '€/m²' },
+                      vendeursData.stats?.scoreMoyen != null && { l: 'Score moyen', v: vendeursData.stats.scoreMoyen + '/100', c: 'var(--accent)' },
+                      vendeursData.stats?.plusValueMoyennePct != null && { l: 'Plus-value moy.', v: '+' + vendeursData.stats.plusValueMoyennePct + '%', c: 'var(--green)' },
+                      vendeursData.stats?.ancienneteMoyenne != null && { l: 'Ancienneté moy.', v: vendeursData.stats.ancienneteMoyenne + ' ans' },
+                      vendeursData.stats?.prixM2Actuel && { l: 'Prix m² actuel', v: vendeursData.stats.prixM2Actuel.toLocaleString('fr-FR') + '€/m²' },
                     ].filter(Boolean).map((item, i) => (
                       <div key={i} className="card" style={{ padding: '12px 14px' }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{item.l}</div>
