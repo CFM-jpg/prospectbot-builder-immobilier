@@ -911,9 +911,11 @@ export default function ImmobilierDashboard() {
   const [workflowCreating, setWorkflowCreating] = useState(false);
   const [workflowShowForm, setWorkflowShowForm] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [origin, setOrigin] = useState('');
 
   useEffect(() => {
     setMounted(true);
+    setOrigin(window.location.origin);
     loadAll();
     try {
       const done = localStorage.getItem('pb_onboarding_done');
@@ -2640,10 +2642,10 @@ export default function ImmobilierDashboard() {
                               <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
                                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lien public du chatbot</div>
                                 <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'rgba(212,168,83,0.7)', wordBreak: 'break-all', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                  {typeof window !== 'undefined' ? `${window.location.origin}/chatbot/${bot.id}` : `/chatbot/${bot.id}`}
+                                  {`${origin}/chatbot/${bot.id}`}
                                 </div>
                                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/chatbot/${bot.id}`).then(() => { setChatbotCopied(bot.id); setTimeout(() => setChatbotCopied(null), 2000); }); }} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: chatbotCopied === bot.id ? 'rgba(62,207,142,0.1)' : 'rgba(212,168,83,0.08)', color: chatbotCopied === bot.id ? '#3ecf8e' : '#d4a853', border: `1px solid ${chatbotCopied === bot.id ? 'rgba(62,207,142,0.2)' : 'rgba(212,168,83,0.2)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                                  <button onClick={() => { navigator.clipboard.writeText(`${origin}/chatbot/${bot.id}`).then(() => { setChatbotCopied(bot.id); setTimeout(() => setChatbotCopied(null), 2000); }); }} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: chatbotCopied === bot.id ? 'rgba(62,207,142,0.1)' : 'rgba(212,168,83,0.08)', color: chatbotCopied === bot.id ? '#3ecf8e' : '#d4a853', border: `1px solid ${chatbotCopied === bot.id ? 'rgba(62,207,142,0.2)' : 'rgba(212,168,83,0.2)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                                     {chatbotCopied === bot.id ? '✓ Copié !' : 'Copier le lien'}
                                   </button>
                                   <button onClick={() => window.open(`/chatbot/${bot.id}`, '_blank')} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
