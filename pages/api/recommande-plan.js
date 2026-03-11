@@ -78,7 +78,6 @@ export default async function handler(req, res) {
     gratuit: {
       nom: 'Gratuit',
       prix: '0€/mois',
-      emoji: '🌱',
       couleur: '#4ade80',
       description: 'Parfait pour découvrir ProspectBot sans engagement.',
       pourquoi: genererPourquoi('gratuit', reponses),
@@ -98,8 +97,7 @@ export default async function handler(req, res) {
     },
     pro: {
       nom: 'Pro',
-      prix: '39€/mois',
-      emoji: '⚡',
+      prix: '59€/mois',
       couleur: '#c9a96e',
       description: 'La solution complète pour l\'agent immobilier actif.',
       pourquoi: genererPourquoi('pro', reponses),
@@ -123,8 +121,7 @@ export default async function handler(req, res) {
     },
     agence: {
       nom: 'Agence',
-      prix: '89€/mois',
-      emoji: '🏢',
+      prix: '169€/mois',
       couleur: '#a78bfa',
       description: 'La puissance maximale pour les agences et équipes.',
       pourquoi: genererPourquoi('agence', reponses),
@@ -146,7 +143,7 @@ export default async function handler(req, res) {
   const planInfo = plans[planRecommande];
   const alternatives = Object.entries(plans)
     .filter(([key]) => key !== planRecommande)
-    .map(([key, val]) => ({ id: key, nom: val.nom, prix: val.prix, emoji: val.emoji, url: val.url }));
+    .map(([key, val]) => ({ id: key, nom: val.nom, prix: val.prix, url: val.url }));
 
   return res.status(200).json({
     success: true,

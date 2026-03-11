@@ -8,7 +8,6 @@ const QUESTIONS = [
   {
     id: 'profil',
     question: 'Quel est votre profil ?',
-    emoji: '👤',
     options: [
       { value: 'agent_solo', label: 'Agent indépendant', desc: 'Je travaille seul' },
       { value: 'equipe', label: 'Petite équipe', desc: '2 à 5 personnes' },
@@ -19,7 +18,6 @@ const QUESTIONS = [
   {
     id: 'biens_mois',
     question: 'Combien de nouveaux biens gérez-vous par mois ?',
-    emoji: '🏠',
     options: [
       { value: 'moins_5', label: 'Moins de 5', desc: 'Activité modérée' },
       { value: '5_20', label: '5 à 20', desc: 'Activité régulière' },
@@ -29,7 +27,6 @@ const QUESTIONS = [
   {
     id: 'acheteurs',
     question: 'Combien d\'acheteurs suivez-vous en ce moment ?',
-    emoji: '👥',
     options: [
       { value: 'moins_10', label: 'Moins de 10', desc: 'Portefeuille réduit' },
       { value: '10_50', label: '10 à 50', desc: 'Portefeuille actif' },
@@ -39,7 +36,6 @@ const QUESTIONS = [
   {
     id: 'besoins',
     question: 'Quels sont vos besoins prioritaires ?',
-    emoji: '⚡',
     multiple: true,
     options: [
       { value: 'scraping', label: 'Scraping automatique', desc: 'Trouver des biens' },
@@ -53,7 +49,6 @@ const QUESTIONS = [
   {
     id: 'objectif',
     question: 'Quel est votre objectif principal ?',
-    emoji: '🎯',
     options: [
       { value: 'decouverte', label: 'Découvrir l\'outil', desc: 'Sans engagement' },
       { value: 'optimiser', label: 'Optimiser mon activité', desc: 'Gagner du temps' },
@@ -63,11 +58,10 @@ const QUESTIONS = [
   {
     id: 'budget',
     question: 'Quel budget mensuel envisagez-vous ?',
-    emoji: '💶',
     options: [
       { value: 'gratuit', label: 'Gratuit d\'abord', desc: 'Tester sans risque' },
-      { value: 'flexible', label: 'Jusqu\'à 49€/mois', desc: 'Investissement raisonnable' },
-      { value: 'professionnel', label: '49€ et plus', desc: 'ROI professionnel' },
+      { value: 'flexible', label: 'Jusqu\'à 59€/mois', desc: 'Investissement raisonnable' },
+      { value: 'professionnel', label: '59€ et plus', desc: 'ROI professionnel' },
     ],
   },
 ];
@@ -152,7 +146,6 @@ export default function QuestionnaireOffre() {
     return (
       <div style={s.wrapper}>
         <div style={s.card}>
-          <div style={s.introIcon}>🎯</div>
           <h2 style={s.introTitle}>Trouvez votre offre idéale</h2>
           <p style={s.introDesc}>
             Répondez à 6 questions en moins d'une minute.<br />
@@ -181,7 +174,6 @@ export default function QuestionnaireOffre() {
         <div style={{ ...s.card, maxWidth: 560 }}>
           {/* En-tête résultat */}
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>{recommandation.emoji}</div>
             <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 8, fontFamily: 'DM Sans, sans-serif' }}>
               Notre recommandation pour vous
             </p>
@@ -231,7 +223,7 @@ export default function QuestionnaireOffre() {
                   const altColors = PLAN_COLORS[alt.id];
                   return (
                     <a key={alt.id} href={alt.url} style={{ ...s.altBtn, border: `1px solid ${altColors.border}`, color: altColors.text }}>
-                      {alt.emoji} {alt.nom}
+                      {alt.nom}
                       <span style={{ color: '#4b5563', fontSize: 11, display: 'block' }}>{alt.prix}</span>
                     </a>
                   );
@@ -265,7 +257,6 @@ export default function QuestionnaireOffre() {
 
         {/* Question */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>{questionCourante.emoji}</div>
           <h3 style={s.questionTitle}>{questionCourante.question}</h3>
           {questionCourante.multiple && (
             <p style={{ color: '#4b5563', fontSize: 13, margin: 0 }}>Sélectionnez tout ce qui s'applique</p>
@@ -339,7 +330,6 @@ const styles = {
     maxWidth: 480,
     boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
   },
-  introIcon: { fontSize: 56, textAlign: 'center', display: 'block', marginBottom: 20 },
   introTitle: {
     fontFamily: 'DM Serif Display, serif',
     fontSize: 26,
