@@ -8,7 +8,7 @@ export default function MentionsLegales() {
   return (
     <>
       <Head>
-        <title>Mentions légales — ProspectBot</title>
+        <title>Mentions légales — NestLead</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`
@@ -65,7 +65,7 @@ export default function MentionsLegales() {
 
       {/* Nav */}
       <nav className="nav">
-        <div className="nav-logo" onClick={() => router.push('/')}>ProspectBot</div>
+        <div className="nav-logo" onClick={() => router.push('/')}>NestLead</div>
         <button className="nav-back" onClick={() => router.back()}>← Retour</button>
       </nav>
 
@@ -81,7 +81,7 @@ export default function MentionsLegales() {
           <div className="info-block">
             <div className="info-row">
               <span className="info-label">Société</span>
-              <span className="info-value">ProspectBot SAS</span>
+              <span className="info-value">NestLead SAS</span>
             </div>
             <div className="info-row">
               <span className="info-label">Forme juridique</span>
@@ -101,7 +101,7 @@ export default function MentionsLegales() {
             </div>
             <div className="info-row">
               <span className="info-label">Email</span>
-              <span className="info-value"><a href="mailto:contact@prospectbot.fr">contact@prospectbot.fr</a></span>
+              <span className="info-value"><a href="mailto:contact@nestlead.fr">contact@nestlead.fr</a></span>
             </div>
             <div className="info-row">
               <span className="info-label">Directeur de publication</span>
@@ -146,8 +146,8 @@ export default function MentionsLegales() {
         {/* Propriété intellectuelle */}
         <div className="section">
           <h2 className="section-title">3. Propriété intellectuelle</h2>
-          <p>L'ensemble des éléments composant le site ProspectBot (textes, graphismes, logiciels, images, sons, vidéos, base de données, etc.) sont la propriété exclusive de <strong>ProspectBot SAS</strong> ou de ses partenaires, et sont protégés par les lois françaises et internationales relatives à la propriété intellectuelle.</p>
-          <p>Toute reproduction, représentation, modification, publication ou adaptation de tout ou partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est interdite sans autorisation écrite préalable de ProspectBot SAS.</p>
+          <p>L'ensemble des éléments composant le site NestLead (textes, graphismes, logiciels, images, sons, vidéos, base de données, etc.) sont la propriété exclusive de <strong>NestLead SAS</strong> ou de ses partenaires, et sont protégés par les lois françaises et internationales relatives à la propriété intellectuelle.</p>
+          <p>Toute reproduction, représentation, modification, publication ou adaptation de tout ou partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est interdite sans autorisation écrite préalable de NestLead SAS.</p>
         </div>
 
         <div className="divider" />
@@ -155,11 +155,11 @@ export default function MentionsLegales() {
         {/* Données personnelles */}
         <div className="section">
           <h2 className="section-title">4. Données personnelles</h2>
-          <p>ProspectBot SAS collecte et traite des données personnelles dans le cadre de la fourniture de ses services. Ces données sont traitées conformément au <strong>Règlement Général sur la Protection des Données (RGPD)</strong> et à la loi Informatique et Libertés.</p>
+          <p>NestLead SAS collecte et traite des données personnelles dans le cadre de la fourniture de ses services. Ces données sont traitées conformément au <strong>Règlement Général sur la Protection des Données (RGPD)</strong> et à la loi Informatique et Libertés.</p>
           <p><strong>Données collectées :</strong> nom, adresse email, mot de passe (chiffré), informations de facturation (gérées par Stripe).</p>
           <p><strong>Finalité :</strong> création et gestion de compte, facturation, amélioration du service.</p>
           <p><strong>Conservation :</strong> les données sont conservées pendant toute la durée du contrat et 3 ans après sa résiliation.</p>
-          <p>Conformément à la réglementation, vous disposez d'un droit d'accès, de rectification, d'effacement et de portabilité de vos données. Pour exercer ces droits, contactez-nous à <a href="mailto:contact@prospectbot.fr">contact@prospectbot.fr</a>.</p>
+          <p>Conformément à la réglementation, vous disposez d'un droit d'accès, de rectification, d'effacement et de portabilité de vos données. Pour exercer ces droits, contactez-nous à <a href="mailto:contact@nestlead.fr">contact@nestlead.fr</a>.</p>
         </div>
 
         <div className="divider" />
@@ -167,7 +167,7 @@ export default function MentionsLegales() {
         {/* Cookies */}
         <div className="section">
           <h2 className="section-title">5. Cookies</h2>
-          <p>Le site ProspectBot utilise des cookies strictement nécessaires au fonctionnement du service (authentification, session). Aucun cookie publicitaire ou de tracking tiers n'est utilisé.</p>
+          <p>Le site NestLead utilise des cookies strictement nécessaires au fonctionnement du service (authentification, session). Aucun cookie publicitaire ou de tracking tiers n'est utilisé.</p>
           <p>Vous pouvez configurer votre navigateur pour refuser les cookies, mais cela pourrait empêcher l'accès à certaines fonctionnalités du service.</p>
         </div>
 
@@ -176,7 +176,7 @@ export default function MentionsLegales() {
         {/* Paiement */}
         <div className="section">
           <h2 className="section-title">6. Paiement et abonnements</h2>
-          <p>Les paiements sont gérés par <strong>Stripe Inc.</strong>, prestataire certifié PCI-DSS. ProspectBot SAS ne stocke aucune donnée bancaire sur ses serveurs.</p>
+          <p>Les paiements sont gérés par <strong>Stripe Inc.</strong>, prestataire certifié PCI-DSS. NestLead SAS ne stocke aucune donnée bancaire sur ses serveurs.</p>
           <p>Les abonnements sont souscrits pour une durée mensuelle ou annuelle et se renouvellent automatiquement. Vous pouvez résilier à tout moment depuis votre espace abonné, sans frais supplémentaires. La résiliation prend effet à la fin de la période en cours.</p>
           <p>Conformément à l'article L.221-28 du Code de la consommation, le droit de rétractation ne s'applique pas aux contenus numériques dont l'exécution a commencé avec votre accord.</p>
         </div>
@@ -186,9 +186,9 @@ export default function MentionsLegales() {
         {/* Responsabilité */}
         <div className="section">
           <h2 className="section-title">7. Limitation de responsabilité</h2>
-          <p>ProspectBot SAS s'efforce d'assurer l'exactitude et la mise à jour des informations diffusées sur ce site. Toutefois, ProspectBot SAS ne peut garantir l'exactitude, la complétude ou l'actualité des informations diffusées.</p>
-          <p>ProspectBot SAS ne saurait être tenu responsable des dommages directs ou indirects causés au matériel de l'utilisateur lors de l'accès au site, résultant soit de l'utilisation d'un matériel ne répondant pas aux spécifications techniques requises, soit de l'apparition d'un bug ou d'une incompatibilité.</p>
-          <p>Les données de scraping proviennent de sites tiers. ProspectBot SAS ne peut être tenu responsable de l'exactitude, de la disponibilité ou de la légalité des annonces collectées sur ces plateformes.</p>
+          <p>NestLead SAS s'efforce d'assurer l'exactitude et la mise à jour des informations diffusées sur ce site. Toutefois, NestLead SAS ne peut garantir l'exactitude, la complétude ou l'actualité des informations diffusées.</p>
+          <p>NestLead SAS ne saurait être tenu responsable des dommages directs ou indirects causés au matériel de l'utilisateur lors de l'accès au site, résultant soit de l'utilisation d'un matériel ne répondant pas aux spécifications techniques requises, soit de l'apparition d'un bug ou d'une incompatibilité.</p>
+          <p>Les données de scraping proviennent de sites tiers. NestLead SAS ne peut être tenu responsable de l'exactitude, de la disponibilité ou de la légalité des annonces collectées sur ces plateformes.</p>
         </div>
 
         <div className="divider" />
@@ -197,16 +197,16 @@ export default function MentionsLegales() {
         <div className="section">
           <h2 className="section-title">8. Droit applicable et juridiction</h2>
           <p>Les présentes mentions légales sont régies par le <strong>droit français</strong>. En cas de litige, et après tentative de résolution amiable, les tribunaux français seront seuls compétents.</p>
-          <p>Pour toute question relative aux présentes mentions légales, vous pouvez nous contacter à <a href="mailto:contact@prospectbot.fr">contact@prospectbot.fr</a>.</p>
+          <p>Pour toute question relative aux présentes mentions légales, vous pouvez nous contacter à <a href="mailto:contact@nestlead.fr">contact@nestlead.fr</a>.</p>
         </div>
 
         {/* Footer */}
         <div className="footer">
-          <div className="footer-logo">ProspectBot</div>
+          <div className="footer-logo">NestLead</div>
           <div className="footer-links">
             <a href="/" className="footer-link">Accueil</a>
             <a href="/login" className="footer-link">Connexion</a>
-            <a href="mailto:contact@prospectbot.fr" className="footer-link">Contact</a>
+            <a href="mailto:contact@nestlead.fr" className="footer-link">Contact</a>
           </div>
         </div>
 

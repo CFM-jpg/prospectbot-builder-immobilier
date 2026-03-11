@@ -13,7 +13,7 @@ const PLANS = [
     color: '#6b6b78',
     accentBg: 'rgba(107,107,120,0.06)',
     accentBorder: 'rgba(107,107,120,0.3)',
-    features: ['5 acheteurs max', 'Analyse de marché limitée', 'Accès basique'],
+    features: ['5 acheteurs max', '5 biens max', 'Matching basique', 'Vendeurs potentiels limité'],
   },
   {
     id: 'pro',
@@ -24,7 +24,7 @@ const PLANS = [
     color: '#d4a853',
     accentBg: 'rgba(212,168,83,0.06)',
     accentBorder: 'rgba(212,168,83,0.4)',
-    features: ['Acheteurs illimités', 'Analyse de marché illimitée', 'Alertes email', 'Match automatique', 'Publication multi-sites', 'Génération IA', 'CRM'],
+    features: ['Acheteurs & biens illimités', 'Vendeurs potentiels (DVF + SCI)', 'Match automatique acheteur/bien', 'Génération annonces IA', 'Chatbot IA personnalisé', 'Alertes email', 'CRM complet'],
   },
   {
     id: 'agence',
@@ -35,7 +35,7 @@ const PLANS = [
     color: '#e8c96a',
     accentBg: 'rgba(232,201,106,0.06)',
     accentBorder: 'rgba(232,201,106,0.4)',
-    features: ['Tout Pro inclus', 'Stats avancées', 'Module B2B', 'Support prioritaire'],
+    features: ['Tout Pro inclus', 'Module B2B (emails bailleurs)', 'Stats avancées & rapports', 'Multi-agents', 'Support prioritaire'],
   },
 ];
 
@@ -119,7 +119,7 @@ export default function UpgradePage() {
   return (
     <>
       <Head>
-        <title>Changer de plan — ProspectBot</title>
+        <title>Changer de plan — NestLead</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`
@@ -142,7 +142,7 @@ export default function UpgradePage() {
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <a href="/immobilier" style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 20, color: '#d4a853', fontStyle: 'italic', textDecoration: 'none', letterSpacing: 1 }}>
-              ProspectBot
+              NestLead
             </a>
             <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 38, fontWeight: 300, color: '#f0f0f0', letterSpacing: '-0.5px', margin: '16px 0 8px' }}>
               Changer de plan

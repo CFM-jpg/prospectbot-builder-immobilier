@@ -413,11 +413,42 @@ export default async function handler(req, res) {
       apres_filtre: vendeurs.length,
     };
 
+    // 9. Stats pour le frontend
+    const forts = vendeurs.filter(v => v.score >= 70).length;
+    const moyens = vendeurs.filter(v => v.score >= 40 && v.score < 70).length;
+    const faibles = vendeurs.filter(v => v.score < 40).length;
+    const scoreMoyen = vendeurs.length
+      ? Math.round(vendeurs.reduce((s, v) => s + v.score, 0) / vendeurs.length)
+      : 0;
+
+    // Ancienneté moyenne (en années depuis date_mutation)
+    const avecDate = vendeurs.filter(v => v.date_mutation);
+    const ancienneteMoyenne = avecDate.length
+      ? Math.round(
+          avecDate.reduce((s, v) => {
+            const annees = (Date.now() - new Date(v.date_mutation).getTime()) / (1000 * 60 * 60 * 24 * 365);
+            return s + annees;
+          }, 0) / avecDate.length
+        )
+      : null;
+
+    const stats = {
+      total: vendeurs.length,
+      forts,
+      moyens,
+      faibles,
+      scoreMoyen,
+      ancienneteMoyenne,
+      plusValueMoyennePct: null, // calculé côté frontend si besoin
+      prixM2Actuel: prixData.prixMoyen || null,
+    };
+
     return res.status(200).json({
       success: true,
       ville,
       codeCommune,
       vendeurs,
+      stats,
       total: vendeurs.length,
       sources: statsSources,
       analyse: {

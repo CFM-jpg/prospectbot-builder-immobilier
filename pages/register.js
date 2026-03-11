@@ -124,7 +124,7 @@ export default function RegisterPage() {
   return (
     <>
       <Head>
-        <title>Créer un compte — ProspectBot</title>
+        <title>Créer un compte — NestLead</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`
@@ -233,7 +233,7 @@ export default function RegisterPage() {
         <div className="panel-left">
           <div className="panel-grid" />
           <div className="panel-brand">
-            <div className="logo">ProspectBot</div>
+            <div className="logo">NestLead</div>
           </div>
           <div className="panel-center">
             <div className="panel-tag">

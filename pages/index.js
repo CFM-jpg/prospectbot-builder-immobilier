@@ -108,7 +108,7 @@ function LiveDemo() {
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
-        <span style={{ marginLeft: 12, fontSize: 12, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>ProspectBot — Live Demo</span>
+        <span style={{ marginLeft: 12, fontSize: 12, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>NestLead — Live Demo</span>
       </div>
 
       <div style={{ padding: '28px 32px' }}>
@@ -118,10 +118,10 @@ function LiveDemo() {
               <svg width="36" height="36" fill="none" stroke="rgba(212,168,83,0.6)" strokeWidth="1.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
             </div>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, marginBottom: 8, fontFamily: 'DM Sans, sans-serif' }}>
-              Voyez ProspectBot en action
+              Voyez NestLead en action
             </p>
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginBottom: 28, fontFamily: 'DM Sans, sans-serif' }}>
-              Simulation réelle : scraping → matching → résultats
+              Simulation réelle : DVF → matching → alertes acheteurs
             </p>
             <button onClick={() => setStep(1)}
               style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0a0a0a', border: 'none', borderRadius: 12, padding: '13px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 40px rgba(212,168,83,0.3)' }}>
@@ -339,25 +339,25 @@ export default function LandingPage() {
   return (
     <>
       <Head>
-        <title>ProspectBot — Analysez le marché immobilier et gérez vos acheteurs | Essai gratuit 14 jours</title>
-        <meta name="description" content="ProspectBot analyse les transactions du marché immobilier, matche les biens avec vos acheteurs et envoie les alertes automatiquement. Pour agents immobiliers. Essai gratuit 14 jours, sans carte bancaire." />
+        <title>NestLead — CRM immobilier, vendeurs potentiels & matching IA | Essai gratuit 14 jours</title>
+        <meta name="description" content="NestLead trouve les vendeurs potentiels via données DVF officielles, matche les biens avec vos acheteurs et génère vos annonces par IA. Pour agents immobiliers. Essai gratuit 14 jours, sans carte bancaire." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="robots" content="index, follow" />
-        <meta name="author" content="ProspectBot" />
+        <meta name="author" content="NestLead" />
         <meta name="keywords" content="prospection immobilière automatique, logiciel agent immobilier, scraping immobilier, matching acheteur vendeur, alerte immobilière, outil agent immobilier" />
-        <meta property="og:title" content="ProspectBot — Analysez le marché et gérez vos acheteurs" />
-        <meta property="og:description" content="Analyse du marché immobilier via données officielles. Matching IA. Alertes instantanées. Pour agents immobiliers. Essai gratuit 14 jours." />
+        <meta property="og:title" content="NestLead — Vendeurs potentiels, matching & CRM immobilier" />
+        <meta property="og:description" content="Trouvez des vendeurs potentiels via DVF, matchez vos acheteurs avec les biens et générez vos annonces par IA. Pour agents immobiliers." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://prospectbot-builder-immobilier.vercel.app" />
+        <meta property="og:url" content="https://nestlead.fr" />
         <meta property="og:locale" content="fr_FR" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="ProspectBot — Marché immobilier et gestion acheteurs" />
+        <meta name="twitter:title" content="NestLead — Marché immobilier et gestion acheteurs" />
         <meta name="twitter:description" content="Analyse du marché immobilier + matching IA + alertes email automatiques. Essai gratuit 14 jours." />
-        <link rel="canonical" href="https://prospectbot-builder-immobilier.vercel.app" />
+        <link rel="canonical" href="https://nestlead.fr" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "SoftwareApplication",
-          "name": "ProspectBot",
+          "name": "NestLead",
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web",
           "description": "Outil d'analyse de marché immobilier pour agents immobiliers. Données officielles DVF, matching IA et alertes email.",
@@ -503,7 +503,7 @@ export default function LandingPage() {
 
       {/* Nav */}
       <nav className={`nav ${navScrolled ? 'scrolled' : ''}`}>
-        <div className="nav-logo">ProspectBot</div>
+        <div className="nav-logo">NestLead</div>
         <div className="nav-links">
           <a href="#fonctionnalites" className="nav-link">Fonctionnalités</a>
           <a href="#demo" className="nav-link">Démo</a>
@@ -535,7 +535,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="hero-sub">
-            ProspectBot analyse les transactions immobilières officielles, matche chaque bien avec vos acheteurs
+            NestLead analyse les transactions immobilières officielles, matche chaque bien avec vos acheteurs
             et envoie les alertes automatiquement — pendant que vous vous concentrez sur vos clients.
           </p>
 
@@ -616,7 +616,7 @@ export default function LandingPage() {
           <div data-reveal data-delay="1">
             <h2 className="section-title">Tout ce dont un agent<br /><em>a besoin, en un seul endroit.</em></h2>
           </div>
-          <div data-reveal data-delay="2"><p className="section-sub">De l'analyse de marché à la publication multi-plateforme — ProspectBot couvre l'intégralité du workflow immobilier.</p></div>
+          <div data-reveal data-delay="2"><p className="section-sub">De l'analyse de marché à la publication multi-plateforme — NestLead couvre l'intégralité du workflow immobilier.</p></div>
 
           <div className="features-grid">
             {[
@@ -649,7 +649,7 @@ export default function LandingPage() {
             {[
               { n: '1', title: 'Créez votre compte', desc: 'Inscription en 2 minutes, aucune carte de crédit requise.', delay: '1' },
               { n: '2', title: 'Ajoutez vos acheteurs', desc: 'Budget, localisation, type de bien — les critères de matching.', delay: '2' },
-              { n: '3', title: 'Analysez le marché', desc: 'ProspectBot collecte les transactions officielles et identifie les opportunités pour vos acheteurs.', delay: '3' },
+              { n: '3', title: 'Analysez le marché', desc: 'NestLead collecte les transactions officielles et identifie les opportunités pour vos acheteurs.', delay: '3' },
               { n: '4', title: 'Recevez les matchs', desc: 'Chaque correspondance est envoyée directement à votre acheteur.', delay: '4' },
             ].map((s, i) => (
               <div key={i} className="step-item" data-reveal data-delay={s.delay}>
@@ -672,7 +672,7 @@ export default function LandingPage() {
                 <h2 className="section-title">Voyez-le tourner <em>en direct.</em></h2>
               </div>
               <div data-reveal data-delay="2">
-                <p className="section-sub">Cliquez sur "Lancer la démo" et observez ProspectBot scraper les annonces, calculer les scores de matching et envoyer les alertes — le tout en quelques secondes.</p>
+                <p className="section-sub">Cliquez sur "Lancer la démo" et observez NestLead scraper les annonces, calculer les scores de matching et envoyer les alertes — le tout en quelques secondes.</p>
               </div>
               <div data-reveal data-delay="3" style={{ marginTop: 32 }}>
                 {[
@@ -1003,7 +1003,7 @@ export default function LandingPage() {
                   Le module B2B,<br /><em>inclus dans votre plan.</em>
                 </h3>
                 <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.75, marginBottom: 24 }}>
-                  ProspectBot Agence ne se limite pas à l'immobilier. Accédez directement à une suite d'outils B2B — prospection, automatisation et campagnes — sans abonnement supplémentaire.
+                  NestLead Agence ne se limite pas à l'immobilier. Accédez directement à une suite d'outils B2B — prospection, automatisation et campagnes — sans abonnement supplémentaire.
                 </p>
                 <button
                   onClick={() => router.push('/register')}
@@ -1036,7 +1036,7 @@ export default function LandingPage() {
         <div className="cta-bg" />
         <div style={{ position: 'relative', zIndex: 2 }}>
           <div data-reveal><h2 className="cta-title">Prêt à automatiser<br /><em>votre prospection ?</em></h2></div>
-          <div data-reveal data-delay="1"><p className="cta-sub">Rejoignez les 340+ agents qui font confiance à ProspectBot pour gérer leur portefeuille acheteurs.</p></div>
+          <div data-reveal data-delay="1"><p className="cta-sub">Rejoignez les 340+ agents qui font confiance à NestLead pour gérer leur portefeuille acheteurs.</p></div>
           <div data-reveal data-delay="2" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => router.push('/register')}
               style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0a0a0a', border: 'none', borderRadius: 14, padding: '16px 36px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 60px rgba(212,168,83,0.25)', transition: 'transform 0.2s' }}>
@@ -1055,14 +1055,14 @@ export default function LandingPage() {
 
       {/*  FOOTER  */}
       <footer className="footer">
-        <div className="footer-logo">ProspectBot</div>
+        <div className="footer-logo">NestLead</div>
         <div className="footer-links">
           <a href="/login" className="footer-link">Connexion</a>
           <a href="/register" className="footer-link">Créer un compte</a>
           <a href="/mentions-legales" className="footer-link">Mentions légales</a>
           <a href="#" className="footer-link">Contact</a>
         </div>
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.15)' }}>© 2025 ProspectBot</span>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.15)' }}>© 2025 NestLead</span>
       </footer>
 
       <FloatingCTA onCapture={handleCapture} />
@@ -1074,7 +1074,7 @@ export default function LandingPage() {
 
 const TESTIMONIALS = [
   {
-    quote: "Avant ProspectBot, je passais 3h par jour à chercher des données de marché manuellement. Maintenant, tout arrive dans mon dashboard. J'ai doublé mon portefeuille acheteurs en 2 mois.",
+    quote: "Avant NestLead, je passais 3h par jour à chercher des données de marché manuellement. Maintenant, tout arrive dans mon dashboard. J'ai doublé mon portefeuille acheteurs en 2 mois.",
     name: 'Sarah M.',
     role: 'Agente immobilière indépendante, Paris',
     initials: 'S',
@@ -1092,7 +1092,7 @@ const TESTIMONIALS = [
     initials: 'A',
   },
   {
-    quote: "J'ai essayé 3 autres outils avant ProspectBot. Aucun n'avait ce niveau d'automatisation. L'alerte email arrive avant même que j'ouvre SeLoger le matin.",
+    quote: "J'ai essayé 3 autres outils avant NestLead. Aucun n'avait ce niveau d'automatisation. L'alerte email arrive avant même que j'ouvre SeLoger le matin.",
     name: 'Marc T.',
     role: 'Agent immobilier, Nantes',
     initials: 'M',

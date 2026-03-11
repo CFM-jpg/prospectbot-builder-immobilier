@@ -96,7 +96,7 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>Connexion — ProspectBot</title>
+        <title>Connexion — NestLead</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`
@@ -203,7 +203,7 @@ export default function LoginPage() {
         <div className="panel-left">
           <div className="panel-grid" />
           <div className="panel-brand">
-            <div className="logo">ProspectBot</div>
+            <div className="logo">NestLead</div>
           </div>
           <div className="panel-center">
             <div className="panel-tag">
@@ -321,7 +321,7 @@ export default function LoginPage() {
                 </p>
                 <div className="hint-box">
                   <strong>Identifiants par défaut</strong>
-                  Email : <code>admin@prospectbot.fr</code><br />
+                  Email : <code>admin@nestlead.fr</code><br />
                   Mot de passe : <code>admin123</code><br />
                   <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
                     Modifiez via <code>ADMIN_EMAIL</code> et <code>ADMIN_PASSWORD</code>
