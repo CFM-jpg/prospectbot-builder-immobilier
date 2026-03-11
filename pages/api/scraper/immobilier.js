@@ -1,462 +1,2792 @@
-// pages/api/scraper/immobilier.js
-// API Marché Immobilier — DVF live + Base de référence 2024/2025
-// Sources: DVF Notaires / INSEE / LPI SeLoger / FNAIM / Meilleurs Agents
+import dynamic from 'next/dynamic';
+import { useState, useEffect } from 'react';
+import Head from 'next/head';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
+import { useAuth } from '../lib/useAuth';
+import { canAccess } from '../lib/planConfig';
 
-import { createClient } from "@supabase/supabase-js";
+// ─── Configuration ────────────────────────────────────────────────────────────
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-// ============================================================
-// BASE DE RÉFÉRENCE MARCHÉ — 96 départements + ~50 villes
-// Sources : DVF Notaires + LPI SeLoger + FNAIM — T3/T4 2024
-// ============================================================
-
-const MARCHE_PAR_DEPARTEMENT = {
-  "01": { nom: "Ain",                      prixM2Appart: 2650, prixM2Maison: 2480, loyer: 10.2, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 5.8 },
-  "02": { nom: "Aisne",                    prixM2Appart: 1380, prixM2Maison: 1250, loyer: 7.8,  tension: "faible",delaiVente: 95, tauxNego: 6.5, rentaBrute: 7.2 },
-  "03": { nom: "Allier",                   prixM2Appart: 1180, prixM2Maison: 1050, loyer: 7.2,  tension: "faible",delaiVente:110, tauxNego: 7.0, rentaBrute: 7.8 },
-  "04": { nom: "Alpes-de-Haute-Provence",  prixM2Appart: 2200, prixM2Maison: 2480, loyer: 9.8,  tension: "faible",delaiVente: 98, tauxNego: 5.5, rentaBrute: 5.9 },
-  "05": { nom: "Hautes-Alpes",             prixM2Appart: 2850, prixM2Maison: 2950, loyer: 10.5, tension: "moyen", delaiVente: 85, tauxNego: 4.8, rentaBrute: 5.2 },
-  "06": { nom: "Alpes-Maritimes",          prixM2Appart: 5200, prixM2Maison: 6800, loyer: 16.5, tension: "fort",  delaiVente: 58, tauxNego: 3.5, rentaBrute: 4.0 },
-  "07": { nom: "Ardèche",                  prixM2Appart: 1850, prixM2Maison: 1980, loyer: 8.5,  tension: "faible",delaiVente: 92, tauxNego: 5.5, rentaBrute: 6.2 },
-  "08": { nom: "Ardennes",                 prixM2Appart: 1050, prixM2Maison: 980,  loyer: 7.0,  tension: "faible",delaiVente:115, tauxNego: 7.5, rentaBrute: 8.5 },
-  "09": { nom: "Ariège",                   prixM2Appart: 1450, prixM2Maison: 1620, loyer: 7.8,  tension: "faible",delaiVente:105, tauxNego: 6.0, rentaBrute: 7.0 },
-  "10": { nom: "Aube",                     prixM2Appart: 1580, prixM2Maison: 1480, loyer: 8.2,  tension: "faible",delaiVente: 95, tauxNego: 6.0, rentaBrute: 7.0 },
-  "11": { nom: "Aude",                     prixM2Appart: 1950, prixM2Maison: 2100, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
-  "12": { nom: "Aveyron",                  prixM2Appart: 1680, prixM2Maison: 1580, loyer: 8.2,  tension: "faible",delaiVente:100, tauxNego: 5.8, rentaBrute: 6.8 },
-  "13": { nom: "Bouches-du-Rhône",         prixM2Appart: 3650, prixM2Maison: 4200, loyer: 13.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.0 },
-  "14": { nom: "Calvados",                 prixM2Appart: 2850, prixM2Maison: 2650, loyer: 10.8, tension: "moyen", delaiVente: 75, tauxNego: 4.8, rentaBrute: 5.5 },
-  "15": { nom: "Cantal",                   prixM2Appart: 1100, prixM2Maison: 1050, loyer: 7.0,  tension: "faible",delaiVente:120, tauxNego: 7.0, rentaBrute: 8.2 },
-  "16": { nom: "Charente",                 prixM2Appart: 1580, prixM2Maison: 1680, loyer: 8.2,  tension: "faible",delaiVente: 95, tauxNego: 6.0, rentaBrute: 6.9 },
-  "17": { nom: "Charente-Maritime",        prixM2Appart: 3200, prixM2Maison: 3800, loyer: 11.5, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 4.8 },
-  "18": { nom: "Cher",                     prixM2Appart: 1280, prixM2Maison: 1180, loyer: 7.5,  tension: "faible",delaiVente:110, tauxNego: 6.8, rentaBrute: 7.8 },
-  "19": { nom: "Corrèze",                  prixM2Appart: 1380, prixM2Maison: 1280, loyer: 7.8,  tension: "faible",delaiVente:108, tauxNego: 6.5, rentaBrute: 7.5 },
-  "21": { nom: "Côte-d'Or",               prixM2Appart: 2650, prixM2Maison: 2450, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.8 },
-  "22": { nom: "Côtes-d'Armor",           prixM2Appart: 2050, prixM2Maison: 2180, loyer: 9.2,  tension: "faible",delaiVente: 88, tauxNego: 5.2, rentaBrute: 6.0 },
-  "23": { nom: "Creuse",                   prixM2Appart: 780,  prixM2Maison: 720,  loyer: 6.0,  tension: "faible",delaiVente:145, tauxNego: 9.0, rentaBrute: 9.8 },
-  "24": { nom: "Dordogne",                 prixM2Appart: 1680, prixM2Maison: 1850, loyer: 8.5,  tension: "faible",delaiVente: 98, tauxNego: 5.8, rentaBrute: 6.5 },
-  "25": { nom: "Doubs",                    prixM2Appart: 2350, prixM2Maison: 2150, loyer: 9.8,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 6.0 },
-  "26": { nom: "Drôme",                    prixM2Appart: 2480, prixM2Maison: 2680, loyer: 10.2, tension: "moyen", delaiVente: 75, tauxNego: 4.8, rentaBrute: 5.8 },
-  "27": { nom: "Eure",                     prixM2Appart: 1980, prixM2Maison: 2050, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
-  "28": { nom: "Eure-et-Loir",             prixM2Appart: 2050, prixM2Maison: 2150, loyer: 9.2,  tension: "faible",delaiVente: 85, tauxNego: 5.2, rentaBrute: 6.0 },
-  "29": { nom: "Finistère",                prixM2Appart: 2380, prixM2Maison: 2550, loyer: 9.8,  tension: "moyen", delaiVente: 78, tauxNego: 4.8, rentaBrute: 5.8 },
-  "30": { nom: "Gard",                     prixM2Appart: 2480, prixM2Maison: 2650, loyer: 10.2, tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.8 },
-  "31": { nom: "Haute-Garonne",            prixM2Appart: 3480, prixM2Maison: 3650, loyer: 13.2, tension: "fort",  delaiVente: 52, tauxNego: 3.2, rentaBrute: 5.2 },
-  "32": { nom: "Gers",                     prixM2Appart: 1580, prixM2Maison: 1750, loyer: 8.2,  tension: "faible",delaiVente:105, tauxNego: 6.0, rentaBrute: 7.0 },
-  "33": { nom: "Gironde",                  prixM2Appart: 4100, prixM2Maison: 4650, loyer: 14.5, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 4.5 },
-  "34": { nom: "Hérault",                  prixM2Appart: 3200, prixM2Maison: 3650, loyer: 12.5, tension: "fort",  delaiVente: 60, tauxNego: 3.8, rentaBrute: 5.0 },
-  "35": { nom: "Ille-et-Vilaine",          prixM2Appart: 3450, prixM2Maison: 3200, loyer: 12.5, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 5.0 },
-  "36": { nom: "Indre",                    prixM2Appart: 1050, prixM2Maison: 980,  loyer: 7.0,  tension: "faible",delaiVente:120, tauxNego: 7.5, rentaBrute: 8.5 },
-  "37": { nom: "Indre-et-Loire",           prixM2Appart: 2650, prixM2Maison: 2850, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 5.5 },
-  "38": { nom: "Isère",                    prixM2Appart: 2950, prixM2Maison: 2780, loyer: 11.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.5 },
-  "39": { nom: "Jura",                     prixM2Appart: 1680, prixM2Maison: 1580, loyer: 8.5,  tension: "faible",delaiVente: 98, tauxNego: 5.8, rentaBrute: 6.8 },
-  "40": { nom: "Landes",                   prixM2Appart: 3050, prixM2Maison: 3850, loyer: 11.5, tension: "moyen", delaiVente: 68, tauxNego: 4.5, rentaBrute: 5.0 },
-  "41": { nom: "Loir-et-Cher",             prixM2Appart: 1750, prixM2Maison: 1850, loyer: 8.8,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 6.5 },
-  "42": { nom: "Loire",                    prixM2Appart: 1950, prixM2Maison: 1780, loyer: 9.0,  tension: "moyen", delaiVente: 78, tauxNego: 5.2, rentaBrute: 6.2 },
-  "43": { nom: "Haute-Loire",              prixM2Appart: 1380, prixM2Maison: 1280, loyer: 7.8,  tension: "faible",delaiVente:105, tauxNego: 6.5, rentaBrute: 7.5 },
-  "44": { nom: "Loire-Atlantique",         prixM2Appart: 3850, prixM2Maison: 3650, loyer: 13.5, tension: "fort",  delaiVente: 52, tauxNego: 3.2, rentaBrute: 5.0 },
-  "45": { nom: "Loiret",                   prixM2Appart: 2150, prixM2Maison: 2050, loyer: 9.5,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.9 },
-  "46": { nom: "Lot",                      prixM2Appart: 1580, prixM2Maison: 1780, loyer: 8.2,  tension: "faible",delaiVente:102, tauxNego: 6.0, rentaBrute: 7.0 },
-  "47": { nom: "Lot-et-Garonne",           prixM2Appart: 1680, prixM2Maison: 1780, loyer: 8.5,  tension: "faible",delaiVente: 98, tauxNego: 5.8, rentaBrute: 6.8 },
-  "48": { nom: "Lozère",                   prixM2Appart: 1380, prixM2Maison: 1480, loyer: 7.8,  tension: "faible",delaiVente:112, tauxNego: 6.5, rentaBrute: 7.2 },
-  "49": { nom: "Maine-et-Loire",           prixM2Appart: 2650, prixM2Maison: 2450, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.8 },
-  "50": { nom: "Manche",                   prixM2Appart: 1950, prixM2Maison: 2150, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
-  "51": { nom: "Marne",                    prixM2Appart: 2150, prixM2Maison: 2050, loyer: 9.5,  tension: "moyen", delaiVente: 80, tauxNego: 5.2, rentaBrute: 6.0 },
-  "52": { nom: "Haute-Marne",              prixM2Appart: 980,  prixM2Maison: 920,  loyer: 6.8,  tension: "faible",delaiVente:125, tauxNego: 7.8, rentaBrute: 9.0 },
-  "53": { nom: "Mayenne",                  prixM2Appart: 1850, prixM2Maison: 1750, loyer: 8.8,  tension: "faible",delaiVente: 90, tauxNego: 5.5, rentaBrute: 6.5 },
-  "54": { nom: "Meurthe-et-Moselle",       prixM2Appart: 2050, prixM2Maison: 1850, loyer: 9.2,  tension: "moyen", delaiVente: 80, tauxNego: 5.2, rentaBrute: 6.2 },
-  "55": { nom: "Meuse",                    prixM2Appart: 1050, prixM2Maison: 980,  loyer: 7.0,  tension: "faible",delaiVente:118, tauxNego: 7.2, rentaBrute: 8.5 },
-  "56": { nom: "Morbihan",                 prixM2Appart: 3050, prixM2Maison: 3350, loyer: 11.5, tension: "moyen", delaiVente: 68, tauxNego: 4.5, rentaBrute: 5.2 },
-  "57": { nom: "Moselle",                  prixM2Appart: 1850, prixM2Maison: 1680, loyer: 8.8,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.5 },
-  "58": { nom: "Nièvre",                   prixM2Appart: 980,  prixM2Maison: 880,  loyer: 6.8,  tension: "faible",delaiVente:130, tauxNego: 8.0, rentaBrute: 9.2 },
-  "59": { nom: "Nord",                     prixM2Appart: 2380, prixM2Maison: 2050, loyer: 10.0, tension: "moyen", delaiVente: 75, tauxNego: 5.0, rentaBrute: 6.0 },
-  "60": { nom: "Oise",                     prixM2Appart: 2280, prixM2Maison: 2480, loyer: 9.8,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.9 },
-  "61": { nom: "Orne",                     prixM2Appart: 1480, prixM2Maison: 1380, loyer: 8.0,  tension: "faible",delaiVente:102, tauxNego: 6.2, rentaBrute: 7.2 },
-  "62": { nom: "Pas-de-Calais",            prixM2Appart: 1880, prixM2Maison: 1680, loyer: 8.8,  tension: "faible",delaiVente: 88, tauxNego: 5.8, rentaBrute: 6.5 },
-  "63": { nom: "Puy-de-Dôme",             prixM2Appart: 2250, prixM2Maison: 2050, loyer: 9.5,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.9 },
-  "64": { nom: "Pyrénées-Atlantiques",     prixM2Appart: 3450, prixM2Maison: 4200, loyer: 12.5, tension: "fort",  delaiVente: 58, tauxNego: 3.8, rentaBrute: 4.8 },
-  "65": { nom: "Hautes-Pyrénées",          prixM2Appart: 1680, prixM2Maison: 1880, loyer: 8.5,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 6.8 },
-  "66": { nom: "Pyrénées-Orientales",      prixM2Appart: 2650, prixM2Maison: 3050, loyer: 10.8, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.5 },
-  "67": { nom: "Bas-Rhin",                 prixM2Appart: 3050, prixM2Maison: 2850, loyer: 11.5, tension: "fort",  delaiVente: 60, tauxNego: 3.8, rentaBrute: 5.2 },
-  "68": { nom: "Haut-Rhin",               prixM2Appart: 2650, prixM2Maison: 2480, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 5.5 },
-  "69": { nom: "Rhône",                    prixM2Appart: 4800, prixM2Maison: 4950, loyer: 15.5, tension: "fort",  delaiVente: 48, tauxNego: 2.8, rentaBrute: 4.5 },
-  "70": { nom: "Haute-Saône",              prixM2Appart: 1280, prixM2Maison: 1180, loyer: 7.5,  tension: "faible",delaiVente:112, tauxNego: 6.8, rentaBrute: 7.8 },
-  "71": { nom: "Saône-et-Loire",           prixM2Appart: 1650, prixM2Maison: 1480, loyer: 8.5,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 7.0 },
-  "72": { nom: "Sarthe",                   prixM2Appart: 1950, prixM2Maison: 1850, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
-  "73": { nom: "Savoie",                   prixM2Appart: 4200, prixM2Maison: 4650, loyer: 14.5, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 4.5 },
-  "74": { nom: "Haute-Savoie",             prixM2Appart: 5100, prixM2Maison: 5800, loyer: 16.0, tension: "fort",  delaiVente: 50, tauxNego: 3.0, rentaBrute: 4.2 },
-  "75": { nom: "Paris",                    prixM2Appart: 9650, prixM2Maison:11200, loyer: 28.5, tension: "fort",  delaiVente: 42, tauxNego: 2.5, rentaBrute: 3.5 },
-  "76": { nom: "Seine-Maritime",           prixM2Appart: 2450, prixM2Maison: 2280, loyer: 10.0, tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.8 },
-  "77": { nom: "Seine-et-Marne",           prixM2Appart: 3050, prixM2Maison: 3250, loyer: 11.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.0 },
-  "78": { nom: "Yvelines",                 prixM2Appart: 4200, prixM2Maison: 5100, loyer: 14.5, tension: "fort",  delaiVente: 55, tauxNego: 3.2, rentaBrute: 4.2 },
-  "79": { nom: "Deux-Sèvres",              prixM2Appart: 1580, prixM2Maison: 1680, loyer: 8.2,  tension: "faible",delaiVente: 98, tauxNego: 6.0, rentaBrute: 7.0 },
-  "80": { nom: "Somme",                    prixM2Appart: 1980, prixM2Maison: 1850, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
-  "81": { nom: "Tarn",                     prixM2Appart: 2050, prixM2Maison: 2250, loyer: 9.2,  tension: "moyen", delaiVente: 80, tauxNego: 5.2, rentaBrute: 6.0 },
-  "82": { nom: "Tarn-et-Garonne",          prixM2Appart: 1980, prixM2Maison: 2180, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
-  "83": { nom: "Var",                      prixM2Appart: 4350, prixM2Maison: 5200, loyer: 15.0, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 4.2 },
-  "84": { nom: "Vaucluse",                 prixM2Appart: 2650, prixM2Maison: 3050, loyer: 10.8, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.5 },
-  "85": { nom: "Vendée",                   prixM2Appart: 2850, prixM2Maison: 3350, loyer: 11.0, tension: "moyen", delaiVente: 68, tauxNego: 4.5, rentaBrute: 5.2 },
-  "86": { nom: "Vienne",                   prixM2Appart: 1980, prixM2Maison: 1880, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
-  "87": { nom: "Haute-Vienne",             prixM2Appart: 1680, prixM2Maison: 1580, loyer: 8.5,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 6.8 },
-  "88": { nom: "Vosges",                   prixM2Appart: 1280, prixM2Maison: 1180, loyer: 7.5,  tension: "faible",delaiVente:110, tauxNego: 6.8, rentaBrute: 7.8 },
-  "89": { nom: "Yonne",                    prixM2Appart: 1580, prixM2Maison: 1480, loyer: 8.2,  tension: "faible",delaiVente: 98, tauxNego: 6.0, rentaBrute: 7.0 },
-  "90": { nom: "Territoire de Belfort",    prixM2Appart: 1880, prixM2Maison: 1750, loyer: 8.8,  tension: "faible",delaiVente: 90, tauxNego: 5.5, rentaBrute: 6.5 },
-  "91": { nom: "Essonne",                  prixM2Appart: 3450, prixM2Maison: 3850, loyer: 13.0, tension: "fort",  delaiVente: 58, tauxNego: 3.5, rentaBrute: 4.8 },
-  "92": { nom: "Hauts-de-Seine",           prixM2Appart: 7200, prixM2Maison: 8500, loyer: 22.0, tension: "fort",  delaiVente: 45, tauxNego: 2.8, rentaBrute: 3.8 },
-  "93": { nom: "Seine-Saint-Denis",        prixM2Appart: 3850, prixM2Maison: 3950, loyer: 14.0, tension: "fort",  delaiVente: 58, tauxNego: 4.0, rentaBrute: 4.8 },
-  "94": { nom: "Val-de-Marne",             prixM2Appart: 5100, prixM2Maison: 5650, loyer: 17.0, tension: "fort",  delaiVente: 50, tauxNego: 3.0, rentaBrute: 4.2 },
-  "95": { nom: "Val-d'Oise",              prixM2Appart: 3050, prixM2Maison: 3250, loyer: 11.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.0 },
-};
-
-const MARCHE_PAR_VILLE = {
-  // IDF
-  paris:              { nom:"Paris",              dep:"75", pop:2145000, prixM2Appart:9650, prixM2Maison:11200, prixMedian:9400,  loyer:28.5, tension:"fort",   delaiVente:42, tauxNego:2.5, volumeAnnuel:29000, rentaBrute:3.5, rentaNette:2.8, evolution1an:-2.8, evolution3ans:4.2,  evolution5ans:18.5, budgetMedian:520000, apportMoyen:22, surfaceMoyenne:52, piecesMoyennes:2.8 },
-  boulogneBillancourt:{ nom:"Boulogne-Billancourt",dep:"92", pop:121000,  prixM2Appart:7850, prixM2Maison:9200,  prixMedian:7600,  loyer:24.0, tension:"fort",   delaiVente:48, tauxNego:3.0, volumeAnnuel:4200,  rentaBrute:3.8, rentaNette:3.0, evolution1an:-3.5, evolution3ans:2.8,  evolution5ans:15.2, budgetMedian:480000, apportMoyen:24, surfaceMoyenne:58, piecesMoyennes:3.0 },
-  versailles:         { nom:"Versailles",          dep:"78", pop:86000,   prixM2Appart:5800, prixM2Maison:6200,  prixMedian:5600,  loyer:18.5, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:2800,  rentaBrute:4.0, rentaNette:3.2, evolution1an:-2.2, evolution3ans:5.5,  evolution5ans:20.0, budgetMedian:380000, apportMoyen:23, surfaceMoyenne:65, piecesMoyennes:3.5 },
-  // LYON
-  lyon:               { nom:"Lyon",                dep:"69", pop:522000,  prixM2Appart:4950, prixM2Maison:5100,  prixMedian:4750,  loyer:15.8, tension:"fort",   delaiVente:48, tauxNego:2.8, volumeAnnuel:15200, rentaBrute:4.5, rentaNette:3.6, evolution1an:-4.2, evolution3ans:8.5,  evolution5ans:32.0, budgetMedian:280000, apportMoyen:18, surfaceMoyenne:55, piecesMoyennes:2.8 },
-  villeurbanne:       { nom:"Villeurbanne",         dep:"69", pop:149000,  prixM2Appart:3850, prixM2Maison:3950,  prixMedian:3700,  loyer:13.5, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:5200,  rentaBrute:5.0, rentaNette:4.0, evolution1an:-3.8, evolution3ans:10.2, evolution5ans:35.0, budgetMedian:220000, apportMoyen:16, surfaceMoyenne:55, piecesMoyennes:2.8 },
-  venissieux:         { nom:"Vénissieux",           dep:"69", pop:65000,   prixM2Appart:2450, prixM2Maison:2650,  prixMedian:2350,  loyer:10.5, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:1800,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-2.5, evolution3ans:8.0,  evolution5ans:28.0, budgetMedian:145000, apportMoyen:14, surfaceMoyenne:58, piecesMoyennes:3.0 },
-  // TOULOUSE
-  toulouse:           { nom:"Toulouse",             dep:"31", pop:493000,  prixM2Appart:3500, prixM2Maison:3750,  prixMedian:3350,  loyer:13.5, tension:"fort",   delaiVente:50, tauxNego:3.0, volumeAnnuel:13800, rentaBrute:5.2, rentaNette:4.2, evolution1an:-1.8, evolution3ans:15.5, evolution5ans:38.0, budgetMedian:210000, apportMoyen:15, surfaceMoyenne:58, piecesMoyennes:2.9 },
-  blagnac:            { nom:"Blagnac",               dep:"31", pop:24000,   prixM2Appart:3200, prixM2Maison:3550,  prixMedian:3100,  loyer:12.8, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:1250,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.5, evolution3ans:14.0, evolution5ans:36.0, budgetMedian:235000, apportMoyen:16, surfaceMoyenne:68, piecesMoyennes:3.2 },
-  tournefeuille:      { nom:"Tournefeuille",         dep:"31", pop:28000,   prixM2Appart:3050, prixM2Maison:3350,  prixMedian:2950,  loyer:12.2, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:980,   rentaBrute:5.6, rentaNette:4.5, evolution1an:-1.2, evolution3ans:13.5, evolution5ans:35.0, budgetMedian:255000, apportMoyen:17, surfaceMoyenne:72, piecesMoyennes:3.4 },
-  colomiers:          { nom:"Colomiers",             dep:"31", pop:38000,   prixM2Appart:2950, prixM2Maison:3150,  prixMedian:2850,  loyer:11.8, tension:"moyen",  delaiVente:58, tauxNego:3.8, volumeAnnuel:1450,  rentaBrute:5.8, rentaNette:4.6, evolution1an:-1.0, evolution3ans:12.8, evolution5ans:33.0, budgetMedian:225000, apportMoyen:15, surfaceMoyenne:70, piecesMoyennes:3.3 },
-  castanetTolosan:    { nom:"Castanet-Tolosan",      dep:"31", pop:14500,   prixM2Appart:2850, prixM2Maison:3050,  prixMedian:2750,  loyer:11.5, tension:"moyen",  delaiVente:62, tauxNego:4.0, volumeAnnuel:520,   rentaBrute:5.8, rentaNette:4.6, evolution1an:-0.8, evolution3ans:12.0, evolution5ans:32.0, budgetMedian:248000, apportMoyen:16, surfaceMoyenne:78, piecesMoyennes:3.5 },
-  muret:              { nom:"Muret",                 dep:"31", pop:26500,   prixM2Appart:2550, prixM2Maison:2750,  prixMedian:2450,  loyer:10.8, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:850,   rentaBrute:6.0, rentaNette:4.8, evolution1an:-0.5, evolution3ans:11.5, evolution5ans:30.0, budgetMedian:195000, apportMoyen:14, surfaceMoyenne:75, piecesMoyennes:3.4 },
-  // BORDEAUX
-  bordeaux:           { nom:"Bordeaux",              dep:"33", pop:260000,  prixM2Appart:4200, prixM2Maison:4750,  prixMedian:4000,  loyer:14.5, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:9800,  rentaBrute:4.8, rentaNette:3.8, evolution1an:-5.5, evolution3ans:5.2,  evolution5ans:28.5, budgetMedian:295000, apportMoyen:19, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  merignac:           { nom:"Mérignac",              dep:"33", pop:70000,   prixM2Appart:3350, prixM2Maison:3750,  prixMedian:3200,  loyer:12.5, tension:"moyen",  delaiVente:62, tauxNego:4.0, volumeAnnuel:2800,  rentaBrute:5.2, rentaNette:4.2, evolution1an:-4.2, evolution3ans:6.5,  evolution5ans:30.0, budgetMedian:245000, apportMoyen:17, surfaceMoyenne:68, piecesMoyennes:3.2 },
-  pessac:             { nom:"Pessac",                dep:"33", pop:63000,   prixM2Appart:3250, prixM2Maison:3650,  prixMedian:3100,  loyer:12.2, tension:"moyen",  delaiVente:65, tauxNego:4.2, volumeAnnuel:2400,  rentaBrute:5.3, rentaNette:4.2, evolution1an:-3.8, evolution3ans:7.0,  evolution5ans:31.0, budgetMedian:235000, apportMoyen:16, surfaceMoyenne:68, piecesMoyennes:3.2 },
-  // MARSEILLE
-  marseille:          { nom:"Marseille",             dep:"13", pop:870000,  prixM2Appart:3250, prixM2Maison:3850,  prixMedian:3050,  loyer:12.5, tension:"moyen",  delaiVente:65, tauxNego:4.2, volumeAnnuel:14500, rentaBrute:5.2, rentaNette:4.2, evolution1an:2.5,  evolution3ans:18.0, evolution5ans:42.0, budgetMedian:195000, apportMoyen:14, surfaceMoyenne:58, piecesMoyennes:2.9 },
-  aixEnProvence:      { nom:"Aix-en-Provence",       dep:"13", pop:144000,  prixM2Appart:4650, prixM2Maison:5850,  prixMedian:4450,  loyer:15.5, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:4200,  rentaBrute:4.5, rentaNette:3.5, evolution1an:1.5,  evolution3ans:14.5, evolution5ans:36.0, budgetMedian:320000, apportMoyen:21, surfaceMoyenne:68, piecesMoyennes:3.2 },
-  // NICE
-  nice:               { nom:"Nice",                  dep:"06", pop:342000,  prixM2Appart:5100, prixM2Maison:6500,  prixMedian:4850,  loyer:16.5, tension:"fort",   delaiVente:58, tauxNego:3.5, volumeAnnuel:7200,  rentaBrute:4.2, rentaNette:3.3, evolution1an:0.5,  evolution3ans:10.5, evolution5ans:28.0, budgetMedian:320000, apportMoyen:22, surfaceMoyenne:58, piecesMoyennes:2.8 },
-  cannes:             { nom:"Cannes",                dep:"06", pop:74000,   prixM2Appart:6200, prixM2Maison:8500,  prixMedian:5950,  loyer:19.5, tension:"fort",   delaiVente:62, tauxNego:4.0, volumeAnnuel:2100,  rentaBrute:3.9, rentaNette:3.1, evolution1an:1.0,  evolution3ans:8.5,  evolution5ans:22.0, budgetMedian:395000, apportMoyen:26, surfaceMoyenne:60, piecesMoyennes:2.8 },
-  antibes:            { nom:"Antibes",               dep:"06", pop:75000,   prixM2Appart:4950, prixM2Maison:6200,  prixMedian:4700,  loyer:16.0, tension:"fort",   delaiVente:60, tauxNego:3.8, volumeAnnuel:2400,  rentaBrute:4.2, rentaNette:3.3, evolution1an:0.8,  evolution3ans:9.0,  evolution5ans:24.0, budgetMedian:335000, apportMoyen:23, surfaceMoyenne:62, piecesMoyennes:2.9 },
-  // MONTPELLIER
-  montpellier:        { nom:"Montpellier",           dep:"34", pop:296000,  prixM2Appart:3350, prixM2Maison:3850,  prixMedian:3200,  loyer:12.8, tension:"fort",   delaiVente:58, tauxNego:3.8, volumeAnnuel:8200,  rentaBrute:5.0, rentaNette:4.0, evolution1an:-1.2, evolution3ans:12.5, evolution5ans:35.0, budgetMedian:215000, apportMoyen:15, surfaceMoyenne:58, piecesMoyennes:2.8 },
-  // NANTES
-  nantes:             { nom:"Nantes",                dep:"44", pop:320000,  prixM2Appart:3900, prixM2Maison:3750,  prixMedian:3750,  loyer:14.0, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:10200, rentaBrute:5.0, rentaNette:4.0, evolution1an:-3.8, evolution3ans:6.8,  evolution5ans:30.0, budgetMedian:255000, apportMoyen:17, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  saintNazaire:       { nom:"Saint-Nazaire",         dep:"44", pop:69000,   prixM2Appart:2650, prixM2Maison:2850,  prixMedian:2550,  loyer:10.8, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:2200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-2.5, evolution3ans:8.5,  evolution5ans:32.0, budgetMedian:188000, apportMoyen:14, surfaceMoyenne:68, piecesMoyennes:3.2 },
-  // RENNES
-  rennes:             { nom:"Rennes",                dep:"35", pop:222000,  prixM2Appart:3700, prixM2Maison:3450,  prixMedian:3550,  loyer:13.5, tension:"fort",   delaiVente:50, tauxNego:3.0, volumeAnnuel:7200,  rentaBrute:5.0, rentaNette:4.0, evolution1an:-2.8, evolution3ans:9.5,  evolution5ans:34.0, budgetMedian:245000, apportMoyen:16, surfaceMoyenne:60, piecesMoyennes:2.9 },
-  // STRASBOURG
-  strasbourg:         { nom:"Strasbourg",            dep:"67", pop:285000,  prixM2Appart:3150, prixM2Maison:2950,  prixMedian:3000,  loyer:12.0, tension:"fort",   delaiVente:58, tauxNego:3.8, volumeAnnuel:7500,  rentaBrute:5.2, rentaNette:4.2, evolution1an:-1.5, evolution3ans:10.5, evolution5ans:32.0, budgetMedian:215000, apportMoyen:15, surfaceMoyenne:60, piecesMoyennes:2.9 },
-  // LILLE
-  lille:              { nom:"Lille",                 dep:"59", pop:235000,  prixM2Appart:3250, prixM2Maison:2850,  prixMedian:3100,  loyer:13.0, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:8500,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.0, evolution3ans:12.5, evolution5ans:36.0, budgetMedian:210000, apportMoyen:14, surfaceMoyenne:58, piecesMoyennes:2.8 },
-  roubaix:            { nom:"Roubaix",               dep:"59", pop:96000,   prixM2Appart:1850, prixM2Maison:1650,  prixMedian:1750,  loyer:9.5,  tension:"moyen",  delaiVente:72, tauxNego:5.5, volumeAnnuel:2200,  rentaBrute:7.0, rentaNette:5.6, evolution1an:0.5,  evolution3ans:8.0,  evolution5ans:25.0, budgetMedian:118000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.2 },
-  // AUTRES
-  grenoble:           { nom:"Grenoble",              dep:"38", pop:158000,  prixM2Appart:2850, prixM2Maison:2950,  prixMedian:2700,  loyer:11.5, tension:"fort",   delaiVente:60, tauxNego:4.0, volumeAnnuel:5200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-2.0, evolution3ans:9.0,  evolution5ans:28.0, budgetMedian:188000, apportMoyen:14, surfaceMoyenne:60, piecesMoyennes:2.9 },
-  clermontFerrand:    { nom:"Clermont-Ferrand",      dep:"63", pop:143000,  prixM2Appart:2250, prixM2Maison:2100,  prixMedian:2150,  loyer:9.8,  tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3800,  rentaBrute:5.9, rentaNette:4.7, evolution1an:-1.5, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:155000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  dijon:              { nom:"Dijon",                 dep:"21", pop:155000,  prixM2Appart:2700, prixM2Maison:2500,  prixMedian:2580,  loyer:10.8, tension:"moyen",  delaiVente:70, tauxNego:4.8, volumeAnnuel:4200,  rentaBrute:5.6, rentaNette:4.5, evolution1an:-1.8, evolution3ans:8.5,  evolution5ans:26.0, budgetMedian:178000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  nimes:              { nom:"Nîmes",                 dep:"30", pop:154000,  prixM2Appart:2350, prixM2Maison:2650,  prixMedian:2250,  loyer:10.2, tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3600,  rentaBrute:5.9, rentaNette:4.7, evolution1an:0.5,  evolution3ans:10.5, evolution5ans:28.0, budgetMedian:165000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  tours:              { nom:"Tours",                 dep:"37", pop:136000,  prixM2Appart:2750, prixM2Maison:3000,  prixMedian:2650,  loyer:11.0, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:4200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.5, evolution3ans:9.5,  evolution5ans:28.0, budgetMedian:188000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  angers:             { nom:"Angers",                dep:"49", pop:156000,  prixM2Appart:2800, prixM2Maison:2650,  prixMedian:2700,  loyer:11.2, tension:"fort",   delaiVente:65, tauxNego:4.2, volumeAnnuel:4500,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-2.2, evolution3ans:9.0,  evolution5ans:30.0, budgetMedian:192000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  limoges:            { nom:"Limoges",               dep:"87", pop:130000,  prixM2Appart:1700, prixM2Maison:1600,  prixMedian:1630,  loyer:8.5,  tension:"faible", delaiVente:88, tauxNego:5.8, volumeAnnuel:3200,  rentaBrute:6.8, rentaNette:5.5, evolution1an:-0.5, evolution3ans:5.5,  evolution5ans:18.0, budgetMedian:125000, apportMoyen:12, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  reims:              { nom:"Reims",                 dep:"51", pop:184000,  prixM2Appart:2200, prixM2Maison:2050,  prixMedian:2100,  loyer:9.8,  tension:"moyen",  delaiVente:75, tauxNego:5.0, volumeAnnuel:4200,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-1.0, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:152000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  caen:               { nom:"Caen",                  dep:"14", pop:107000,  prixM2Appart:2900, prixM2Maison:2750,  prixMedian:2800,  loyer:11.2, tension:"moyen",  delaiVente:70, tauxNego:4.8, volumeAnnuel:3200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.5, evolution3ans:8.5,  evolution5ans:26.0, budgetMedian:195000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  rouen:              { nom:"Rouen",                 dep:"76", pop:112000,  prixM2Appart:2550, prixM2Maison:2350,  prixMedian:2450,  loyer:10.5, tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3500,  rentaBrute:5.8, rentaNette:4.6, evolution1an:-1.2, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:175000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  nancy:              { nom:"Nancy",                 dep:"54", pop:103000,  prixM2Appart:2100, prixM2Maison:1950,  prixMedian:2000,  loyer:9.5,  tension:"moyen",  delaiVente:75, tauxNego:5.2, volumeAnnuel:3200,  rentaBrute:6.2, rentaNette:4.9, evolution1an:-0.8, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:145000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  metz:               { nom:"Metz",                  dep:"57", pop:117000,  prixM2Appart:2000, prixM2Maison:1850,  prixMedian:1900,  loyer:9.2,  tension:"moyen",  delaiVente:78, tauxNego:5.5, volumeAnnuel:2900,  rentaBrute:6.2, rentaNette:5.0, evolution1an:-0.5, evolution3ans:7.0,  evolution5ans:21.0, budgetMedian:138000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  orleans:            { nom:"Orléans",               dep:"45", pop:114000,  prixM2Appart:2250, prixM2Maison:2350,  prixMedian:2150,  loyer:10.0, tension:"moyen",  delaiVente:75, tauxNego:5.0, volumeAnnuel:3200,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-1.0, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:158000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  pau:                { nom:"Pau",                   dep:"64", pop:77000,   prixM2Appart:2150, prixM2Maison:2350,  prixMedian:2050,  loyer:9.5,  tension:"moyen",  delaiVente:75, tauxNego:5.2, volumeAnnuel:2200,  rentaBrute:6.2, rentaNette:5.0, evolution1an:0.5,  evolution3ans:9.0,  evolution5ans:26.0, budgetMedian:155000, apportMoyen:13, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  perpignan:          { nom:"Perpignan",             dep:"66", pop:121000,  prixM2Appart:1950, prixM2Maison:2350,  prixMedian:1850,  loyer:9.0,  tension:"faible", delaiVente:82, tauxNego:5.8, volumeAnnuel:2800,  rentaBrute:6.5, rentaNette:5.2, evolution1an:1.5,  evolution3ans:12.0, evolution5ans:32.0, budgetMedian:145000, apportMoyen:12, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  brest:              { nom:"Brest",                 dep:"29", pop:143000,  prixM2Appart:2200, prixM2Maison:2400,  prixMedian:2100,  loyer:9.5,  tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3500,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-1.5, evolution3ans:8.5,  evolution5ans:28.0, budgetMedian:152000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  leHavre:            { nom:"Le Havre",              dep:"76", pop:170000,  prixM2Appart:2100, prixM2Maison:1950,  prixMedian:2000,  loyer:9.2,  tension:"faible", delaiVente:80, tauxNego:5.8, volumeAnnuel:3800,  rentaBrute:6.2, rentaNette:5.0, evolution1an:-0.5, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:145000, apportMoyen:12, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  amiens:             { nom:"Amiens",                dep:"80", pop:135000,  prixM2Appart:2050, prixM2Maison:1900,  prixMedian:1950,  loyer:9.0,  tension:"faible", delaiVente:82, tauxNego:5.8, volumeAnnuel:3100,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-0.8, evolution3ans:7.0,  evolution5ans:20.0, budgetMedian:142000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  mulhouse:           { nom:"Mulhouse",              dep:"68", pop:110000,  prixM2Appart:1950, prixM2Maison:1800,  prixMedian:1850,  loyer:9.0,  tension:"faible", delaiVente:82, tauxNego:6.0, volumeAnnuel:2500,  rentaBrute:6.5, rentaNette:5.2, evolution1an:-0.5, evolution3ans:6.5,  evolution5ans:20.0, budgetMedian:132000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  besancon:           { nom:"Besançon",              dep:"25", pop:117000,  prixM2Appart:2350, prixM2Maison:2150,  prixMedian:2250,  loyer:10.0, tension:"moyen",  delaiVente:75, tauxNego:5.2, volumeAnnuel:2800,  rentaBrute:5.9, rentaNette:4.7, evolution1an:-1.0, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:158000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
-  toulon:             { nom:"Toulon",                dep:"83", pop:176000,  prixM2Appart:3100, prixM2Maison:3800,  prixMedian:2950,  loyer:12.0, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:4200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:1.0,  evolution3ans:12.0, evolution5ans:30.0, budgetMedian:205000, apportMoyen:15, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  avignon:            { nom:"Avignon",               dep:"84", pop:91000,   prixM2Appart:2650, prixM2Maison:3050,  prixMedian:2550,  loyer:10.8, tension:"moyen",  delaiVente:70, tauxNego:4.8, volumeAnnuel:2800,  rentaBrute:5.5, rentaNette:4.4, evolution1an:0.5,  evolution3ans:10.0, evolution5ans:28.0, budgetMedian:178000, apportMoyen:14, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  bayonne:            { nom:"Bayonne",               dep:"64", pop:52000,   prixM2Appart:4200, prixM2Maison:5100,  prixMedian:4050,  loyer:14.5, tension:"fort",   delaiVente:58, tauxNego:3.8, volumeAnnuel:1800,  rentaBrute:4.5, rentaNette:3.6, evolution1an:1.5,  evolution3ans:18.0, evolution5ans:42.0, budgetMedian:285000, apportMoyen:20, surfaceMoyenne:68, piecesMoyennes:3.2 },
-  annecy:             { nom:"Annecy",                dep:"74", pop:128000,  prixM2Appart:5500, prixM2Maison:6200,  prixMedian:5300,  loyer:17.0, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:2800,  rentaBrute:4.0, rentaNette:3.2, evolution1an:-0.5, evolution3ans:8.5,  evolution5ans:26.0, budgetMedian:365000, apportMoyen:24, surfaceMoyenne:62, piecesMoyennes:2.9 },
-  saintEtienne:       { nom:"Saint-Étienne",        dep:"42", pop:171000,  prixM2Appart:1450, prixM2Maison:1350,  prixMedian:1380,  loyer:8.0,  tension:"faible", delaiVente:88, tauxNego:6.5, volumeAnnuel:3800,  rentaBrute:7.5, rentaNette:6.0, evolution1an:0.5,  evolution3ans:5.0,  evolution5ans:15.0, budgetMedian:95000,  apportMoyen:11, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  laRochelle:         { nom:"La Rochelle",           dep:"17", pop:77000,   prixM2Appart:3850, prixM2Maison:4650,  prixMedian:3700,  loyer:13.5, tension:"fort",   delaiVente:60, tauxNego:4.0, volumeAnnuel:2400,  rentaBrute:4.8, rentaNette:3.8, evolution1an:-2.5, evolution3ans:10.5, evolution5ans:35.0, budgetMedian:265000, apportMoyen:19, surfaceMoyenne:65, piecesMoyennes:3.0 },
-  poitiers:           { nom:"Poitiers",              dep:"86", pop:89000,   prixM2Appart:2050, prixM2Maison:1950,  prixMedian:1950,  loyer:9.2,  tension:"moyen",  delaiVente:78, tauxNego:5.2, volumeAnnuel:2500,  rentaBrute:6.2, rentaNette:4.9, evolution1an:-0.8, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:145000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
-};
-
-// -----------------------------------------------------------
-// RÉSOLUTION VILLE → DONNÉES
-// -----------------------------------------------------------
-function normalise(s) {
-  return s.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[-'\s]+/g, "")
-    .replace(/^(saint|ste|st)([a-z])/, "saint$2");
-}
-
-function resoudreVille(villeInput, codePostal = null) {
-  if (!villeInput) return null;
-  const cible = normalise(villeInput);
-
-  for (const [key, data] of Object.entries(MARCHE_PAR_VILLE)) {
-    if (normalise(key) === cible || normalise(data.nom) === cible) {
-      return { ...data, source: "ville", cle: key };
-    }
-  }
-  for (const [key, data] of Object.entries(MARCHE_PAR_VILLE)) {
-    if (normalise(data.nom).includes(cible) || cible.includes(normalise(data.nom))) {
-      return { ...data, source: "ville_approx", cle: key };
-    }
-  }
-  if (codePostal) {
-    const dep = codePostal.startsWith("97") ? codePostal.slice(0, 3) : codePostal.slice(0, 2);
-    if (MARCHE_PAR_DEPARTEMENT[dep]) {
-      return { ...MARCHE_PAR_DEPARTEMENT[dep], source: "departement", cle: dep };
-    }
-  }
-  return {
-    nom: villeInput, prixM2Appart: 3200, prixM2Maison: 3500, prixMedian: 3050,
-    loyer: 11.5, tension: "moyen", delaiVente: 75, tauxNego: 4.8,
-    volumeAnnuel: 5000, rentaBrute: 5.5, rentaNette: 4.4,
-    evolution1an: -1.5, evolution3ans: 8.0, evolution5ans: 25.0,
-    budgetMedian: 210000, apportMoyen: 15, surfaceMoyenne: 62, piecesMoyennes: 3.0,
-    source: "national",
-  };
-}
-
-// -----------------------------------------------------------
-// DVF — ENDPOINTS + RÉSOLUTION INSEE
-// -----------------------------------------------------------
-const DVF_ENDPOINTS = [
-  (cp, type) => `https://api.cquest.org/dvf?code_postal=${cp}&nature_mutation=Vente&type_local=${type}&rows=200`,
-  (cp, type) => `https://api.data.gouv.fr/api/1/datasets/5c4ae55a634f4117716d5656/`,
-  (cp, type) => `https://files.data.gouv.fr/geo-dvf/latest/csv/`,
+const SITES = [
+  { id: 'bienici', label: "Bien'ici", sublabel: 'Données de marché', apiRoute: '/api/scraper/immobilier', active: true },
+  { id: 'seloger', label: 'SeLoger', sublabel: 'Données de marché', apiRoute: '/api/scraper/immobilier', active: true },
+  { id: 'leboncoin', label: 'DVF Notaires', sublabel: 'Transactions officielles', apiRoute: '/api/scraper/immobilier', active: true },
 ];
 
-async function fetchCodeInsee(ville) {
-  try {
-    const r = await fetch(`https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(ville)}&fields=code,codesPostaux,population&boost=population&limit=1`);
-    const data = await r.json();
-    if (data?.[0]) return { codeInsee: data[0].code, codePostal: data[0].codesPostaux?.[0] };
-  } catch {}
-  return {};
-}
+const PROPERTY_TYPES = [
+  { value: 'all', label: 'Tous' },
+  { value: 'maison', label: 'Maison' },
+  { value: 'appartement', label: 'Appartement' },
+  { value: 'terrain', label: 'Terrain' },
+  { value: 'commercial', label: 'Local commercial' },
+];
 
-async function fetchDVF(codePostal, typeBien) {
-  const typeMap = { appartement: "Appartement", maison: "Maison", tous: "Appartement" };
-  const type = typeMap[typeBien] || "Appartement";
-  const url = `https://api.cquest.org/dvf?code_postal=${codePostal}&nature_mutation=Vente&type_local=${type}&rows=200`;
-  try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (!r.ok) return null;
-    const data = await r.json();
-    return data?.resultats || null;
-  } catch { return null; }
-}
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Vue d\'ensemble' },
+  { id: 'scraper', label: 'Marché' },
+  { id: 'vendeurs', label: 'Vendeurs potentiels', badge: 'NEW' },
+  { id: 'biens', label: 'Données marché' },
+  { id: 'acheteurs', label: 'Acheteurs' },
+  { id: 'matches', label: 'Correspondances' },
+  { id: 'email', label: 'Emails' },
+  { id: 'publication', label: 'Publier une annonce' },
+];
 
-function calculerStatsDVF(transactions, typeBien) {
-  if (!transactions?.length) return null;
-  const filtrees = transactions.filter(t => t.valeur_fonciere > 10000 && t.surface_reelle_bati > 10);
-  if (filtrees.length < 3) return null;
-  const prixM2 = filtrees.map(t => t.valeur_fonciere / t.surface_reelle_bati).filter(p => p > 500 && p < 25000);
-  if (!prixM2.length) return null;
-  prixM2.sort((a, b) => a - b);
-  const moy = Math.round(prixM2.reduce((s, v) => s + v, 0) / prixM2.length);
-  const med = Math.round(prixM2[Math.floor(prixM2.length / 2)]);
-  return { prixM2Moyen: moy, prixM2Median: med, prixM2Min: Math.round(prixM2[0]), prixM2Max: Math.round(prixM2[prixM2.length - 1]), nbTransactions: filtrees.length, sourceDVF: true };
-}
+const TYPES_BIEN = ['Appartement', 'Maison', 'Villa', 'Studio', 'Loft', 'Terrain', 'Local commercial', 'Tous'];
 
-// -----------------------------------------------------------
-// GÉNÉRATION DONNÉES ENRICHIES
-// -----------------------------------------------------------
-function genererDonneesEnrichies(ref, statsDVF, ville, typeBien) {
-  const prixM2 = statsDVF?.prixM2Moyen || (typeBien === "maison" ? ref.prixM2Maison : ref.prixM2Appart);
-  const prixMedian = statsDVF?.prixM2Median || ref.prixMedian || prixM2 * 0.95;
-  const loyer = ref.loyer || 11.5;
+const ONBOARDING_STEPS = [
+  { id: 'bienvenue', icon: '🏠', title: null, desc: 'Votre assistant immobilier automatisé. En quelques minutes, découvrez comment ProspectBot trouve, trie et notifie vos acheteurs automatiquement.', highlight: null },
+  { id: 'biens', icon: '🏗️', title: 'Données de marché', desc: 'ProspectBot collecte les transactions immobilières officielles (DVF) pour analyser les prix du marché. Utilisez ces données pour conseiller vos clients avec des chiffres réels.', highlight: 'Onglet "Données marché" dans la sidebar' },
+  { id: 'acheteurs', icon: '👤', title: 'Gérez vos acheteurs', desc: 'Ajoutez vos clients avec leurs critères de recherche : budget, localisation, surface, type de bien. Plus les critères sont précis, meilleurs sont les matchs.', highlight: 'Onglet "Acheteurs" dans la sidebar' },
+  { id: 'matching', icon: '⚡', title: 'Le matching automatique', desc: 'Chaque bien est comparé à chaque acheteur. Un score de 0 à 100% est calculé selon le budget, la surface, la localisation et les critères spécifiques.', highlight: 'Onglet "Correspondances"' },
+  { id: 'emails', icon: '✉️', title: 'Alertes email automatiques', desc: 'Quand un bien correspond à plus de 60% aux critères d\'un acheteur, un email lui est envoyé automatiquement via Brevo. Vous pouvez aussi envoyer manuellement.', highlight: 'Onglet "Emails"' },
+  { id: 'publication', icon: '📢', title: 'Publiez vos annonces', desc: 'Créez une annonce en quelques minutes et diffusez-la sur LeBonCoin, SeLoger, BienIci et PAP.fr. Le texte est généré automatiquement par IA.', highlight: 'Onglet "Publier une annonce"' },
+  { id: 'checklist', icon: '✅', title: 'Checklist de démarrage', desc: 'Avant de commencer, vérifiez que tout est bien configuré.', highlight: null },
+];
 
-  const tranchesLocales = [
-    { label: "Entrée de gamme", min: Math.round(prixM2 * 0.65), max: Math.round(prixM2 * 0.85), part: 20 },
-    { label: "Standard",        min: Math.round(prixM2 * 0.85), max: Math.round(prixM2 * 1.05), part: 45 },
-    { label: "Premium",         min: Math.round(prixM2 * 1.05), max: Math.round(prixM2 * 1.35), part: 25 },
-    { label: "Prestige",        min: Math.round(prixM2 * 1.35), max: Math.round(prixM2 * 1.80), part: 10 },
-  ];
+const CHECKLIST_ITEMS = [
+  { id: 'supabase', label: 'Supabase connecté (NEXT_PUBLIC_SUPABASE_URL)' },
+  { id: 'brevo', label: 'Clé API Brevo configurée pour les emails' },
+  { id: 'acheteur', label: 'Au moins 1 acheteur ajouté dans le système' },
+  { id: 'scraper', label: 'Première analyse de marché lancée' },
+  { id: 'match', label: 'Matching calculé au moins une fois' },
+];
 
-  const rentaBrute = ref.rentaBrute || parseFloat(((loyer * 12) / prixM2 * 100).toFixed(1));
-  const rentaNette = ref.rentaNette || parseFloat((rentaBrute * 0.78).toFixed(1));
-  const noteInvest = rentaBrute >= 7 ? "Excellent" : rentaBrute >= 5.5 ? "Bon" : rentaBrute >= 4 ? "Moyen" : "Faible";
+// ─── Publication — constantes ─────────────────────────────────────────────────
 
-  const moisFort = ["mars","avril","mai","septembre","octobre"];
-  const moisFaible = ["janvier","août","décembre"];
+const PLATEFORMES_PUBLICATION = [
+  { id: 'leboncoin', nom: 'LeBonCoin', logo: '🟠', description: 'API Pro (clé requise) · Lien direct sinon' },
+  { id: 'seloger',   nom: 'SeLoger',   logo: '🔵', description: 'Flux partenaire (clé requise) · Lien direct sinon' },
+  { id: 'bienici',   nom: 'BienIci',   logo: '🟢', description: 'Groupe SeLoger · même clé API' },
+  { id: 'pap',       nom: 'PAP.fr',    logo: '🔴', description: 'Lien pré-rempli (pas d\'API)' },
+  { id: 'logic_immo',nom: 'Logic-Immo',logo: '🟡', description: 'API partenaire (clé requise)' },
+];
 
-  return {
-    ville: ref.nom || ville,
-    departement: ref.dep || ref.departement || "—",
-    population: ref.pop || ref.population || null,
-    sourceRef: ref.source || "ville",
-    sourceDVFActive: !!statsDVF,
+const TYPE_BIENS_PUB = ['Appartement', 'Maison', 'Studio', 'Loft', 'Villa', 'Terrain', 'Commerce', 'Bureau'];
+const DPE_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+const EQUIPEMENTS_LIST = [
+  'Parking', 'Garage', 'Cave', 'Balcon', 'Terrasse', 'Jardin',
+  'Piscine', 'Ascenseur', 'Digicode', 'Gardien', 'Interphone',
+  'Double vitrage', 'Parquet', 'Cuisine équipée', 'Fibre optique',
+];
 
-    prix: {
-      prixM2Moyen: prixM2,
-      prixM2Median: prixMedian,
-      prixM2Min: statsDVF?.prixM2Min || Math.round(prixM2 * 0.62),
-      prixM2Max: statsDVF?.prixM2Max || Math.round(prixM2 * 1.75),
-      evolution1an: ref.evolution1an ?? -1.5,
-      evolution3ans: ref.evolution3ans ?? 8.0,
-      evolution5ans: ref.evolution5ans ?? 25.0,
-      tranchesLocales,
-      nbTransactionsDVF: statsDVF?.nbTransactions || null,
-    },
+const STATUS_CONFIG = {
+  publie:        { label: 'Publié',          color: '#3ecf8e', bg: 'rgba(62,207,142,0.08)',  border: 'rgba(62,207,142,0.3)'  },
+  lien_direct:   { label: 'Lien direct',     color: '#d4a853', bg: 'rgba(212,168,83,0.08)',  border: 'rgba(212,168,83,0.3)'  },
+  non_configure: { label: 'Non configuré',   color: '#6b6b78', bg: 'rgba(107,107,120,0.08)', border: 'rgba(107,107,120,0.3)' },
+  erreur:        { label: 'Erreur',          color: '#f04444', bg: 'rgba(240,68,68,0.08)',   border: 'rgba(240,68,68,0.3)'   },
+};
 
-    marche: {
-      tension: ref.tension || "moyen",
-      tensionLabel: ref.tension === "fort" ? "🔴 Marché tendu" : ref.tension === "faible" ? "🟢 Marché détendu" : "🟡 Marché équilibré",
-      delaiVenteMoyen: ref.delaiVente || 75,
-      tauxNegociation: ref.tauxNego || 4.8,
-      volumeAnnuel: ref.volumeAnnuel || 5000,
-      saisonnalite: { moisForts: moisFort, moisFaibles: moisFaible },
-    },
+// ─── Onboarding Agent ─────────────────────────────────────────────────────────
 
-    profilAcheteurs: {
-      budgetMedian: ref.budgetMedian || 210000,
-      apportMoyen: ref.apportMoyen || 15,
-      surfaceMoyenne: ref.surfaceMoyenne || 62,
-      piecesMoyennes: ref.piecesMoyennes || 3.0,
-      profilSocio: ref.dep === "75" || ref.dep === "92" ? "CSP+ urbain, investisseur" :
-                   ref.tension === "fort" ? "Actifs 28-40 ans, primo-accédants" : "Familles, retraités",
-      argumentsVente: [
-        `Prix m² ${ref.evolution1an > 0 ? "en hausse" : "stabilisé"} sur 1 an`,
-        `Délai de vente moyen : ${ref.delaiVente || 75} jours`,
-        `Tension marché : ${ref.tension || "moyen"}`,
-      ],
-    },
+function OnboardingAgent({ agentName, onComplete }) {
+  const [step, setStep] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const [checklist, setChecklist] = useState({ supabase: false, brevo: false, acheteur: false, scraper: false, match: false });
 
-    rentabilite: {
-      rentaBrute,
-      rentaNette,
-      loyerM2: loyer,
-      noteInvest,
-      loyer65m2: Math.round(loyer * 65),
-      valeurEstimee65m2: Math.round(prixM2 * 65),
-    },
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return;
+      const saved = JSON.parse(localStorage.getItem('pb_checklist') || '{}');
+      if (Object.keys(saved).length) setChecklist(c => ({ ...c, ...saved }));
+    } catch {}
+  }, []);
 
-    territoire: {
-      population: ref.pop || ref.population || null,
-      departement: ref.dep || ref.departement,
-      sourceData: "DVF Notaires + INSEE / FNAIM 2024",
-      miseAJour: "T4 2024",
-    },
-
-    prospection: {
-      meilleuresPeriodes: moisFort,
-      argumentPrix: `${prixM2.toLocaleString("fr-FR")} €/m² en moyenne`,
-      scoreMarche: ref.tension === "fort" ? 85 : ref.tension === "faible" ? 42 : 62,
-    },
-
-    conseilsAgent: genererConseils(ref, prixM2),
+  const goNext = () => {
+    if (animating) return;
+    setAnimating(true);
+    setTimeout(() => { setStep(s => Math.min(s + 1, ONBOARDING_STEPS.length - 1)); setAnimating(false); }, 180);
   };
+
+  const goPrev = () => {
+    if (animating || step === 0) return;
+    setAnimating(true);
+    setTimeout(() => { setStep(s => Math.max(s - 1, 0)); setAnimating(false); }, 180);
+  };
+
+  const toggleCheck = (key) => {
+    const updated = { ...checklist, [key]: !checklist[key] };
+    setChecklist(updated);
+    try { if (typeof window !== 'undefined') localStorage.setItem('pb_checklist', JSON.stringify(updated)); } catch {}
+  };
+
+  const cur = ONBOARDING_STEPS[step];
+  const isLast = step === ONBOARDING_STEPS.length - 1;
+  const checkDone = Object.values(checklist).filter(Boolean).length;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 500, margin: 20, overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
+        <div style={{ height: 3, background: '#1f1f24' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg, #8b6914, #d4a853)', width: `${((step + 1) / ONBOARDING_STEPS.length) * 100}%`, transition: 'width 0.4s ease' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '20px 32px 0' }}>
+          {ONBOARDING_STEPS.map((s, i) => (
+            <div key={s.id} onClick={() => i < step && setStep(i)} style={{ width: 7, height: 7, borderRadius: '50%', background: i === step ? '#d4a853' : i < step ? 'rgba(212,168,83,0.5)' : '#2a2a30', transform: i === step ? 'scale(1.4)' : 'scale(1)', transition: 'all 0.3s', cursor: i < step ? 'pointer' : 'default' }} />
+          ))}
+        </div>
+        <div style={{ padding: '24px 36px 12px', textAlign: 'center', opacity: animating ? 0 : 1, transition: 'opacity 0.18s' }}>
+          <div style={{ fontSize: 46, marginBottom: 18 }}>{cur.icon}</div>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, color: '#e8e8e8', fontWeight: 400, margin: '0 0 12px 0' }}>
+            {step === 0 ? `Bonjour, ${agentName} 👋` : cur.title}
+          </h2>
+          <p style={{ fontSize: 14, color: '#6b6b78', lineHeight: 1.65, margin: '0 0 18px 0' }}>{cur.desc}</p>
+          {cur.highlight && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.25)', borderRadius: 8, padding: '7px 14px', color: '#d4a853', fontSize: 13, marginBottom: 8 }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {cur.highlight}
+            </div>
+          )}
+          {cur.id === 'checklist' && (
+            <div style={{ textAlign: 'left', marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ color: '#6b6b78', fontSize: 12 }}>Progression</span>
+                <span style={{ color: '#d4a853', fontSize: 12, fontWeight: 600 }}>{checkDone}/{CHECKLIST_ITEMS.length}</span>
+              </div>
+              <div style={{ height: 4, background: '#1f1f24', borderRadius: 2, marginBottom: 12, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: '#3ecf8e', borderRadius: 2, width: `${(checkDone / CHECKLIST_ITEMS.length) * 100}%`, transition: 'width 0.4s' }} />
+              </div>
+              {CHECKLIST_ITEMS.map(item => (
+                <div key={item.id} onClick={() => toggleCheck(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 10, border: `1px solid ${checklist[item.id] ? 'rgba(62,207,142,0.35)' : 'rgba(255,255,255,0.07)'}`, background: checklist[item.id] ? 'rgba(62,207,142,0.07)' : '#1f1f24', cursor: 'pointer', marginBottom: 7, transition: 'all 0.2s' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${checklist[item.id] ? '#3ecf8e' : '#4b5563'}`, background: checklist[item.id] ? '#3ecf8e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                    {checklist[item.id] && <svg width="9" height="9" fill="none" stroke="#0f0f11" strokeWidth="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </div>
+                  <span style={{ fontSize: 13, color: checklist[item.id] ? '#6b6b78' : '#d1d5db', textDecoration: checklist[item.id] ? 'line-through' : 'none' }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 36px 26px', gap: 12 }}>
+          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Précédent</button>
+          <button onClick={onComplete} style={{ background: 'none', border: 'none', color: '#4b5563', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'underline' }}>Passer</button>
+          {isLast
+            ? <button onClick={onComplete} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Commencer →</button>
+            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Suivant →</button>
+          }
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function genererConseils(ref, prixM2) {
-  const conseils = [];
-  if (ref.tension === "fort") {
-    conseils.push("📈 Marché tendu : argumenter sur la rapidité de vente, proposer des estimations offensives.");
-    conseils.push("🎯 Cibler les vendeurs avec des biens depuis >90 jours en mandat exclusif.");
-  } else if (ref.tension === "faible") {
-    conseils.push("📉 Marché détendu : mettre en avant la qualité du bien et son rapport qualité/prix.");
-    conseils.push("🏷️ Travailler les prix avec soin — le taux de négociation dépasse " + (ref.tauxNego || 5) + " %.");
-  } else {
-    conseils.push("⚖️ Marché équilibré : miser sur la réactivité et la qualité de la présentation.");
-  }
-  if (ref.rentaBrute >= 6) {
-    conseils.push("💰 Rentabilité attractive (" + ref.rentaBrute + "% brut) — fort potentiel investisseurs locatifs.");
-  }
-  if (ref.evolution5ans > 30) {
-    conseils.push("📊 +"+ref.evolution5ans+"% en 5 ans : argument fort pour les vendeurs hésitants (plus-value réalisée).");
-  }
-  conseils.push("🗓️ Meilleures périodes de prospection : mars-mai et septembre-octobre.");
-  return conseils;
-}
+// ─── Onboarding Acheteur ──────────────────────────────────────────────────────
 
-// -----------------------------------------------------------
-// CACHE SUPABASE
-// -----------------------------------------------------------
-async function getCache(key) {
-  try {
-    const { data } = await supabase.from("dvf_cache").select("resultats, cached_at").eq("cache_key", key).single();
-    if (!data) return null;
-    const age = (Date.now() - new Date(data.cached_at).getTime()) / 3600000;
-    return age < 12 ? data.resultats : null;
-  } catch { return null; }
-}
+const ACHETEUR_STEPS = [
+  { id: 'identite', title: 'Qui est votre client ?', sub: 'Informations de contact' },
+  { id: 'budget', title: 'Quel est son budget ?', sub: 'Fourchette de prix' },
+  { id: 'bien', title: 'Quel type de bien ?', sub: 'Nature et surface' },
+  { id: 'localisation', title: 'Où cherche-t-il ?', sub: 'Zone géographique' },
+  { id: 'options', title: 'Des critères spécifiques ?', sub: 'Options et équipements' },
+  { id: 'recap', title: 'Récapitulatif', sub: 'Vérifiez avant d\'enregistrer' },
+];
 
-async function setCache(key, ville, resultats) {
-  try {
-    await supabase.from("dvf_cache").upsert({ cache_key: key, ville, resultats, cached_at: new Date().toISOString() });
-  } catch {}
-}
+function OnboardingAcheteur({ onComplete, onClose }) {
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [form, setForm] = useState({
+    nom: '', prenom: '', email: '', telephone: '',
+    budget_min: '', budget_max: '',
+    type_bien: 'Tous', surface_min: '', surface_max: '', pieces_min: '', chambres_min: '',
+    ville: '', departement: '', code_postal: '',
+    jardin: false, terrasse: false, parking: false, cave: false, piscine: false,
+    notes: '',
+  });
 
-// -----------------------------------------------------------
-// HANDLER PRINCIPAL
-// -----------------------------------------------------------
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const set = (key, val) => { setForm(f => ({ ...f, [key]: val })); setErrors(e => ({ ...e, [key]: null })); };
 
-  const { ville, typeBien = "appartement", codePostal } = req.body;
-  if (!ville) return res.status(400).json({ error: "Paramètre 'ville' requis" });
-
-  const cacheKey = `immo_${normalise(ville)}_${typeBien}`;
-  const cached = await getCache(cacheKey);
-  if (cached) return res.status(200).json({ ...cached, fromCache: true });
-
-  // 1. Résoudre ville
-  const ref = resoudreVille(ville, codePostal);
-
-  // 2. Résoudre code postal pour DVF
-  let cp = codePostal;
-  if (!cp) {
-    const geo = await fetchCodeInsee(ville);
-    cp = geo.codePostal;
-  }
-
-  // 3. Tenter DVF live
-  let statsDVF = null;
-  if (cp) {
-    const transactions = await fetchDVF(cp, typeBien);
-    if (transactions) {
-      statsDVF = calculerStatsDVF(transactions, typeBien);
-      // Sauvegarder les transactions brutes
-      if (transactions.length > 0) {
-        try {
-          const rows = transactions.slice(0, 50).map(t => ({
-            adresse: [t.no_voie, t.type_de_voie, t.voie, t.commune].filter(Boolean).join(" "),
-            ville: t.commune || ville,
-            code_postal: cp,
-            prix: t.valeur_fonciere,
-            surface: t.surface_reelle_bati,
-            type_bien: t.type_local,
-            date_mutation: t.date_mutation,
-            nb_pieces: t.nombre_pieces_principales,
-          })).filter(r => r.prix && r.surface);
-          if (rows.length) await supabase.from("biens").upsert(rows, { onConflict: "adresse,date_mutation" });
-        } catch {}
-      }
+  const validateStep = () => {
+    const e = {};
+    if (step === 0) {
+      if (!form.nom.trim()) e.nom = 'Nom requis';
+      if (!form.email.trim()) e.email = 'Email requis';
+      else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email invalide';
     }
-  }
-
-  // 4. Générer données enrichies
-  const resultats = genererDonneesEnrichies(ref, statsDVF, ville, typeBien);
-
-  // Compat stats legacy
-  const stats = {
-    prixMoyen: resultats.prix.prixM2Moyen,
-    prixMedian: resultats.prix.prixM2Median,
-    prixMin: resultats.prix.prixM2Min,
-    prixMax: resultats.prix.prixM2Max,
-    nbTransactions: statsDVF?.nbTransactions || 0,
-    sourceDVF: !!statsDVF,
+    if (step === 1 && !form.budget_max) e.budget_max = 'Budget maximum requis';
+    if (step === 3 && !form.ville.trim() && !form.departement.trim() && !form.code_postal.trim()) e.ville = 'Au moins un critère de localisation requis';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const reponse = { stats, ...resultats };
-  await setCache(cacheKey, ville, reponse);
+  const goNext = () => { if (validateStep()) setStep(s => Math.min(s + 1, ACHETEUR_STEPS.length - 1)); };
+  const goPrev = () => setStep(s => Math.max(s - 1, 0));
 
-  // Log
-  try { await supabase.from("scraper_logs").insert({ source: "immobilier_api", ville, statut: "ok", nb_resultats: stats.nbTransactions }); } catch {}
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        nom: `${form.nom} ${form.prenom}`.trim(),
+        email: form.email,
+        telephone: form.telephone,
+        budget_min: form.budget_min ? parseInt(form.budget_min) : null,
+        budget_max: form.budget_max ? parseInt(form.budget_max) : null,
+        type_bien: form.type_bien === 'Tous' ? null : form.type_bien,
+        surface_min: form.surface_min ? parseInt(form.surface_min) : null,
+        surface_max: form.surface_max ? parseInt(form.surface_max) : null,
+        pieces_min: form.pieces_min ? parseInt(form.pieces_min) : null,
+        chambres_min: form.chambres_min ? parseInt(form.chambres_min) : null,
+        villes: form.ville ? [form.ville] : [],
+        departement: form.departement,
+        code_postal: form.code_postal,
+        jardin: form.jardin, terrasse: form.terrasse, parking: form.parking, cave: form.cave, piscine: form.piscine,
+        notes: form.notes,
+        actif: true,
+      };
+      const res = await fetch('/api/immobilier/acheteurs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onComplete && onComplete(data.data);
+        if (data.data?.id) router.push(`/acheteurs/${data.data.id}`);
+      } else {
+        alert('Erreur : ' + (data.error || 'Erreur inconnue'));
+      }
+    } catch (err) {
+      alert('Erreur réseau');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  return res.status(200).json(reponse);
+  const fmt = (n) => n ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n) : '—';
+  const cur = ACHETEUR_STEPS[step];
+  const isLast = step === ACHETEUR_STEPS.length - 1;
+
+  const inputStyle = (err) => ({ width: '100%', background: '#1f1f24', border: `1px solid ${err ? '#f04444' : 'rgba(255,255,255,0.07)'}`, borderRadius: 8, padding: '10px 13px', fontSize: 13.5, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', outline: 'none', boxSizing: 'border-box' });
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 540, margin: 20, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '26px 30px 16px' }}>
+          <div>
+            <p style={{ fontSize: 11, color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Étape {step + 1} / {ACHETEUR_STEPS.length} — {cur.sub}</p>
+            <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22, color: '#e8e8e8', fontWeight: 400, margin: 0 }}>{cur.title}</h2>
+          </div>
+          <button onClick={onClose} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: 8, cursor: 'pointer', color: '#a0a0ae', display: 'flex' }}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 4, padding: '0 30px 18px' }}>
+          {ACHETEUR_STEPS.map((s, i) => (
+            <div key={s.id} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? '#d4a853' : '#2a2a30', opacity: i === step ? 1 : i < step ? 0.6 : 0.3, transition: 'all 0.3s' }} />
+          ))}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 30px' }}>
+          {step === 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Nom *</label>
+                <input style={inputStyle(errors.nom)} placeholder="Dupont" value={form.nom} onChange={e => set('nom', e.target.value)} />
+                {errors.nom && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.nom}</p>}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Prénom</label>
+                <input style={inputStyle()} placeholder="Jean" value={form.prenom} onChange={e => set('prenom', e.target.value)} />
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Email *</label>
+                <input style={inputStyle(errors.email)} type="email" placeholder="jean.dupont@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
+                {errors.email && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.email}</p>}
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Téléphone</label>
+                <input style={inputStyle()} type="tel" placeholder="06 12 34 56 78" value={form.telephone} onChange={e => set('telephone', e.target.value)} />
+              </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Budget min (€)</label>
+                <input style={inputStyle()} type="number" placeholder="100 000" value={form.budget_min} onChange={e => set('budget_min', e.target.value)} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Budget max (€) *</label>
+                <input style={inputStyle(errors.budget_max)} type="number" placeholder="350 000" value={form.budget_max} onChange={e => set('budget_max', e.target.value)} />
+                {errors.budget_max && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.budget_max}</p>}
+              </div>
+            </div>
+          )}
+          {step === 2 && (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Type de bien</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {TYPES_BIEN.map(t => (
+                    <button key={t} onClick={() => set('type_bien', t)} style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${form.type_bien === t ? '#d4a853' : 'rgba(255,255,255,0.07)'}`, background: form.type_bien === t ? 'rgba(212,168,83,0.12)' : '#1f1f24', color: form.type_bien === t ? '#d4a853' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>{t}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Surface min (m²)</label>
+                  <input style={inputStyle()} type="number" placeholder="40" value={form.surface_min} onChange={e => set('surface_min', e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Surface max (m²)</label>
+                  <input style={inputStyle()} type="number" placeholder="120" value={form.surface_max} onChange={e => set('surface_max', e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Pièces min</label>
+                  <input style={inputStyle()} type="number" placeholder="2" value={form.pieces_min} onChange={e => set('pieces_min', e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Chambres min</label>
+                  <input style={inputStyle()} type="number" placeholder="1" value={form.chambres_min} onChange={e => set('chambres_min', e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+          {step === 3 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Ville</label>
+                <input style={inputStyle(errors.ville)} placeholder="Paris, Lyon, Bordeaux..." value={form.ville} onChange={e => set('ville', e.target.value)} />
+                {errors.ville && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.ville}</p>}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Département</label>
+                <input style={inputStyle()} placeholder="75, 69, 33..." value={form.departement} onChange={e => set('departement', e.target.value)} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Code postal</label>
+                <input style={inputStyle()} placeholder="75001" value={form.code_postal} onChange={e => set('code_postal', e.target.value)} />
+              </div>
+              <p style={{ gridColumn: '1/-1', fontSize: 12, color: '#4b5563', fontStyle: 'italic' }}>Remplissez au moins un champ. Plus c'est précis, meilleurs seront les matchs.</p>
+            </div>
+          )}
+          {step === 4 && (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Équipements souhaités</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {[{ k: 'jardin', l: ' Jardin' }, { k: 'terrasse', l: ' Terrasse' }, { k: 'parking', l: ' Parking' }, { k: 'cave', l: ' Cave' }, { k: 'piscine', l: ' Piscine' }].map(opt => (
+                    <button key={opt.k} onClick={() => set(opt.k, !form[opt.k])} style={{ padding: '9px 16px', borderRadius: 9, border: `1px solid ${form[opt.k] ? '#3ecf8e' : 'rgba(255,255,255,0.07)'}`, background: form[opt.k] ? 'rgba(62,207,142,0.1)' : '#1f1f24', color: form[opt.k] ? '#3ecf8e' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>{opt.l}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Notes internes</label>
+                <textarea style={{ ...inputStyle(), height: 90, resize: 'vertical', paddingTop: 10, lineHeight: 1.6 }} placeholder="Préférences particulières, situation personnelle..." value={form.notes} onChange={e => set('notes', e.target.value)} />
+              </div>
+            </div>
+          )}
+          {step === 5 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[
+                { l: 'Nom', v: `${form.nom} ${form.prenom}`.trim() || '—' },
+                { l: 'Email', v: form.email || '—' },
+                { l: 'Téléphone', v: form.telephone || '—' },
+                { l: 'Budget', v: `${form.budget_min ? fmt(form.budget_min) + ' — ' : ''}${fmt(form.budget_max)}`, gold: true },
+                { l: 'Type de bien', v: form.type_bien },
+                { l: 'Surface', v: form.surface_min || form.surface_max ? `${form.surface_min || '?'} — ${form.surface_max || '?'} m²` : '—' },
+                { l: 'Pièces min', v: form.pieces_min || '—' },
+                { l: 'Localisation', v: [form.ville, form.departement, form.code_postal].filter(Boolean).join(', ') || '—' },
+                { l: 'Équipements', v: ['jardin', 'terrasse', 'parking', 'cave', 'piscine'].filter(k => form[k]).join(', ') || 'Aucun' },
+              ].map((item, i) => (
+                <div key={i} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, padding: '11px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{item.l}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, color: item.gold ? '#d4a853' : '#e8e8e8' }}>{item.v}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '18px 30px 26px', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: 16 }}>
+          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '10px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Retour</button>
+          {isLast
+            ? <button onClick={handleSave} disabled={saving} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: saving ? 0.7 : 1 }}>{saving ? 'Enregistrement...' : 'Enregistrer ✓'}</button>
+            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Continuer →</button>
+          }
+        </div>
+      </div>
+    </div>
+  );
 }
+
+// ─── Publication Modal ────────────────────────────────────────────────────────
+
+const PUB_ETAPES = ['Bien', 'Détails', 'Photos', 'Texte IA', 'Plateformes'];
+
+function PublicationModal({ onClose, onSuccess }) {
+  const [etape, setEtape] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [texteGenere, setTexteGenere] = useState(null);
+  const [resultats, setResultats] = useState(null);
+  const [plateformesSelectionnees, setPlateformesSelectionnees] = useState(['leboncoin', 'seloger', 'bienici', 'pap']);
+  const [bien, setBien] = useState({
+    type: 'Appartement', transaction: 'vente',
+    surface: '', pieces: '', chambres: '', prix: '',
+    ville: '', codePostal: '', etage: '', ascenseur: false,
+    charges: '', depot: '', dpe: 'C', ges: 'C',
+    equipements: [], photos: [], descriptionLibre: '',
+  });
+
+  const upd = (k, v) => setBien(p => ({ ...p, [k]: v }));
+  const toggleEq = (eq) => setBien(p => ({ ...p, equipements: p.equipements.includes(eq) ? p.equipements.filter(e => e !== eq) : [...p.equipements, eq] }));
+  const togglePl = (id) => setPlateformesSelectionnees(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+
+  const handlePhotos = (e) => {
+    const urls = Array.from(e.target.files).map(f => URL.createObjectURL(f));
+    upd('photos', [...bien.photos, ...urls]);
+  };
+
+  const genererTexte = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/immobilier/publier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generer', bien }),
+      });
+      const data = await res.json();
+      if (data.texte) { setTexteGenere(data.texte); setEtape(3); }
+    } catch {
+      setTexteGenere({
+        titre: `${bien.type} ${bien.surface}m² - ${bien.ville}`,
+        description: `${bien.type} de ${bien.surface}m² à ${bien.ville}. ${bien.pieces} pièces dont ${bien.chambres} chambres. DPE ${bien.dpe}. ${bien.descriptionLibre}`,
+        pointsForts: [`${bien.surface}m²`, `${bien.pieces} pièces`, `DPE ${bien.dpe}`, bien.ville],
+        descriptionCourte: `${bien.type} ${bien.surface}m² ${bien.pieces}p - ${bien.ville}`,
+      });
+      setEtape(3);
+    } finally { setLoading(false); }
+  };
+
+  const publier = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/immobilier/publier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'publier', bien: { ...bien, texteGenere }, plateformes: plateformesSelectionnees }),
+      });
+      const data = await res.json();
+      if (data.resultats) { setResultats(data.resultats); }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const iStyle = { width: '100%', background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 13px', fontSize: 13.5, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', outline: 'none', boxSizing: 'border-box' };
+  const taStyle = { ...iStyle, resize: 'vertical', minHeight: 90, lineHeight: 1.6, paddingTop: 10 };
+  const toggleStyle = (active) => ({ padding: '8px 14px', borderRadius: 8, border: `1px solid ${active ? '#d4a853' : 'rgba(255,255,255,0.07)'}`, background: active ? 'rgba(212,168,83,0.1)' : '#1f1f24', color: active ? '#d4a853' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' });
+  const lbl = { display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 };
+
+  const canProceed = () => {
+    if (etape === 0) return bien.surface && bien.pieces && bien.prix && bien.ville && bien.codePostal;
+    if (etape === 3) return !!texteGenere;
+    return true;
+  };
+
+  const handleNext = () => {
+    if (etape === 2) { genererTexte(); return; }
+    if (etape === 4 && !resultats) { publier(); return; }
+    if (etape === 4 && resultats) { onSuccess?.(); onClose(); return; }
+    setEtape(e => e + 1);
+  };
+
+  const nextLabel = () => {
+    if (etape === 2) return loading ? ' Génération...' : ' Générer le texte';
+    if (etape === 4 && !resultats) return loading ? 'Publication...' : ` Publier sur ${plateformesSelectionnees.length} site${plateformesSelectionnees.length > 1 ? 's' : ''}`;
+    if (etape === 4 && resultats) return 'Terminer ✓';
+    return 'Continuer →';
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22, color: '#e8e8e8', fontWeight: 400, margin: 0 }}>Publier une annonce</h2>
+          <button onClick={onClose} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: 8, cursor: 'pointer', color: '#a0a0ae', display: 'flex' }}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        {/* Steps */}
+        <div style={{ display: 'flex', gap: 4, padding: '14px 28px' }}>
+          {PUB_ETAPES.map((s, i) => (
+            <div key={s} style={{ flex: 1, textAlign: 'center', padding: '7px 4px', borderRadius: 8, fontSize: 12, fontFamily: 'DM Sans, sans-serif', fontWeight: i === etape ? 600 : 400, color: i < etape ? '#d4a853' : i === etape ? '#e8e8e8' : '#4b5563', background: i === etape ? '#1f1f24' : 'transparent', border: `1px solid ${i === etape ? 'rgba(212,168,83,0.3)' : i < etape ? 'rgba(212,168,83,0.15)' : 'transparent'}`, transition: 'all 0.3s' }}>
+              {i < etape ? '✓ ' : ''}{s}
+            </div>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 28px 20px' }}>
+
+          {/* Étape 0 — Bien */}
+          {etape === 0 && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <div>
+                  <label style={lbl}>Transaction</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {['vente', 'location'].map(t => <button key={t} style={toggleStyle(bien.transaction === t)} onClick={() => upd('transaction', t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+                  </div>
+                </div>
+                <div>
+                  <label style={lbl}>Type de bien</label>
+                  <select style={iStyle} value={bien.type} onChange={e => upd('type', e.target.value)}>
+                    {TYPE_BIENS_PUB.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <div><label style={lbl}>Surface (m²)</label><input style={iStyle} type="number" placeholder="75" value={bien.surface} onChange={e => upd('surface', e.target.value)} /></div>
+                <div><label style={lbl}>Pièces</label><input style={iStyle} type="number" placeholder="3" value={bien.pieces} onChange={e => upd('pieces', e.target.value)} /></div>
+                <div><label style={lbl}>Chambres</label><input style={iStyle} type="number" placeholder="2" value={bien.chambres} onChange={e => upd('chambres', e.target.value)} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <div><label style={lbl}>Prix (€){bien.transaction === 'location' ? '/mois' : ''}</label><input style={iStyle} type="number" placeholder={bien.transaction === 'location' ? '1200' : '250000'} value={bien.prix} onChange={e => upd('prix', e.target.value)} /></div>
+                <div><label style={lbl}>Ville</label><input style={iStyle} type="text" placeholder="Paris" value={bien.ville} onChange={e => upd('ville', e.target.value)} /></div>
+              </div>
+              <div><label style={lbl}>Code postal</label><input style={{ ...iStyle, maxWidth: 160 }} type="text" placeholder="75001" value={bien.codePostal} onChange={e => upd('codePostal', e.target.value)} /></div>
+            </div>
+          )}
+
+          {/* Étape 1 — Détails */}
+          {etape === 1 && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <div><label style={lbl}>Étage</label><input style={iStyle} type="number" placeholder="2" value={bien.etage} onChange={e => upd('etage', e.target.value)} /></div>
+                <div><label style={lbl}>DPE</label><select style={iStyle} value={bien.dpe} onChange={e => upd('dpe', e.target.value)}>{DPE_OPTIONS.map(d => <option key={d}>{d}</option>)}</select></div>
+                <div><label style={lbl}>GES</label><select style={iStyle} value={bien.ges} onChange={e => upd('ges', e.target.value)}>{DPE_OPTIONS.map(d => <option key={d}>{d}</option>)}</select></div>
+              </div>
+              {bien.transaction === 'location' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                  <div><label style={lbl}>Charges (€/mois)</label><input style={iStyle} type="number" placeholder="80" value={bien.charges} onChange={e => upd('charges', e.target.value)} /></div>
+                  <div><label style={lbl}>Dépôt de garantie (€)</label><input style={iStyle} type="number" placeholder="2400" value={bien.depot} onChange={e => upd('depot', e.target.value)} /></div>
+                </div>
+              )}
+              <div style={{ marginBottom: 16 }}>
+                <label style={lbl}>Ascenseur</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[true, false].map(v => <button key={String(v)} style={toggleStyle(bien.ascenseur === v)} onClick={() => upd('ascenseur', v)}>{v ? 'Oui' : 'Non'}</button>)}
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={lbl}>Équipements</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  {EQUIPEMENTS_LIST.map(eq => <button key={eq} style={toggleStyle(bien.equipements.includes(eq))} onClick={() => toggleEq(eq)}>{eq}</button>)}
+                </div>
+              </div>
+              <div><label style={lbl}>Description libre (optionnel)</label><textarea style={taStyle} placeholder="Ajoutez des détails pour enrichir l'annonce..." value={bien.descriptionLibre} onChange={e => upd('descriptionLibre', e.target.value)} /></div>
+            </div>
+          )}
+
+          {/* Étape 2 — Photos */}
+          {etape === 2 && (
+            <div>
+              <div style={{ border: '2px dashed rgba(255,255,255,0.1)', borderRadius: 12, padding: 32, textAlign: 'center', cursor: 'pointer', background: '#0f0f11', marginBottom: 16 }} onClick={() => document.getElementById('pub-photo-input').click()}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📷</div>
+                <p style={{ color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', fontSize: 14, margin: 0 }}>Cliquez pour ajouter des photos</p>
+                <p style={{ color: '#4b5563', fontFamily: 'DM Sans, sans-serif', fontSize: 12, marginTop: 4 }}>JPG, PNG · Max 10 photos</p>
+                <input id="pub-photo-input" type="file" accept="image/*" multiple hidden onChange={handlePhotos} />
+              </div>
+              {(bien.photos || []).length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  {(bien.photos || []).map((p, i) => (
+                    <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'hidden' }}>
+                      <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button onClick={() => upd('photos', bien.photos.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', width: 22, height: 22, borderRadius: '50%', cursor: 'pointer', fontSize: 12 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: '#4b5563', fontFamily: 'DM Sans, sans-serif', fontSize: 13, textAlign: 'center' }}>Vous pouvez passer cette étape et ajouter les photos directement sur chaque site.</p>
+              )}
+            </div>
+          )}
+
+          {/* Étape 3 — Texte IA */}
+          {etape === 3 && (
+            <div>
+              {!texteGenere ? (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <div style={{ fontSize: 40, marginBottom: 16 }}></div>
+                  <p style={{ color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>Générez automatiquement un texte d'annonce optimisé.</p>
+                  <button style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }} onClick={genererTexte} disabled={loading}>
+                    {loading ? 'Génération...' : ' Générer'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div><label style={lbl}>Titre</label><input style={iStyle} value={texteGenere.titre} onChange={e => setTexteGenere(p => ({ ...p, titre: e.target.value }))} /></div>
+                  <div><label style={lbl}>Description complète</label><textarea style={{ ...taStyle, minHeight: 130 }} value={texteGenere.description} onChange={e => setTexteGenere(p => ({ ...p, description: e.target.value }))} /></div>
+                  <div><label style={lbl}>Description courte (LeBonCoin)</label><textarea style={{ ...taStyle, minHeight: 60 }} value={texteGenere.descriptionCourte} onChange={e => setTexteGenere(p => ({ ...p, descriptionCourte: e.target.value }))} /></div>
+                  <div>
+                    <label style={lbl}>Points forts</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {texteGenere.pointsForts?.map((p, i) => <span key={i} style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', color: '#d4a853', padding: '4px 12px', borderRadius: 20, fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>{p}</span>)}
+                    </div>
+                  </div>
+                  <button style={{ background: '#1f1f24', color: '#6b6b78', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', alignSelf: 'flex-start' }} onClick={genererTexte} disabled={loading}> Régénérer</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Étape 4 — Plateformes + résultats */}
+          {etape === 4 && (
+            <div>
+              {!resultats ? (
+                <>
+                  <p style={{ fontSize: 13, color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', marginBottom: 16 }}>Sélectionnez les plateformes de diffusion :</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                    {PLATEFORMES_PUBLICATION.map(pl => (
+                      <div key={pl.id} onClick={() => togglePl(pl.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 12, cursor: 'pointer', background: plateformesSelectionnees.includes(pl.id) ? '#1f1f24' : '#17171a', border: `1px solid ${plateformesSelectionnees.includes(pl.id) ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.07)'}`, transition: 'all 0.2s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 20 }}>{pl.logo}</span>
+                          <div>
+                            <p style={{ margin: 0, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 14 }}>{pl.nom}</p>
+                            <p style={{ margin: 0, color: '#4b5563', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>{pl.description}</p>
+                          </div>
+                        </div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${plateformesSelectionnees.includes(pl.id) ? '#d4a853' : '#2a2a30'}`, background: plateformesSelectionnees.includes(pl.id) ? '#d4a853' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', flexShrink: 0 }}>
+                          {plateformesSelectionnees.includes(pl.id) && <span style={{ color: '#0f0f11', fontSize: 11, fontWeight: 'bold' }}>✓</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: '#d4a853', marginBottom: 16 }}>Résultats de publication</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {Object.entries(resultats).map(([id, data]) => {
+                      const pl = PLATEFORMES_PUBLICATION.find(p => p.id === id);
+                      const cfg = STATUS_CONFIG[data.status] || STATUS_CONFIG.erreur;
+                      return (
+                        <div key={id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 12, background: '#1f1f24', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ fontSize: 20 }}>{pl?.logo}</span>
+                            <div>
+                              <p style={{ margin: 0, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 14 }}>{pl?.nom}</p>
+                              <p style={{ margin: 0, color: '#4b5563', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>{data.message || cfg.label}</p>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
+                            {data.url && <a href={data.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, background: '#2a2a30', color: '#d4a853', border: '1px solid rgba(255,255,255,0.07)', textDecoration: 'none' }}>{data.status === 'publie' ? 'Voir →' : 'Publier →'}</a>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '18px 28px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          {etape > 0 && !resultats
+            ? <button style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '10px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }} onClick={() => setEtape(e => e - 1)}>← Retour</button>
+            : <div />
+          }
+          <button style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: canProceed() ? 1 : 0.45 }}
+            onClick={handleNext} disabled={!canProceed() || loading}>
+            {nextLabel()}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Publication Dashboard (onglet) ──────────────────────────────────────────
+
+function PublicationDashboard() {
+  return (
+    <div>
+      <div style={{ marginBottom: 32 }}>
+        <h2 className="page-title">Publication d'annonces</h2>
+        <p className="page-subtitle">Diffusez vos annonces sur LeBonCoin, SeLoger et BienIci</p>
+      </div>
+
+      {/* Bannière principale */}
+      <div style={{ background: 'rgba(212,168,83,0.05)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 16, padding: '40px 32px', textAlign: 'center', marginBottom: 28 }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
+          <svg width="24" height="24" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        </div>
+        <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, fontWeight: 400, color: '#e8e8e8', margin: '0 0 12px' }}>Disponible prochainement</h3>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.75, maxWidth: 480, margin: '0 auto 0' }}>
+          La publication automatique sur LeBonCoin, SeLoger et BienIci est en cours d'intégration via un partenaire agréé. Cette fonctionnalité sera activée dès que l'accord partenaire sera finalisé.
+        </p>
+      </div>
+
+      {/* Ce qui arrive */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+        {[
+          { plateforme: 'LeBonCoin', detail: 'Publication via compte Pro — accès flux XML en cours de négociation.' },
+          { plateforme: 'SeLoger', detail: 'Diffusion via partenaire agréé groupe SeLoger — accord partenaire en cours.' },
+          { plateforme: "BienIci", detail: 'Inclus dans l\'accord SeLoger — même partenaire, même activation.' },
+        ].map(item => (
+          <div key={item.plateforme} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 18px' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 8 }}>{item.plateforme}</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>{item.detail}</div>
+            <div style={{ marginTop: 12, display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: 'rgba(107,107,120,0.12)', border: '1px solid rgba(107,107,120,0.25)', fontSize: 11, color: '#6b6b78', fontWeight: 600 }}>En cours</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Ce que vous pouvez faire maintenant */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 22px' }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', margin: '0 0 14px' }}>En attendant, la génération IA du texte reste disponible</p>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, margin: 0 }}>
+          Dès l'activation, vos annonces seront rédigées automatiquement par IA à partir des données du bien, puis publiées en un clic sur les 3 plateformes simultanément. Vous serez notifié par email dès que la fonctionnalité est disponible.
+        </p>
+      </div>
+
+    </div>
+  );
+}
+
+// ─── UpgradeGate ──────────────────────────────────────────────────────────────
+
+const PLAN_LABELS = { gratuit: 'Gratuit', pro: 'Pro', agence: 'Agence' };
+
+function UpgradeGate({ planRequired, plan, featureLabel }) {
+  const requiredLabel = PLAN_LABELS[planRequired] || planRequired;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      minHeight: 340, padding: 40, textAlign: 'center', gap: 20,
+    }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: '50%',
+        background: 'rgba(201,169,110,0.08)', border: '1px solid rgba(201,169,110,0.2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c9a96e" strokeWidth="1.5">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div>
+        <p style={{ color: 'var(--text)', fontSize: 16, fontWeight: 500, margin: '0 0 8px' }}>
+          {featureLabel}
+        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+          Cette fonctionnalité est réservée au plan <strong style={{ color: '#c9a96e' }}>{requiredLabel}</strong>.
+          {' '}Votre plan actuel : <strong style={{ color: 'var(--text-dim)' }}>{PLAN_LABELS[plan] || plan}</strong>.
+        </p>
+      </div>
+      <a
+        href="/#tarifs"
+        style={{
+          display: 'inline-block', padding: '10px 24px',
+          background: 'linear-gradient(135deg, #c9a96e, #a07840)',
+          color: '#fff', borderRadius: 8, fontSize: 13,
+          fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.04em',
+          textDecoration: 'none', fontWeight: 600,
+        }}
+      >
+        Voir les offres
+      </a>
+    </div>
+  );
+}
+
+
+// ─── Sidebar Plan Block ───────────────────────────────────────────────────────
+
+function SidebarPlanBlock({ plan }) {
+  const [loading, setLoading] = useState(false);
+
+  const PLAN_CFG = {
+    gratuit: { label: 'Gratuit', color: '#6b6b78', bg: 'rgba(107,107,120,0.1)', border: 'rgba(107,107,120,0.25)' },
+    pro:     { label: 'Pro',     color: '#3ecf8e', bg: 'rgba(62,207,142,0.1)',  border: 'rgba(62,207,142,0.25)'  },
+    agence:  { label: 'Agence',  color: '#d4a853', bg: 'rgba(212,168,83,0.1)',  border: 'rgba(212,168,83,0.25)'  },
+  };
+  const cfg = PLAN_CFG[plan] || PLAN_CFG.gratuit;
+
+  const handleManage = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert(data.error || 'Erreur. Réessaie.');
+    } catch { alert('Erreur réseau.'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '4px 10px', borderRadius: 20, marginBottom: 8,
+        background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color,
+        fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+      }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
+        {cfg.label}
+      </div>
+      {plan === 'gratuit' ? (
+        <a href="/upgrade" style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '8px 12px', background: 'linear-gradient(135deg, #8b6914, #d4a853)',
+          color: '#0a0a0a', borderRadius: 8, fontSize: 11.5, fontWeight: 700,
+          textDecoration: 'none', fontFamily: 'DM Sans, sans-serif', marginBottom: 4,
+        }}>
+          ⚡ Passer Pro — 59€/mois
+        </a>
+      ) : (
+        <button onClick={handleManage} disabled={loading} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)',
+          borderRadius: 8, fontSize: 11.5, fontWeight: 600,
+          cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans, sans-serif',
+          marginBottom: 4,
+        }}>
+          {loading ? '...' : '⚙ Gérer mon abonnement'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+function ImmobilierDashboard() {
+  const { agent, logout, plan, isPro, isAgence } = useAuth();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Helper : peut accéder à une feature ?
+  const can = (feature) => canAccess(feature, plan, agent?.role);
+  const [biens, setBiens] = useState([]);
+  const [acheteurs, setAcheteurs] = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedProspects, setSelectedProspects] = useState([]);
+  const [biensFilter, setBiensFilter] = useState({ type: 'all', search: '' });
+
+  const [scraperForm, setScraperForm] = useState({ location: '', propertyType: 'appartement' });
+  const [scrapingProgress, setScrapingProgress] = useState(null);
+  const [marcheData, setMarcheData] = useState(null);
+  const [marcheOnglet, setMarcheOnglet] = useState('prix');
+
+  // ── Vendeurs potentiels ──
+  const [vendeursForm, setVendeursForm] = useState({ ville: '', type: 'all', surfaceMin: 0, scoreMin: 0 });
+  const [vendeursLoading, setVendeursLoading] = useState(false);
+  const [vendeursData, setVendeursData] = useState(null);
+  const [vendeursError, setVendeursError] = useState(null);
+  const [vendeursFilter, setVendeursFilter] = useState('all');
+  const [vendeurProspecte, setVendeurProspecte] = useState({});
+
+  const [emailForm, setEmailForm] = useState({ subject: '', message: '', senderName: '', senderEmail: '' });
+  const [emailStatus, setEmailStatus] = useState(null);
+
+  const [showOnboardingAgent, setShowOnboardingAgent] = useState(false);
+  const [showOnboardingAcheteur, setShowOnboardingAcheteur] = useState(false);
+  // ── B2B States ──
+  const [b2bSubTab, setB2bSubTab] = useState('dashboard');
+  const [b2bScraperUrl, setB2bScraperUrl] = useState('');
+  const [b2bScraperLoading, setB2bScraperLoading] = useState(false);
+  const [b2bScraperResult, setB2bScraperResult] = useState(null);
+  const [b2bScraperError, setB2bScraperError] = useState('');
+  const [b2bSelectedEmails, setB2bSelectedEmails] = useState([]);
+  const [b2bEmailForm, setB2bEmailForm] = useState({ senderName: '', senderEmail: '', subject: '', template: '' });
+  const [b2bEmailLoading, setB2bEmailLoading] = useState(false);
+  const [b2bEmailStatus, setB2bEmailStatus] = useState(null);
+  const [chatbots, setChatbots] = useState([]);
+  const [chatbotForm, setChatbotForm] = useState({ name: '', welcomeMessage: 'Bonjour ! Je suis votre assistant immobilier. Comment puis-je vous aider ?', color: '#d4a853', avatar: '🤖', questions: ['Quel est votre projet immobilier ?', 'Quel est votre budget ?', 'Dans quelle ville recherchez-vous ?'] });
+  const [chatbotCreating, setChatbotCreating] = useState(false);
+  const [chatbotCopied, setChatbotCopied] = useState(null);
+  const [chatbotShowForm, setChatbotShowForm] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
+  const [workflowsLoading, setWorkflowsLoading] = useState(false);
+  const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect' });
+  const [workflowCreating, setWorkflowCreating] = useState(false);
+  const [workflowShowForm, setWorkflowShowForm] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => {
+    setMounted(true);
+    setOrigin(window.location.origin);
+    loadAll();
+    try {
+      const done = localStorage.getItem('pb_onboarding_done');
+      if (!done) setTimeout(() => setShowOnboardingAgent(true), 400);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'b2b' && plan === 'agence') {
+      loadChatbots();
+      loadConversations();
+      loadWorkflows();
+    }
+  }, [activeTab, plan]);
+
+  const handleOnboardingAgentComplete = () => {
+    setShowOnboardingAgent(false);
+    try { localStorage.setItem('pb_onboarding_done', '1'); } catch {}
+  };
+
+  const handleOnboardingAcheteurComplete = () => {
+    setShowOnboardingAcheteur(false);
+    loadAll();
+  };
+
+  const loadAll = async () => {
+    try {
+      const [biensRes, acheteursRes, matchesRes, statsRes] = await Promise.all([
+        fetch('/api/immobilier/biens'),
+        fetch('/api/immobilier/acheteurs'),
+        fetch('/api/immobilier/matches'),
+        fetch('/api/immobilier/stats'),
+      ]);
+      if (biensRes.ok) { const d = await biensRes.json(); setBiens(d.data || []); }
+      if (acheteursRes.ok) { const d = await acheteursRes.json(); setAcheteurs(d.data || []); }
+      if (matchesRes.ok) { const d = await matchesRes.json(); setMatches(d.data || []); }
+      if (statsRes.ok) { const d = await statsRes.json(); setStats(d.data || null); }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleScrape = async () => {
+    if (!scraperForm.location.trim()) return;
+    setLoading(true);
+    setScrapingProgress({ status: 'running', message: `Analyse du marché de ${scraperForm.location}…` });
+    setMarcheData(null);
+    try {
+      const res = await fetch('/api/scraper/immobilier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ville: scraperForm.location.trim(),
+          type: scraperForm.propertyType === 'all' ? 'appartement' : scraperForm.propertyType,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMarcheData(data);
+        setMarcheOnglet('prix');
+        setScrapingProgress({ status: 'done' });
+      } else {
+        setScrapingProgress({ status: 'error', message: data.error || 'Erreur inconnue' });
+      }
+    } catch (err) {
+      setScrapingProgress({ status: 'error', message: err.message });
+    } finally { setLoading(false); }
+  };
+
+  const resetScraper = () => {
+    setScrapingProgress(null);
+    setMarcheData(null);
+    setScraperForm({ location: '', propertyType: 'appartement' });
+  };
+
+  const handleVendeurs = async () => {
+    if (!vendeursForm.ville.trim()) return;
+    setVendeursLoading(true);
+    setVendeursError(null);
+    setVendeursData(null);
+    try {
+      const res = await fetch('/api/scraper/vendeurs-potentiels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-plan': plan || 'gratuit' },
+        body: JSON.stringify({
+          ville: vendeursForm.ville.trim(),
+          type: vendeursForm.type,
+          surfaceMin: parseInt(vendeursForm.surfaceMin) || 0,
+          scoreMin: parseInt(vendeursForm.scoreMin) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setVendeursData(data);
+      } else {
+        setVendeursError(data.error || 'Erreur inconnue');
+      }
+    } catch (err) {
+      setVendeursError(err.message);
+    } finally {
+      setVendeursLoading(false);
+    }
+  };
+
+  const fmtPrix = (v) => v ? Math.round(v).toLocaleString('fr-FR') + '€' : '–';
+  const fmtPct = (v) => { if (v === null || v === undefined) return '–'; return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
+  const coulEvol = (v) => !v ? '#888' : v > 0 ? '#3ecf8e' : v < -2 ? '#f04444' : '#d4a853';
+
+  const handleSendEmail = async (e) => {
+    e.preventDefault();
+    if (selectedProspects.length === 0) return;
+    setLoading(true);
+    setEmailStatus(null);
+    try {
+      const res = await fetch('/api/B2B/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipients: selectedProspects.map(email => ({ email })), subject: emailForm.subject, template: emailForm.message, senderName: emailForm.senderName, senderEmail: emailForm.senderEmail }),
+      });
+      const data = await res.json();
+      setEmailStatus(res.ok ? { success: true, sent: data.sent } : { success: false, error: data.error });
+    } catch (err) {
+      setEmailStatus({ success: false, error: err.message });
+    } finally { setLoading(false); }
+  };
+
+  const handleMatchAuto = async () => {
+    setLoading(true);
+    try {
+      await fetch('/api/immobilier/match-auto', { method: 'POST' });
+      loadAll();
+    } finally { setLoading(false); }
+  };
+
+  const toggleProspect = (email) => {
+    setSelectedProspects(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
+  };
+
+
+  // ── B2B Handlers ──
+  const handleB2BScrape = async () => {
+    if (!b2bScraperUrl.trim()) return;
+    setB2bScraperLoading(true);
+    setB2bScraperError('');
+    setB2bScraperResult(null);
+    setB2bSelectedEmails([]);
+    try {
+      const res = await fetch('/api/B2B/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: b2bScraperUrl }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setB2bScraperResult(data);
+        setB2bSelectedEmails(data.emails || []);
+      } else {
+        setB2bScraperError(data.error || 'Erreur lors du scraping');
+      }
+    } catch (err) {
+      setB2bScraperError(err.message);
+    } finally {
+      setB2bScraperLoading(false);
+    }
+  };
+
+  const handleB2BSendEmail = async () => {
+    if (b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template) return;
+    setB2bEmailLoading(true);
+    setB2bEmailStatus(null);
+    try {
+      const res = await fetch('/api/B2B/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderName: b2bEmailForm.senderName || 'ProspectBot',
+          senderEmail: b2bEmailForm.senderEmail || 'noreply@prospectbot.fr',
+          subject: b2bEmailForm.subject,
+          template: b2bEmailForm.template,
+          recipients: b2bSelectedEmails.map(email => ({ email, name: 'Prospect' })),
+        }),
+      });
+      const data = await res.json();
+      setB2bEmailStatus(res.ok ? { success: true, sent: data.sent, total: data.total } : { success: false, error: data.error });
+    } catch (err) {
+      setB2bEmailStatus({ success: false, error: err.message });
+    } finally {
+      setB2bEmailLoading(false);
+    }
+  };
+
+  const loadChatbots = async () => {
+    try {
+      const res = await fetch('/api/B2B/chatbot');
+      const data = await res.json();
+      if (data.success) setChatbots(data.chatbots || []);
+    } catch {}
+  };
+
+  const loadConversations = async () => {
+    try {
+      const res = await fetch('/api/B2B/chatbot-conversations');
+      const data = await res.json();
+      if (data.success) setConversations(data.conversations || []);
+    } catch {}
+  };
+
+  const handleCreateChatbot = async () => {
+    if (!chatbotForm.name || !chatbotForm.welcomeMessage) return;
+    setChatbotCreating(true);
+    try {
+      const res = await fetch('/api/B2B/chatbot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chatbotForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setChatbots(prev => [data.chatbot, ...prev]);
+        setChatbotShowForm(false);
+        setChatbotForm({ name: '', welcomeMessage: 'Bonjour ! Je suis votre assistant immobilier. Comment puis-je vous aider ?', color: '#d4a853', avatar: '🤖', questions: ['Quel est votre projet immobilier ?', 'Quel est votre budget ?', 'Dans quelle ville recherchez-vous ?'] });
+      }
+    } catch {}
+    finally { setChatbotCreating(false); }
+  };
+
+  const handleDeleteChatbot = async (id) => {
+    try {
+      await fetch('/api/B2B/chatbot', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      setChatbots(prev => prev.filter(c => c.id !== id));
+    } catch {}
+  };
+
+  const loadWorkflows = async () => {
+    setWorkflowsLoading(true);
+    try {
+      const res = await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list' }),
+      });
+      const data = await res.json();
+      if (data.success) setWorkflows(data.workflows || []);
+    } catch {}
+    finally { setWorkflowsLoading(false); }
+  };
+
+  const handleCreateWorkflow = async () => {
+    if (!workflowForm.name) return;
+    setWorkflowCreating(true);
+    try {
+      const actions = [
+        { type: 'send_email', subject: 'Merci pour votre intérêt', content: '<p>Bonjour,</p><p>Merci de nous avoir contactés. Un agent vous recontactera rapidement.</p>' },
+        { type: 'notify_team' }
+      ];
+      const res = await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', name: workflowForm.name, trigger: workflowForm.trigger, actions }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWorkflows(prev => [data.workflow, ...prev]);
+        setWorkflowShowForm(false);
+        setWorkflowForm({ name: '', trigger: 'new_prospect' });
+      }
+    } catch {}
+    finally { setWorkflowCreating(false); }
+  };
+
+  const handleToggleWorkflow = async (id, active) => {
+    try {
+      await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle', workflow_id: id, active: !active }),
+      });
+      setWorkflows(prev => prev.map(w => w.id === id ? { ...w, active: !active } : w));
+    } catch {}
+  };
+
+  const handleDeleteWorkflow = async (id) => {
+    try {
+      await fetch('/api/B2B/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', workflow_id: id }),
+      });
+      setWorkflows(prev => prev.filter(w => w.id !== id));
+    } catch {}
+  };
+
+  const filteredBiens = biens.filter(b => {
+    const matchType = biensFilter.type === 'all' || b.type === biensFilter.type;
+    const matchSearch = !biensFilter.search || b.titre?.toLowerCase().includes(biensFilter.search.toLowerCase()) || b.ville?.toLowerCase().includes(biensFilter.search.toLowerCase());
+    return matchType && matchSearch;
+  });
+
+  if (!mounted) return null;
+
+  return (
+    <>
+      <Head>
+        <title>Immo Dashboard</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
+
+      <style>{`
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { font-family: 'DM Sans', sans-serif; background: #080809; color: #e8e8e8; min-height: 100vh; overflow-x: hidden; }
+        body::before {
+          content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+          opacity: 0.4;
+        }
+        :root {
+          --bg: #080809; --surface: #111113; --surface2: #17171a;
+          --border: rgba(255,255,255,0.07); --border-hover: rgba(255,255,255,0.14);
+          --text: #e8e8e8; --text-muted: #6b6b78; --text-dim: #a0a0ae;
+          --accent: #d4a853; --accent-dim: rgba(212,168,83,0.10); --accent-border: rgba(212,168,83,0.3);
+          --green: #3ecf8e; --green-dim: rgba(62,207,142,0.1);
+          --red: #f04444; --red-dim: rgba(240,68,68,0.1);
+          --blue: #5b8dee; --blue-dim: rgba(91,141,238,0.1);
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(212,168,83,0.2); border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(212,168,83,0.35); }
+        .layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 220px; flex-shrink: 0; background: rgba(255,255,255,0.02); border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+        .sidebar-logo { padding: 28px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .sidebar-logo h1 { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--accent); letter-spacing: 0.5px; font-style: italic; }
+        .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 3px; letter-spacing: 1px; text-transform: uppercase; }
+        .sidebar-nav { padding: 16px 12px; flex: 1; }
+        .sidebar-footer { padding: 14px 12px; border-top: 1px solid rgba(255,255,255,0.06); }
+        .agent-info { padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; margin-bottom: 8px; }
+        .agent-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .agent-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; }
+        .logout-btn:hover { color: #f04444; border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.05); }
+        .help-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 12px; font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: color 0.15s; text-align: left; margin-bottom: 6px; }
+        .help-btn:hover { color: var(--accent); }
+        .nav-item { display: flex; align-items: center; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 400; color: rgba(255,255,255,0.45); transition: all 0.15s; margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left; letter-spacing: 0.2px; }
+        .nav-item:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.04); }
+        .nav-item.active { color: var(--accent); background: var(--accent-dim); font-weight: 500; }
+        .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: 10px; opacity: 0.5; }
+        .nav-item.active .nav-dot { opacity: 1; }
+        .nav-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 8px 0; }
+        .main { flex: 1; overflow-y: auto; padding: 40px 48px; max-width: 1100px; }
+        .page-header { margin-bottom: 36px; }
+        .page-title { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 300; color: var(--text); letter-spacing: -0.5px; }
+        .page-subtitle { font-size: 13.5px; color: var(--text-muted); margin-top: 6px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 36px; }
+        .stat-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 22px 20px; cursor: pointer; transition: border-color 0.2s, transform 0.2s; }
+        .stat-card:hover { border-color: rgba(212,168,83,0.25); transform: translateY(-2px); }
+        .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); font-weight: 500; }
+        .stat-value { font-size: 36px; font-family: 'Cormorant Garamond', serif; color: var(--accent); margin-top: 8px; letter-spacing: -1px; font-weight: 500; }
+        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+        .card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 28px; margin-bottom: 20px; transition: border-color 0.2s; }
+        .card:hover { border-color: rgba(255,255,255,0.1); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .card-title { font-size: 14px; font-weight: 500; color: var(--text); letter-spacing: 0.2px; }
+        .card-link { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
+        .card-link:hover { opacity: 0.8; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .list-item:last-child { border-bottom: none; }
+        .list-item-main { font-size: 13.5px; color: var(--text); font-weight: 500; }
+        .list-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .list-item-right { text-align: right; font-size: 13px; color: var(--text); font-weight: 500; }
+        .list-item-right small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.2px; }
+        .badge-blue { background: var(--blue-dim); color: var(--blue); }
+        .badge-green { background: var(--green-dim); color: var(--green); }
+        .badge-gold { background: var(--accent-dim); color: var(--accent); }
+        .badge-neutral { background: var(--surface2); color: var(--text-muted); }
+        .score-bar { height: 3px; background: var(--surface2); border-radius: 2px; margin-top: 6px; }
+        .score-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.4s; }
+        label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
+        input[type="text"], input[type="email"], input[type="number"], input[type="tel"], select, textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent-border); background: rgba(212,168,83,0.03); }
+        input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.2); }
+        select option { background: #111113; }
+        textarea { resize: vertical; line-height: 1.6; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 10px; font-size: 13.5px; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s; }
+        .btn-primary { background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; box-shadow: 0 4px 20px rgba(212,168,83,0.2); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(212,168,83,0.35); }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-secondary { background: rgba(255,255,255,0.04); color: var(--text-dim); border: 1px solid rgba(255,255,255,0.09); }
+        .btn-secondary:hover { border-color: rgba(255,255,255,0.14); color: var(--text); }
+        .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.09); }
+        .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.14); }
+        .btn-full { width: 100%; }
+        .site-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .site-card { padding: 18px 16px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); cursor: pointer; transition: all 0.15s; text-align: left; }
+        .site-card:hover { border-color: rgba(255,255,255,0.14); }
+        .site-card.selected { border-color: var(--accent-border); background: var(--accent-dim); }
+        .site-name { font-size: 14px; font-weight: 600; color: var(--text); }
+        .site-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+        .site-check { display: inline-block; margin-top: 10px; font-size: 11px; color: var(--accent); font-weight: 500; }
+        .step-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); font-weight: 600; margin-bottom: 14px; }
+        .step-block { margin-bottom: 28px; }
+        .progress-box { padding: 20px 22px; border-radius: 12px; border: 1px solid; margin-bottom: 24px; }
+        .progress-running { border-color: rgba(91,141,238,0.3); background: rgba(91,141,238,0.08); }
+        .progress-done { border-color: rgba(62,207,142,0.3); background: rgba(62,207,142,0.08); }
+        .progress-error { border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.08); }
+        .progress-title { font-size: 14px; font-weight: 600; }
+        .progress-sub { font-size: 13px; color: var(--text-dim); margin-top: 5px; }
+        .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .bien-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 20px; margin-bottom: 12px; transition: border-color 0.2s, transform 0.2s; cursor: pointer; }
+        .bien-card:hover { border-color: rgba(212,168,83,0.3); transform: translateY(-2px); }
+        .bien-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .bien-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+        .bien-meta { font-size: 12.5px; color: var(--text-muted); }
+        .bien-price { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--accent); text-align: right; font-weight: 500; }
+        .bien-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .match-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; transition: border-color 0.2s; }
+        .match-card:hover { border-color: rgba(212,168,83,0.25); }
+        .match-top { display: flex; justify-content: space-between; align-items: center; }
+        .match-score { font-family: 'Cormorant Garamond', serif; font-size: 26px; color: var(--accent); font-weight: 500; }
+        .acheteur-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; transition: border-color 0.2s, transform 0.2s; cursor: pointer; }
+        .acheteur-card:hover { border-color: rgba(212,168,83,0.3); transform: translateY(-2px); }
+        .prospect-row { display: flex; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+        .prospect-row:hover { border-color: rgba(255,255,255,0.14); }
+        .prospect-row.selected { border-color: var(--accent-border); background: var(--accent-dim); }
+        .prospect-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid rgba(255,255,255,0.15); margin-right: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .prospect-check.checked { background: var(--accent); border-color: var(--accent); }
+        .prospect-check.checked::after { content: ''; width: 8px; height: 5px; border-left: 2px solid #0f0f11; border-bottom: 2px solid #0f0f11; transform: rotate(-45deg) translate(1px, -1px); }
+        .alert { padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 20px; border: 1px solid; }
+        .alert-success { background: rgba(62,207,142,0.08); border-color: rgba(62,207,142,0.3); color: var(--green); }
+        .alert-error { background: rgba(240,68,68,0.08); border-color: rgba(240,68,68,0.3); color: var(--red); }
+        .alert-warning { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+        .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 13.5px; }
+        .empty strong { display: block; font-size: 15px; color: var(--text-dim); margin-bottom: 8px; }
+        .filter-row { display: flex; gap: 12px; margin-bottom: 20px; }
+        .filter-row input { flex: 1; }
+        .filter-row select { width: 160px; }
+        .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 24px 0; }
+        label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 7px; }
+        input[type="text"], input[type="email"], input[type="number"], input[type="tel"], select, textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent-border); background: rgba(212,168,83,0.03); }
+        input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.2); }
+        select option { background: #111113; }
+        textarea { resize: vertical; line-height: 1.6; }
+        @media (max-width: 900px) {
+          .sidebar { display: none; }
+          .main { padding: 24px 20px; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .two-col { grid-template-columns: 1fr; }
+          .form-grid { grid-template-columns: 1fr; }
+          .form-grid-4 { grid-template-columns: 1fr 1fr; }
+          .site-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
+
+      <div className="layout">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <div className="sidebar-logo">
+            <h1>Immo Pro</h1>
+            <p>Tableau de bord</p>
+          </div>
+          <nav className="sidebar-nav">
+            {NAV_ITEMS.filter(i => i.id !== 'publication').map(item => (
+              <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
+                <span className="nav-dot" />
+                {item.label}
+                {item.badge && (
+                  <span style={{ marginLeft: 'auto', fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(212,168,83,0.2)', color: 'var(--accent)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+            <div className="nav-divider" />
+            <button className={`nav-item ${activeTab === 'publication' ? 'active' : ''}`} onClick={() => setActiveTab('publication')}>
+              <span className="nav-dot" />
+               Publier une annonce
+            </button>
+            <div className="nav-divider" />
+            <button
+              className={`nav-item ${activeTab === 'b2b' ? 'active' : ''}`}
+              onClick={() => setActiveTab('b2b')}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="nav-dot" />
+                Module B2B
+              </span>
+              {plan !== 'agence' && (
+                <span style={{ fontSize: 9, background: 'rgba(212,168,83,0.12)', border: '1px solid rgba(212,168,83,0.25)', color: '#d4a853', borderRadius: 4, padding: '2px 5px', fontWeight: 700, letterSpacing: '0.3px', flexShrink: 0 }}>🔒</span>
+              )}
+            </button>
+          </nav>
+          {agent && (
+            <div className="sidebar-footer">
+              <div className="agent-info">
+                <div className="agent-name">{agent.name}</div>
+                <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '3px 10px',
+                  borderRadius: 20,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                  background: plan === 'agence' ? 'rgba(201,169,110,0.15)' : plan === 'pro' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)',
+                  color: plan === 'agence' ? '#c9a96e' : plan === 'pro' ? '#3ecf8e' : '#6b6b78',
+                  border: `1px solid ${plan === 'agence' ? 'rgba(201,169,110,0.3)' : plan === 'pro' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
+                }}>
+                  {plan === 'agence' ? 'Agence' : plan === 'pro' ? 'Pro' : 'Gratuit'}
+                </div>
+                {(plan === 'pro' || plan === 'agence') ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/billing/portal', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.url) window.location.href = data.url;
+                        else alert('Erreur portail : ' + (data.error || 'inconnu'));
+                      } catch { alert('Erreur réseau'); }
+                    }}
+                    style={{ display: 'block', width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 10px', fontSize: 12, color: '#a0a0ae', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textAlign: 'center', marginBottom: 6 }}
+                  >
+                    ⚙ Gérer mon abonnement
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => router.push('/upgrade')}
+                    style={{ display: 'block', width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 8, padding: '7px 10px', fontSize: 12, color: '#0f0f11', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, textAlign: 'center', marginBottom: 6 }}
+                  >
+                    ⚡ Passer Pro — 59€/mois
+                  </button>
+                )}
+              </div>
+              <button className="help-btn" onClick={() => setShowOnboardingAgent(true)}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Revoir le tutoriel
+              </button>
+              <button className="logout-btn" onClick={logout}>
+                <span>←</span> Déconnexion
+              </button>
+            </div>
+          )}
+        </aside>
+
+        {/* Main */}
+        <main className="main">
+
+          {/* ── Dashboard ── */}
+          {activeTab === 'dashboard' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Vue d'ensemble</h2>
+                <p className="page-subtitle">Activité du portefeuille en temps réel</p>
+              </div>
+              <div className="stats-grid">
+                <div className="stat-card" onClick={() => setActiveTab('biens')}>
+                  <div className="stat-label">Annonces</div>
+                  <div className="stat-value">{stats?.totalBiens ?? biens.length}</div>
+                  <div className="stat-sub">biens dans la base</div>
+                </div>
+                <div className="stat-card" onClick={() => setActiveTab('acheteurs')}>
+                  <div className="stat-label">Acheteurs</div>
+                  <div className="stat-value">{stats?.totalAcheteurs ?? acheteurs.length}</div>
+                  <div className="stat-sub">profils actifs</div>
+                </div>
+                <div className="stat-card" onClick={() => setActiveTab('matches')}>
+                  <div className="stat-label">Correspondances</div>
+                  <div className="stat-value">{stats?.totalMatches ?? matches.length}</div>
+                  <div className="stat-sub">matchs trouvés</div>
+                </div>
+                <div className="stat-card" onClick={() => setActiveTab('publication')}>
+                  <div className="stat-label">Prix moyen</div>
+                  <div className="stat-value">{stats?.prixMoyen ? (stats.prixMoyen / 1000).toFixed(0) + 'k' : '—'}</div>
+                  <div className="stat-sub">euros de transactions analysées</div>
+                </div>
+              </div>
+              <div className="two-col">
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title">Dernières annonces</span>
+                    <button className="card-link" onClick={() => setActiveTab('biens')}>Voir tout</button>
+                  </div>
+                  {biens.length === 0
+                    ? <div className="empty"><strong>Aucune annonce</strong>Lancez un scraping pour commencer</div>
+                    : biens.slice(0, 5).map((bien, i) => (
+                      <div key={i} className="list-item" style={{ cursor: 'pointer' }} onClick={() => router.push(`/biens/${bien.id}`)}>
+                        <div>
+                          <div className="list-item-main">{bien.titre?.slice(0, 40) || 'Sans titre'}</div>
+                          <div className="list-item-sub">{bien.ville} · {bien.type}</div>
+                        </div>
+                        <div className="list-item-right">
+                          {bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : 'NC'}
+                          <small>{new Date(bien.created_at).toLocaleDateString('fr-FR')}</small>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title">Meilleures correspondances</span>
+                    <button className="card-link" onClick={() => setActiveTab('matches')}>Voir tout</button>
+                  </div>
+                  {matches.length === 0
+                    ? <div className="empty"><strong>Aucun match</strong>Ajoutez des acheteurs et lancez le matching</div>
+                    : matches.slice(0, 5).map((m, i) => (
+                      <div key={i} className="list-item">
+                        <div>
+                          <div className="list-item-main">{m.acheteur_nom || 'Acheteur'}</div>
+                          <div className="list-item-sub">{m.bien_adresse || m.bien_reference}</div>
+                        </div>
+                        <div className="list-item-right">
+                          <span className="badge badge-gold">{m.score}%</span>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Analyse de marché ── */}
+          {activeTab === 'scraper' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Analyse de marché</h2>
+                <p className="page-subtitle">Prix au m², évolution, profil acheteurs, rentabilité, conseils — données officielles INSEE & DVF</p>
+              </div>
+
+              {/* Formulaire */}
+              {(!scrapingProgress || scrapingProgress.status === 'error') && (
+                <div className="card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px auto', gap: 12, alignItems: 'flex-end' }}>
+                    <div>
+                      <label>Ville ou commune</label>
+                      <input
+                        type="text"
+                        value={scraperForm.location}
+                        onChange={e => setScraperForm({ ...scraperForm, location: e.target.value })}
+                        onKeyDown={e => e.key === 'Enter' && handleScrape()}
+                        placeholder="Toulouse, Lyon, Blagnac…"
+                      />
+                    </div>
+                    <div>
+                      <label>Type de bien</label>
+                      <select value={scraperForm.propertyType} onChange={e => setScraperForm({ ...scraperForm, propertyType: e.target.value })}>
+                        <option value="appartement">Appartement</option>
+                        <option value="maison">Maison</option>
+                      </select>
+                    </div>
+                    <button className="btn btn-primary" onClick={handleScrape} disabled={loading || !scraperForm.location.trim()} style={{ marginBottom: 0 }}>
+                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Analyse…</> : 'Analyser'}
+                    </button>
+                  </div>
+                  {/* Villes rapides */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '26px' }}>Accès rapide :</span>
+                    {['Toulouse','Blagnac','Tournefeuille','Lyon','Bordeaux','Paris','Nantes'].map(v => (
+                      <button key={v} onClick={() => setScraperForm(f => ({ ...f, location: v }))}
+                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20,
+                          background: scraperForm.location === v ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${scraperForm.location === v ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.09)'}`,
+                          color: scraperForm.location === v ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer' }}>
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                  {scrapingProgress?.status === 'error' && (
+                    <div className="alert alert-error" style={{ marginTop: 14, marginBottom: 0 }}>{scrapingProgress.message}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Loading */}
+              {scrapingProgress?.status === 'running' && (
+                <div className="progress-box progress-running">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className="spinner" />
+                    <span className="progress-title" style={{ color: 'var(--blue)' }}>{scrapingProgress.message}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Résultats */}
+              {marcheData && scrapingProgress?.status === 'done' && (
+                <div>
+                  {/* Header résultat */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                        <h3 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: 0 }}>{marcheData.ville}</h3>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{marcheData.departement} · {marcheData.region}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <span className="badge badge-gold">{marcheData.type === 'appartement' ? 'Appartements' : 'Maisons'}</span>
+                        <span className={`badge ${marcheData.qualiteDonnees === 'premium' ? 'badge-green' : 'badge-blue'}`}>
+                          {marcheData.qualiteDonnees === 'premium' ? 'DVF live' : 'Référence INSEE 2024'}
+                        </span>
+                        {marcheData.fromCache && <span className="badge badge-neutral">Cache 12h</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 38, color: 'var(--accent)', lineHeight: 1 }}>
+                        {fmtPrix(marcheData.prix?.prixM2Moyen)}<span style={{ fontSize: 16, color: 'var(--text-muted)', fontFamily: 'DM Sans, sans-serif' }}>/m²</span>
+                      </div>
+                      <div style={{ fontSize: 13, color: coulEvol(marcheData.prix?.evolution1an), marginTop: 4 }}>
+                        {fmtPct(marcheData.prix?.evolution1an)} sur 12 mois
+                      </div>
+                      <button className="btn btn-ghost" style={{ marginTop: 10, fontSize: 12, padding: '6px 14px' }} onClick={resetScraper}>Nouvelle analyse</button>
+                    </div>
+                  </div>
+
+                  {/* Onglets résultats */}
+                  <div style={{ display: 'flex', gap: 2, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'prix', label: 'Prix & évolution' },
+                      { id: 'marche', label: 'Marché' },
+                      { id: 'acheteurs', label: 'Acheteurs' },
+                      { id: 'rentabilite', label: 'Rentabilité' },
+                      { id: 'territoire', label: 'Territoire' },
+                      { id: 'conseils', label: 'Conseils agent' },
+                    ].map(o => (
+                      <button key={o.id} onClick={() => setMarcheOnglet(o.id)} style={{
+                        padding: '8px 16px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer',
+                        fontFamily: 'DM Sans, sans-serif', fontWeight: marcheOnglet === o.id ? 600 : 400,
+                        color: marcheOnglet === o.id ? 'var(--accent)' : 'var(--text-muted)',
+                        borderBottom: marcheOnglet === o.id ? '2px solid var(--accent)' : '2px solid transparent',
+                        marginBottom: -1,
+                      }}>{o.label}</button>
+                    ))}
+                  </div>
+
+                  {/* ── PRIX ── */}
+                  {marcheOnglet === 'prix' && (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+                        {[
+                          { l: 'Prix moyen m²', v: fmtPrix(marcheData.prix?.prixM2Moyen), s: 'Toutes surfaces' },
+                          { l: 'Prix médian m²', v: fmtPrix(marcheData.prix?.prixM2Median), s: marcheData.prix?.prixM2Median ? 'DVF notaires' : 'Non disponible' },
+                          { l: '12 mois', v: fmtPct(marcheData.prix?.evolution1an), c: coulEvol(marcheData.prix?.evolution1an) },
+                          { l: '3 ans', v: fmtPct(marcheData.prix?.evolution3ans), c: coulEvol(marcheData.prix?.evolution3ans) },
+                          { l: '5 ans', v: fmtPct(marcheData.prix?.evolution5ans), c: coulEvol(marcheData.prix?.evolution5ans) },
+                          ...(marcheData.prix?.prixM2Min ? [{ l: 'Prix plancher', v: fmtPrix(marcheData.prix.prixM2Min) + '/m²', s: 'Entrée marché' }] : []),
+                          ...(marcheData.prix?.prixM2Max ? [{ l: 'Prix plafond', v: fmtPrix(marcheData.prix.prixM2Max) + '/m²', s: 'Haut marché' }] : []),
+                        ].map((item, i) => (
+                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: item.c || 'var(--text)' }}>{item.v || '–'}</div>
+                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="card" style={{ padding: '16px 20px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Répartition du marché local</div>
+                        {(marcheData.prix?.tranchesLocales ?? marcheData.prix?.tranchesMarche)?.map((tr, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                            <div style={{ width: 200, fontSize: 12, color: 'var(--text-dim)' }}>{tr.label}<span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>({tr.type})</span></div>
+                            <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ width: `${tr.part}%`, height: '100%', background: 'var(--accent)', borderRadius: 3 }} />
+                            </div>
+                            <div style={{ width: 34, fontSize: 12, fontWeight: 600, color: 'var(--accent)', textAlign: 'right' }}>{tr.part}%</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── MARCHÉ ── */}
+                  {marcheOnglet === 'marche' && (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+                        {[
+                          { l: 'Tension marché', v: marcheData.marche?.tensionMarche, c: { fort: 'var(--green)', modere: 'var(--accent)', faible: 'var(--red)' }[marcheData.marche?.tensionMarche], s: `Score ${marcheData.marche?.tensionScore}` },
+                          { l: 'Délai de vente', v: `${marcheData.marche?.delaiVenteMoyenJours} jours`, s: 'Mise en vente → compromis' },
+                          { l: 'Taux de négociation', v: `${marcheData.marche?.tauxNegociationPct}%`, s: 'Prix affiché vs vendu' },
+                          ...(marcheData.marche?.volumeTransactionsAnnuel ? [{ l: 'Transactions / an', v: marcheData.marche.volumeTransactionsAnnuel.toLocaleString('fr-FR'), s: 'Volume local' }] : []),
+                          { l: 'Saisonnalité', v: marcheData.marche?.saisonnalite, s: `Indice ${marcheData.marche?.indiceSaisonnalite}` },
+                        ].map((item, i) => (
+                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: item.c || 'var(--text)', textTransform: item.c ? 'capitalize' : 'none' }}>{item.v || '–'}</div>
+                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="card" style={{ padding: '16px 20px', marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Indicateurs prospection</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                          {[
+                            { l: 'Biens moyens / agent', v: marcheData.prospection?.biensMoyensParAgent },
+                            { l: 'Commission moy. / vente', v: marcheData.prospection?.commissionMoyenneVente },
+                            { l: 'Vendeurs pressés', v: marcheData.prospection?.partVendeursPresses },
+                            { l: 'Période actuelle', v: marcheData.prospection?.meilleureMoment },
+                          ].map((item, i) => (
+                            <div key={i} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8 }}>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{item.l}</div>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-dim)', lineHeight: 1.4 }}>{item.v || '–'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {marcheData.marche?.tensionMarche === 'fort' && (
+                        <div className="alert alert-success">Marché tendu — les biens bien estimés partent rapidement. Urgence sur les mandats.</div>
+                      )}
+                      {marcheData.marche?.tensionMarche === 'faible' && (
+                        <div className="alert alert-warning">Marché détendu — délai de vente allongé. Insistez sur le juste prix dès la mise en vente.</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── ACHETEURS ── */}
+                  {marcheOnglet === 'acheteurs' && (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+                        {[
+                          { l: 'Budget médian', v: fmtPrix(marcheData.profilAcheteurs?.budget_median), c: 'var(--accent)', s: 'Capacité emprunt estimée' },
+                          { l: 'Apport moyen', v: fmtPrix(marcheData.profilAcheteurs?.apport_moyen), s: '~12% du budget' },
+                          { l: 'Surface recherchée', v: marcheData.profilAcheteurs?.surface_recherchee },
+                          { l: 'Nb pièces fréquent', v: marcheData.profilAcheteurs?.nb_pieces_freq },
+                          { l: 'Profil dominant', v: marcheData.profilAcheteurs?.profil_dominant },
+                          { l: 'Taux propriétaires', v: marcheData.profilAcheteurs?.tauxProprietaires },
+                          { l: 'Revenu médian foyer', v: marcheData.profilAcheteurs?.revenuMedianFoyer },
+                        ].filter(i => i.v).map((item, i) => (
+                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
+                            <div style={{ fontSize: item.l === 'Profil dominant' || item.l === 'Période actuelle' ? 13 : 18, fontWeight: 700, color: item.c || 'var(--text)', lineHeight: 1.3 }}>{item.v}</div>
+                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="card" style={{ padding: '16px 20px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12 }}>Arguments de vente</div>
+                        {marcheData.prospection?.argumentsPrix?.map((arg, i) => (
+                          <div key={i} style={{ padding: '12px 14px', background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.12)', borderRadius: 8, fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: 8 }}>{arg}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── RENTABILITÉ ── */}
+                  {marcheOnglet === 'rentabilite' && (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+                        {[
+                          { l: 'Rentabilité brute', v: marcheData.rentabilite?.rentabiliteBrutePct != null ? `${marcheData.rentabilite.rentabiliteBrutePct}%` : marcheData.rentabilite?.rentaBrute != null ? `${marcheData.rentabilite.rentaBrute}%` : '–', c: (marcheData.rentabilite?.rentabiliteBrutePct ?? marcheData.rentabilite?.rentaBrute) > 5 ? 'var(--green)' : (marcheData.rentabilite?.rentabiliteBrutePct ?? marcheData.rentabilite?.rentaBrute) > 3.5 ? 'var(--accent)' : 'var(--red)', s: 'Loyers / prix achat' },
+                          { l: 'Rentabilité nette', v: marcheData.rentabilite?.rentabiliteNettePct != null ? `${marcheData.rentabilite.rentabiliteNettePct}%` : marcheData.rentabilite?.rentaNette != null ? `${marcheData.rentabilite.rentaNette}%` : '–', s: 'Après charges & fiscalité' },
+                          { l: 'Loyer m² estimé', v: marcheData.rentabilite?.loyerM2EstimeMensuel ? `${marcheData.rentabilite.loyerM2EstimeMensuel}€/m²/mois` : '–', s: 'Marché locatif local' },
+                          { l: 'Note investissement', v: marcheData.rentabilite?.noteInvestissement ?? marcheData.rentabilite?.noteInvest, c: { Excellent: 'var(--green)', Bon: '#a3e635', Correct: 'var(--accent)', Faible: 'var(--red)' }[marcheData.rentabilite?.noteInvestissement ?? marcheData.rentabilite?.noteInvest] },
+                        ].map((item, i) => (
+                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: item.c || 'var(--text)' }}>{item.v || '–'}</div>
+                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="alert alert-warning" style={{ fontSize: 12 }}>
+                        <strong>Simulation indicative</strong> — Pour un {marcheData.type} de 65m² à {marcheData.ville} : prix estimé {fmtPrix((marcheData.prix?.prixM2Moyen || 0) * 65)}, loyer mensuel ~{Math.round((marcheData.rentabilite?.loyerM2EstimeMensuel || 0) * 65).toLocaleString('fr-FR')}€. Données à affiner selon le bien.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── TERRITOIRE ── */}
+                  {marcheOnglet === 'territoire' && (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+                        {[
+                          marcheData.territoire?.population && { l: 'Population', v: marcheData.territoire.population.toLocaleString('fr-FR'), s: 'habitants' },
+                          marcheData.territoire?.surface && { l: 'Surface', v: marcheData.territoire.surface },
+                          marcheData.territoire?.tauxVacanceLogements && { l: 'Logements vacants', v: marcheData.territoire.tauxVacanceLogements },
+                          marcheData.territoire?.permisConstuireAccordes2023 && { l: 'Permis construire 2023', v: marcheData.territoire.permisConstuireAccordes2023.toLocaleString('fr-FR'), s: 'Offre neuve future' },
+                          marcheData.territoire?.dynamiqueOffre && { l: 'Dynamique offre', v: marcheData.territoire.dynamiqueOffre },
+                        ].filter(Boolean).map((item, i) => (
+                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', lineHeight: 1.4 }}>{item.v}</div>
+                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="card" style={{ padding: '16px 20px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Sources des données</div>
+                        {marcheData.sourcesDonnees?.map((src, i) => (
+                          <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)', padding: '7px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, marginBottom: 6, border: '1px solid rgba(255,255,255,0.05)' }}>{src}</div>
+                        ))}
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8 }}>
+                          Analyse : {new Date(marcheData.dateAnalyse).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── CONSEILS AGENT ── */}
+                  {marcheOnglet === 'conseils' && (
+                    <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {marcheData.conseilsAgent?.map((conseil, i) => (
+                          <div key={i} style={{
+                            padding: '16px 18px',
+                            background: conseil.priorite === 'haute' ? 'rgba(212,168,83,0.06)' : conseil.priorite === 'info' ? 'rgba(91,141,238,0.05)' : 'rgba(255,255,255,0.02)',
+                            border: `1px solid ${conseil.priorite === 'haute' ? 'rgba(212,168,83,0.25)' : conseil.priorite === 'info' ? 'rgba(91,141,238,0.15)' : 'rgba(255,255,255,0.07)'}`,
+                            borderRadius: 10,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: conseil.priorite === 'haute' ? 'var(--accent)' : conseil.priorite === 'info' ? 'var(--blue)' : 'var(--text-dim)' }}>
+                                {conseil.titre}
+                              </span>
+                              {conseil.priorite === 'haute' && (
+                                <span style={{ fontSize: 10, padding: '1px 7px', background: 'rgba(212,168,83,0.15)', borderRadius: 10, color: 'var(--accent)' }}>PRIORITAIRE</span>
+                              )}
+                            </div>
+                            <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.65, margin: 0 }}>{conseil.conseil}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Vendeurs potentiels ── */}
+          {activeTab === 'vendeurs' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Vendeurs potentiels</h2>
+                <p className="page-subtitle">Identifiez les propriétaires susceptibles de vendre — ancienneté, plus-value estimée, score de motivation</p>
+              </div>
+
+              {/* Formulaire */}
+              {!vendeursData && (
+                <div className="card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px', gap: 12, marginBottom: 16 }}>
+                    <div>
+                      <label>Ville ou commune</label>
+                      <input
+                        type="text"
+                        value={vendeursForm.ville}
+                        onChange={e => setVendeursForm(f => ({ ...f, ville: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && handleVendeurs()}
+                        placeholder="Toulouse, Blagnac, Tournefeuille…"
+                      />
+                    </div>
+                    <div>
+                      <label>Type de bien</label>
+                      <select value={vendeursForm.type} onChange={e => setVendeursForm(f => ({ ...f, type: e.target.value }))}>
+                        <option value="all">Tous</option>
+                        <option value="appartement">Appartement</option>
+                        <option value="maison">Maison</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Score minimum</label>
+                      <select value={vendeursForm.scoreMin} onChange={e => setVendeursForm(f => ({ ...f, scoreMin: e.target.value }))}>
+                        <option value={0}>Tous les scores</option>
+                        <option value={20}>20+ (filtré léger)</option>
+                        <option value={40}>40+ (motivés)</option>
+                        <option value={60}>60+ (très motivés)</option>
+                        <option value={75}>75+ (prioritaires)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Filtre surface */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 11 }}>Surface minimum</label>
+                    <select value={vendeursForm.surfaceMin} onChange={e => setVendeursForm(f => ({ ...f, surfaceMin: e.target.value }))}>
+                      <option value={0}>Toutes surfaces</option>
+                      <option value={50}>50m² et +</option>
+                      <option value={80}>80m² et +</option>
+                      <option value={100}>100m² et +</option>
+                    </select>
+                  </div>
+
+                  {/* Villes rapides */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '26px' }}>Accès rapide :</span>
+                    {['Toulouse', 'Blagnac', 'Tournefeuille', 'Colomiers', 'Lyon', 'Bordeaux', 'Nantes'].map(v => (
+                      <button key={v} onClick={() => setVendeursForm(f => ({ ...f, ville: v }))}
+                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20,
+                          background: vendeursForm.ville === v ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${vendeursForm.ville === v ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.09)'}`,
+                          color: vendeursForm.ville === v ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer' }}>
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+
+                  {vendeursError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{vendeursError}</div>}
+
+                  <button className="btn btn-primary" onClick={handleVendeurs} disabled={vendeursLoading || !vendeursForm.ville.trim()} style={{ width: '100%' }}>
+                    {vendeursLoading
+                      ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Analyse des transactions DVF en cours…</>
+                      : 'Identifier les vendeurs potentiels'}
+                  </button>
+                </div>
+              )}
+
+              {/* Résultats */}
+              {vendeursData && (
+                <div>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                    <div>
+                      <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' }}>
+                        {vendeursData.stats?.total ?? vendeursData.vendeurs?.length ?? 0} vendeurs potentiels · {vendeursData.ville}
+                      </h3>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <span className="badge badge-gold">{vendeursData.stats?.forts ?? 0} score fort</span>
+                        <span className="badge badge-blue">{vendeursData.stats?.moyens ?? 0} score moyen</span>
+                        <span className="badge badge-neutral">{vendeursData.stats?.faibles ?? 0} score faible</span>
+                        {vendeursData.fromCache && <span className="badge badge-neutral">Cache 6h</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => { setVendeursData(null); setVendeursError(null); }}>Nouvelle recherche</button>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
+                    {[
+                      vendeursData.stats?.scoreMoyen != null && { l: 'Score moyen', v: vendeursData.stats.scoreMoyen + '/100', c: 'var(--accent)' },
+                      vendeursData.stats?.plusValueMoyennePct != null && { l: 'Plus-value moy.', v: '+' + vendeursData.stats.plusValueMoyennePct + '%', c: 'var(--green)' },
+                      vendeursData.stats?.ancienneteMoyenne != null && { l: 'Ancienneté moy.', v: vendeursData.stats.ancienneteMoyenne + ' ans' },
+                      vendeursData.stats?.prixM2Actuel && { l: 'Prix m² actuel', v: vendeursData.stats.prixM2Actuel.toLocaleString('fr-FR') + '€/m²' },
+                    ].filter(Boolean).map((item, i) => (
+                      <div key={i} className="card" style={{ padding: '12px 14px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{item.l}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: item.c || 'var(--text)' }}>{item.v}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Filtre niveau */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    {['all', 'Fort', 'Moyen', 'Faible'].map(f => (
+                      <button key={f} onClick={() => setVendeursFilter(f)} style={{
+                        padding: '5px 14px', fontSize: 12, borderRadius: 20, cursor: 'pointer',
+                        background: vendeursFilter === f ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${vendeursFilter === f ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                        color: vendeursFilter === f ? 'var(--accent)' : 'var(--text-muted)',
+                      }}>
+                        {f === 'all' ? 'Tous' : f}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Liste vendeurs */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {(vendeursData.vendeurs || [])
+                      .filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter)
+                      .map((vendeur, i) => {
+                        const prospecte = vendeurProspecte[vendeur.id];
+                        const scoreColor = vendeur.scoreMotivation >= 70 ? 'var(--green)' : vendeur.scoreMotivation >= 50 ? 'var(--accent)' : 'var(--text-muted)';
+                        return (
+                          <div key={i} style={{
+                            padding: '16px 18px',
+                            background: prospecte ? 'rgba(62,207,142,0.03)' : 'var(--card-bg)',
+                            border: `1px solid ${prospecte ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
+                            borderRadius: 10,
+                            display: 'grid',
+                            gridTemplateColumns: '1fr auto',
+                            gap: 16,
+                            alignItems: 'start',
+                          }}>
+                            {/* Infos bien */}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+                                {/* Score */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '3px 10px' }}>
+                                  <span style={{ fontSize: 15, fontWeight: 700, color: scoreColor }}>{vendeur.scoreMotivation}</span>
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted)'}}>/100</span>
+                                  <span style={{ fontSize: 11, color: scoreColor, marginLeft: 2 }}>{vendeur.niveauMotivation}</span>
+                                </div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                                  {vendeur.adresse}{vendeur.codePostal ? ` — ${vendeur.codePostal}` : ''}
+                                </span>
+                                {vendeur.nomProprietaire && (
+                                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                    {vendeur.nomProprietaire}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Caractéristiques */}
+                              <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                                  {vendeur.type === 'appartement' ? 'Appart.' : 'Maison'} {vendeur.surface}m²
+                                  {vendeur.pieces ? ` · ${vendeur.pieces}p` : ''}
+                                </span>
+                                {vendeur.densiteRue > 1 && (
+                                  <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
+                                    {vendeur.densiteRue} ventes récentes dans la rue
+                                  </span>
+                                )}
+                                {vendeur.prixM2Actuel && (
+                                  <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                                    Marché : {vendeur.prixM2Actuel.toLocaleString('fr-FR')}€/m²
+                                  </span>
+                                )}
+                                {vendeur.valeurEstimee && (
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>
+                                    Valeur estimée : {vendeur.valeurEstimee.toLocaleString('fr-FR')}€
+                                    {vendeur.plusValuePct !== null ? ` (+${vendeur.plusValuePct}% vs achat estimé)` : ''}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Raisons */}
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: vendeur.argumentProsSpection?.length ? 8 : 0 }}>
+                                {(vendeur.raisons || []).map((r, ri) => (
+                                  <span key={ri} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: 'var(--text-muted)' }}>
+                                    {r}
+                                  </span>
+                                ))}
+                              </div>
+                              {/* Argumentaire de prospection */}
+                              {vendeur.argumentProsSpection?.length > 0 && (
+                                <div style={{ marginTop: 4 }}>
+                                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Script de prospection</div>
+                                  {(vendeur.argumentProsSpection || []).map((arg, ai) => (
+                                    <div key={ai} style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', padding: '6px 10px', background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.1)', borderRadius: 6, marginBottom: 4, lineHeight: 1.5 }}>
+                                      {arg}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 130, alignItems: 'flex-end' }}>
+                              <button
+                                onClick={() => setVendeurProspecte(p => ({ ...p, [vendeur.id]: !p[vendeur.id] }))}
+                                className={prospecte ? 'btn btn-ghost' : 'btn btn-primary'}
+                                style={{ fontSize: 12, padding: '7px 14px', width: '100%' }}
+                              >
+                                {prospecte ? '✓ Prospecté' : 'Prospecter'}
+                              </button>
+                              <a
+                                href={`https://www.google.com/maps/search/${encodeURIComponent(vendeur.adresse + ', ' + vendeur.ville)}`}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none', textAlign: 'center', width: '100%', padding: '4px 0' }}
+                              >
+                                Voir sur Maps ↗
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })
+                    }
+                    {(vendeursData.vendeurs || []).filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter).length === 0 && (
+                      <div className="empty">Aucun vendeur correspondant à ce filtre</div>
+                    )}
+                  </div>
+
+                  {/* Sources + méthodologie */}
+                  <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Sources des données</div>
+                    {vendeursData.sourcesDonnees?.map((s, i) => (
+                      <div key={i} style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginBottom: 2 }}>{s}</div>
+                    ))}
+                    {vendeursData.methodologie && (
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8, lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
+                        <strong style={{ color: 'rgba(255,255,255,0.3)' }}>Méthodologie :</strong> {vendeursData.methodologie}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', marginTop: 6 }}>
+                      Analyse : {new Date(vendeursData.dateAnalyse).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Annonces ── */}
+          {activeTab === 'biens' && (
+            <>
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <h2 className="page-title">Données de marché</h2>
+                  <p className="page-subtitle">{biens.length} transaction{biens.length > 1 ? 's' : ''} analysée{biens.length > 1 ? 's' : ''}</p>
+                </div>
+                <button className="btn btn-secondary" onClick={() => setActiveTab('scraper')}>Nouvelle analyse</button>
+              </div>
+              <div className="filter-row">
+                <input type="text" placeholder="Rechercher par ville, titre…" value={biensFilter.search} onChange={e => setBiensFilter({ ...biensFilter, search: e.target.value })} />
+                <select value={biensFilter.type} onChange={e => setBiensFilter({ ...biensFilter, type: e.target.value })}>
+                  {PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              {filteredBiens.length === 0
+                ? <div className="empty"><strong>Aucune annonce</strong>Utilisez la recherche pour importer des biens</div>
+                : filteredBiens.map((bien, i) => (
+                  <div key={i} className="bien-card" onClick={() => router.push(`/biens/${bien.id}`)}>
+                    <div className="bien-top">
+                      <div style={{ flex: 1 }}>
+                        <div className="bien-title">{bien.titre || 'Sans titre'}</div>
+                        <div className="bien-meta">{bien.ville || bien.adresse || 'Localisation inconnue'}</div>
+                        {bien.description && <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>{bien.description.slice(0, 140)}{bien.description.length > 140 ? '…' : ''}</div>}
+                        <div className="bien-tags">
+                          <span className="badge badge-blue">{bien.type || 'autre'}</span>
+                          <span className="badge badge-neutral">{bien.source || 'import'}</span>
+                          {bien.surface && <span className="badge badge-neutral">{bien.surface} m²</span>}
+                          {bien.pieces && <span className="badge badge-neutral">{bien.pieces} pièces</span>}
+                        </div>
+                      </div>
+                      <div style={{ marginLeft: 20, textAlign: 'right', flexShrink: 0 }}>
+                        <div className="bien-price">{bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : '—'}</div>
+                        <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>Voir le détail →</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(bien.created_at).toLocaleDateString('fr-FR')}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              }
+            </>
+          )}
+
+          {/* ── Acheteurs ── */}
+          {activeTab === 'acheteurs' && (
+            <>
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <h2 className="page-title">Acheteurs</h2>
+                  <p className="page-subtitle">{acheteurs.length} profil{acheteurs.length > 1 ? 's' : ''} enregistré{acheteurs.length > 1 ? 's' : ''}</p>
+                </div>
+                <button className="btn btn-primary" onClick={() => setShowOnboardingAcheteur(true)}>+ Ajouter un acheteur</button>
+              </div>
+              {acheteurs.length === 0
+                ? (
+                  <div className="empty">
+                    <strong>Aucun acheteur</strong>
+                    Cliquez sur "Ajouter un acheteur" pour enregistrer votre premier profil
+                    <br /><br />
+                    <button className="btn btn-primary" onClick={() => setShowOnboardingAcheteur(true)}>+ Ajouter un acheteur</button>
+                  </div>
+                )
+                : acheteurs.map((a, i) => (
+                  <Link key={i} href={`/acheteurs/${a.id}`} className="acheteur-card">
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{a.nom} {a.prenom}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{a.email}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Budget : {a.budget_max ? a.budget_max.toLocaleString('fr-FR') + ' €' : '—'}
+                        {a.villes?.length ? ' · ' + (Array.isArray(a.villes) ? a.villes.join(', ') : a.villes) : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className={`badge ${a.statut === 'actif' ? 'badge-green' : 'badge-neutral'}`}>{a.statut || 'actif'}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>→</span>
+                    </div>
+                  </Link>
+                ))
+              }
+            </>
+          )}
+
+          {/* ── Matches ── */}
+          {activeTab === 'matches' && (
+            <>
+              {!can('matchAuto') ? (
+                <UpgradeGate planRequired="pro" plan={plan} featureLabel="Correspondances automatiques" />
+              ) : (
+                <>
+                  <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                      <h2 className="page-title">Correspondances</h2>
+                      <p className="page-subtitle">{matches.length} match{matches.length > 1 ? 's' : ''} trouvé{matches.length > 1 ? 's' : ''}</p>
+                    </div>
+                    <button className="btn btn-primary" onClick={handleMatchAuto} disabled={loading}>
+                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Calcul…</> : 'Recalculer les matchs'}
+                    </button>
+                  </div>
+                  {matches.length === 0
+                    ? <div className="empty"><strong>Aucune correspondance</strong>Ajoutez des acheteurs et cliquez sur "Recalculer les matchs"</div>
+                    : matches.map((m, i) => (
+                      <div key={i} className="match-card">
+                        <div className="match-top">
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{m.acheteur_nom}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{m.bien_reference} · {m.bien_adresse}</div>
+                            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
+                              {m.bien_prix ? m.bien_prix.toLocaleString('fr-FR') + ' €' : '—'}
+                              {m.bien_type && <span className="badge badge-neutral" style={{ marginLeft: 8 }}>{m.bien_type}</span>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div className="match-score">{m.score}%</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>compatibilité</div>
+                          </div>
+                        </div>
+                        <div className="score-bar" style={{ marginTop: 14 }}>
+                          <div className="score-fill" style={{ width: `${m.score}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  }
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── Email ── */}
+          {activeTab === 'email' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Envoi d'emails</h2>
+                <p className="page-subtitle">Sélectionnez des destinataires et rédigez votre message</p>
+              </div>
+              <div className="two-col" style={{ alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                      {selectedProspects.length > 0 ? `${selectedProspects.length} sélectionné${selectedProspects.length > 1 ? 's' : ''}` : 'Sélectionnez des destinataires'}
+                    </span>
+                    <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => {
+                      const emails = acheteurs.filter(a => a.email).map(a => a.email);
+                      setSelectedProspects(selectedProspects.length === emails.length ? [] : emails);
+                    }}>
+                      {selectedProspects.length === acheteurs.filter(a => a.email).length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                    </button>
+                  </div>
+                  {acheteurs.length === 0
+                    ? <div className="empty"><strong>Aucun acheteur</strong>Ajoutez d'abord des profils</div>
+                    : acheteurs.filter(a => a.email).map((a, i) => {
+                      const selected = selectedProspects.includes(a.email);
+                      return (
+                        <div key={i} className={`prospect-row ${selected ? 'selected' : ''}`} onClick={() => toggleProspect(a.email)}>
+                          <div className={`prospect-check ${selected ? 'checked' : ''}`} />
+                          <div>
+                            <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text)' }}>{a.nom} {a.prenom}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{a.email}</div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom: 20 }}>Composer l'email</div>
+                  {emailStatus?.success && <div className="alert alert-success">{emailStatus.sent} email{emailStatus.sent > 1 ? 's' : ''} envoyé{emailStatus.sent > 1 ? 's' : ''}</div>}
+                  {emailStatus?.error && <div className="alert alert-error">{emailStatus.error}</div>}
+                  {selectedProspects.length === 0 && <div className="alert alert-warning">Sélectionnez au moins un destinataire</div>}
+                  <form onSubmit={handleSendEmail}>
+                    <div className="form-grid" style={{ marginBottom: 16 }}>
+                      <div><label>Nom expéditeur</label><input type="text" value={emailForm.senderName} onChange={e => setEmailForm({ ...emailForm, senderName: e.target.value })} required /></div>
+                      <div><label>Email expéditeur</label><input type="email" value={emailForm.senderEmail} onChange={e => setEmailForm({ ...emailForm, senderEmail: e.target.value })} required /></div>
+                    </div>
+                    <div className="form-group"><label>Sujet</label><input type="text" value={emailForm.subject} onChange={e => setEmailForm({ ...emailForm, subject: e.target.value })} placeholder="Objet de votre message" required /></div>
+                    <div className="form-group">
+                      <label>Message</label>
+                      <textarea value={emailForm.message} onChange={e => setEmailForm({ ...emailForm, message: e.target.value })} placeholder="Rédigez votre message ici…" rows={8} required />
+                    </div>
+                    <button type="submit" className="btn btn-primary btn-full" disabled={loading || selectedProspects.length === 0}>
+                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Envoi…</> : `Envoyer à ${selectedProspects.length} destinataire${selectedProspects.length > 1 ? 's' : ''}`}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Publication ── */}
+          {activeTab === 'publication' && (
+            can('publicationMultiSites')
+              ? <PublicationDashboard />
+              : <UpgradeGate planRequired="pro" plan={plan} featureLabel="Publication multi-sites & génération IA" />
+          )}
+
+          {/* ── Module B2B ── */}
+          {activeTab === 'b2b' && (
+            plan !== 'agence' ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+                <div style={{ textAlign: 'center', maxWidth: 440, padding: '0 24px' }}>
+                  <div style={{ fontSize: 48, marginBottom: 20 }}>🔒</div>
+                  <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 34, fontWeight: 300, color: '#f0f0f0', marginBottom: 14, letterSpacing: '-0.3px' }}>Module B2B</h2>
+                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.75, marginBottom: 24 }}>
+                    Prospection de contacts, envoi email groupé, chatbot de qualification et workflows automatisés — réservés au plan <strong style={{ color: '#d4a853' }}>Agence</strong>.
+                  </p>
+                  <div style={{ marginBottom: 28, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[
+                      { icon: '', t: 'Scraper web', d: 'Extraire des emails depuis des sites de promoteurs, notaires, agences' },
+                      { icon: '', t: 'Email groupé', d: 'Contacter en masse vos prospects B2B avec personnalisation' },
+                      { icon: '', t: 'Chatbot IA', d: 'Qualifier automatiquement les visiteurs de votre site' },
+                      { icon: '', t: 'Workflows', d: 'Automatiser le suivi : email de bienvenue + notification équipe' },
+                    ].map(f => (
+                      <div key={f.t} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+                        <span style={{ fontSize: 18 }}>{f.icon}</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>{f.t}</div>
+                          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>{f.d}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => router.push('/upgrade')} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 10, padding: '13px 32px', fontSize: 14, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.3px' }}>
+                    Passer au plan Agence — 169€/mois →
+                  </button>
+                  <div style={{ marginTop: 14 }}>
+                    <a href="/b2b-guide" style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 1, transition: 'color 0.2s' }}
+                      onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.6)'}
+                      onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.3)'}
+                    >
+                      Voir le guide complet du Module B2B
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* ── Dashboard header ── */}
+                <div className="page-header" style={{ marginBottom: 24 }}>
+                  <h2 className="page-title">Module B2B</h2>
+                  <p className="page-subtitle">Prospection, emails et automatisation</p>
+                </div>
+
+                {/* ── Stats rapides ── */}
+                {b2bSubTab === 'dashboard' && (
+                  <div className="stats-grid" style={{ marginBottom: 28 }}>
+                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('scraper')}>
+                      <div className="stat-label">Emails scrapés</div>
+                      <div className="stat-value">{b2bScraperResult?.count || 0}</div>
+                      <div className="stat-sub">dernière session</div>
+                    </div>
+                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('chatbot')}>
+                      <div className="stat-label">Chatbots actifs</div>
+                      <div className="stat-value">{chatbots.filter(b => b.status === 'active').length}</div>
+                      <div className="stat-sub">{conversations.length} conversation(s)</div>
+                    </div>
+                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('workflows')}>
+                      <div className="stat-label">Workflows</div>
+                      <div className="stat-value">{workflows.filter(w => w.active).length}</div>
+                      <div className="stat-sub">{workflows.length} au total</div>
+                    </div>
+                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('email')}>
+                      <div className="stat-label">Destinataires</div>
+                      <div className="stat-value">{b2bSelectedEmails.length}</div>
+                      <div className="stat-sub">prêts à contacter</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Navigation sous-parties en cards ── */}
+                {b2bSubTab === 'dashboard' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 32 }}>
+                    {[
+                      {
+                        id: 'scraper',
+                        title: 'Scraper web',
+                        desc: 'Extrayez des emails de contact depuis n\'importe quel site : agences concurrentes, promoteurs, notaires, syndics.',
+                        stat: b2bScraperResult ? `${b2bScraperResult.count} email(s) trouvé(s)` : 'Aucun scraping récent',
+                        statColor: b2bScraperResult ? '#d4a853' : 'rgba(255,255,255,0.2)',
+                        icon: (
+                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                          </svg>
+                        ),
+                      },
+                      {
+                        id: 'email',
+                        title: 'Email groupé',
+                        desc: 'Rédigez et envoyez des emails personnalisés à vos prospects B2B en quelques clics, depuis vos listes scrapées.',
+                        stat: b2bSelectedEmails.length > 0 ? `${b2bSelectedEmails.length} destinataire(s) sélectionné(s)` : 'Aucun destinataire sélectionné',
+                        statColor: b2bSelectedEmails.length > 0 ? '#3ecf8e' : 'rgba(255,255,255,0.2)',
+                        icon: (
+                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                          </svg>
+                        ),
+                      },
+                      {
+                        id: 'chatbot',
+                        title: 'Chatbot IA',
+                        desc: 'Déployez un assistant conversationnel sur votre site pour qualifier automatiquement les visiteurs et capturer leurs coordonnées.',
+                        stat: chatbots.length > 0 ? `${chatbots.length} chatbot(s) · ${conversations.length} conversation(s)` : 'Aucun chatbot créé',
+                        statColor: chatbots.length > 0 ? '#d4a853' : 'rgba(255,255,255,0.2)',
+                        icon: (
+                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                          </svg>
+                        ),
+                      },
+                      {
+                        id: 'workflows',
+                        title: 'Workflows',
+                        desc: 'Automatisez votre suivi : email de bienvenue dès qu\'un prospect contacte votre chatbot, notification équipe, relances.',
+                        stat: workflows.length > 0 ? `${workflows.filter(w => w.active).length} actif(s) sur ${workflows.length}` : 'Aucun workflow créé',
+                        statColor: workflows.filter(w => w.active).length > 0 ? '#3ecf8e' : 'rgba(255,255,255,0.2)',
+                        icon: (
+                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                          </svg>
+                        ),
+                      },
+                    ].map(card => (
+                      <div
+                        key={card.id}
+                        onClick={() => setB2bSubTab(card.id)}
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '22px 22px', cursor: 'pointer', transition: 'all 0.2s', position: 'relative', overflow: 'hidden' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(212,168,83,0.35)'; e.currentTarget.style.background = 'rgba(212,168,83,0.03)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                      >
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d4a853', marginBottom: 14 }}>
+                          {card.icon}
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>{card.title}</div>
+                        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.65, marginBottom: 16 }}>{card.desc}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 11.5, color: card.statColor, fontWeight: 500 }}>{card.stat}</span>
+                          <span style={{ fontSize: 12, color: 'rgba(212,168,83,0.6)' }}>Ouvrir →</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Sous-onglets (visible quand on est dans une sous-partie) ── */}
+                {b2bSubTab !== 'dashboard' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 28, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 0 }}>
+                    <button
+                      onClick={() => setB2bSubTab('dashboard')}
+                      style={{ padding: '9px 14px', background: 'none', border: 'none', borderBottom: '2px solid transparent', color: 'rgba(255,255,255,0.25)', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 5, marginBottom: -1 }}
+                    >
+                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                      Vue d'ensemble
+                    </button>
+                    <span style={{ color: 'rgba(255,255,255,0.1)', fontSize: 16 }}>|</span>
+                    {[
+                      { id: 'scraper', label: 'Scraper web' },
+                      { id: 'email', label: 'Email groupé' },
+                      { id: 'chatbot', label: 'Chatbot' },
+                      { id: 'workflows', label: 'Workflows' },
+                    ].map(tab => (
+                      <button key={tab.id} onClick={() => setB2bSubTab(tab.id)} style={{ padding: '9px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${b2bSubTab === tab.id ? '#d4a853' : 'transparent'}`, color: b2bSubTab === tab.id ? '#d4a853' : 'rgba(255,255,255,0.35)', fontSize: 13, fontWeight: b2bSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s', marginBottom: -1 }}>
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Scraper ── */}
+                {b2bSubTab === 'scraper' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div className="card">
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>Extraire des emails d\'un site</h3>
+                      <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginBottom: 20, lineHeight: 1.6 }}>
+                        Saisissez l\'URL d\'un site (promoteur, notaire, agence concurrente, syndic…) pour en extraire les emails de contact.
+                      </p>
+                      <div className="form-group">
+                        <label className="form-label">URL du site</label>
+                        <input
+                          type="url"
+                          className="form-input"
+                          value={b2bScraperUrl}
+                          onChange={e => setB2bScraperUrl(e.target.value)}
+                          placeholder="https://www.agence-exemple.fr/contact"
+                          onKeyDown={e => e.key === 'Enter' && handleB2BScrape()}
+                        />
+                      </div>
+                      <button className="btn btn-primary btn-full" onClick={handleB2BScrape} disabled={b2bScraperLoading || !b2bScraperUrl.trim()}>
+                        {b2bScraperLoading ? 'Analyse en cours…' : 'Lancer le scraping'}
+                      </button>
+                      {b2bScraperError && (
+                        <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(240,68,68,0.08)', border: '1px solid rgba(240,68,68,0.2)', borderRadius: 8, fontSize: 12.5, color: '#f04444' }}>
+                          {b2bScraperError}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>
+                          Résultats {b2bScraperResult && <span style={{ fontSize: 12, color: '#d4a853', fontWeight: 400 }}>— {b2bScraperResult.count} email(s)</span>}
+                        </h3>
+                        {b2bScraperResult && (b2bScraperResult.emails?.length ?? 0) > 0 && (
+                          <button onClick={() => setB2bSelectedEmails(b2bSelectedEmails.length === (b2bScraperResult.emails?.length ?? 0) ? [] : [...(b2bScraperResult.emails || [])])} style={{ fontSize: 11, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                            {b2bSelectedEmails.length === (b2bScraperResult.emails?.length ?? 0) ? 'Tout désélectionner' : 'Tout sélectionner'}
+                          </button>
+                        )}
+                      </div>
+                      {!b2bScraperResult ? (
+                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', paddingTop: 8 }}>Lance un scraping pour voir les résultats ici.</p>
+                      ) : (b2bScraperResult.emails?.length ?? 0) === 0 ? (
+                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucun email trouvé sur ce site.</p>
+                      ) : (
+                        <>
+                          <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+                            {(b2bScraperResult.emails || []).map(email => (
+                              <div key={email} onClick={() => setB2bSelectedEmails(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email])} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.25)' : 'rgba(255,255,255,0.05)'}`, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${b2bSelectedEmails.includes(email) ? '#d4a853' : 'rgba(255,255,255,0.2)'}`, background: b2bSelectedEmails.includes(email) ? '#d4a853' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {b2bSelectedEmails.includes(email) && <span style={{ fontSize: 9, color: '#000', fontWeight: 700 }}>✓</span>}
+                                </div>
+                                <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace' }}>{email}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {b2bSelectedEmails.length > 0 && (
+                            <button onClick={() => setB2bSubTab('email')} className="btn btn-secondary btn-full">
+                              Envoyer un email à ces {b2bSelectedEmails.length} contact(s) →
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Email groupé ── */}
+                {b2bSubTab === 'email' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div className="card">
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 18 }}>Rédiger l\'email</h3>
+                      <div className="form-group">
+                        <label className="form-label">Votre nom</label>
+                        <input type="text" className="form-input" value={b2bEmailForm.senderName} onChange={e => setB2bEmailForm(p => ({ ...p, senderName: e.target.value }))} placeholder="Jean Dupont — Agence Dupont Immobilier" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Votre email expéditeur</label>
+                        <input type="email" className="form-input" value={b2bEmailForm.senderEmail} onChange={e => setB2bEmailForm(p => ({ ...p, senderEmail: e.target.value }))} placeholder="jean@agence-dupont.fr" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Objet</label>
+                        <input type="text" className="form-input" value={b2bEmailForm.subject} onChange={e => setB2bEmailForm(p => ({ ...p, subject: e.target.value }))} placeholder="Collaboration — Opportunité immobilière" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Corps du message <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}>(utilisez {'{name}'} pour personnaliser)</span></label>
+                        <textarea className="form-input" value={b2bEmailForm.template} onChange={e => setB2bEmailForm(p => ({ ...p, template: e.target.value }))} placeholder="Bonjour {name}, je suis agent immobilier dans votre secteur…" rows={6} style={{ resize: 'vertical' }} />
+                      </div>
+                      <button className="btn btn-primary btn-full" onClick={handleB2BSendEmail} disabled={b2bEmailLoading || b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template}>
+                        {b2bEmailLoading ? 'Envoi en cours…' : b2bSelectedEmails.length === 0 ? 'Sélectionnez des destinataires' : `Envoyer à ${b2bSelectedEmails.length} contact(s)`}
+                      </button>
+                      {b2bEmailStatus && (
+                        <div style={{ marginTop: 12, padding: '10px 12px', background: b2bEmailStatus.success ? 'rgba(62,207,142,0.08)' : 'rgba(240,68,68,0.08)', border: `1px solid ${b2bEmailStatus.success ? 'rgba(62,207,142,0.2)' : 'rgba(240,68,68,0.2)'}`, borderRadius: 8, fontSize: 12.5, color: b2bEmailStatus.success ? '#3ecf8e' : '#f04444' }}>
+                          {b2bEmailStatus.success ? `${b2bEmailStatus.sent}/${b2bEmailStatus.total} email(s) envoyé(s)` : `${b2bEmailStatus.error}`}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Destinataires <span style={{ fontSize: 12, color: '#d4a853', fontWeight: 400 }}>{b2bSelectedEmails.length}</span></h3>
+                        {b2bSelectedEmails.length > 0 && (
+                          <button onClick={() => setB2bSelectedEmails([])} style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Vider la liste</button>
+                        )}
+                      </div>
+                      {b2bSelectedEmails.length === 0 ? (
+                        <div style={{ textAlign: 'center', paddingTop: 32 }}>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', marginBottom: 12 }}>Aucun destinataire.</p>
+                          <button onClick={() => setB2bSubTab('scraper')} style={{ fontSize: 12.5, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>← Scraper des emails d\'abord</button>
+                        </div>
+                      ) : (
+                        <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {b2bSelectedEmails.map(email => (
+                            <div key={email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 7, border: '1px solid rgba(255,255,255,0.05)' }}>
+                              <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>{email}</span>
+                              <button onClick={() => setB2bSelectedEmails(prev => prev.filter(e => e !== email))} style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Chatbot ── */}
+                {b2bSubTab === 'chatbot' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Mes chatbots</h3>
+                        <button className="btn btn-secondary" onClick={() => setChatbotShowForm(!chatbotShowForm)}>
+                          {chatbotShowForm ? '✕ Annuler' : '+ Nouveau chatbot'}
+                        </button>
+                      </div>
+                      {chatbotShowForm && (
+                        <div className="card" style={{ marginBottom: 14, background: 'rgba(212,168,83,0.04)', borderColor: 'rgba(212,168,83,0.15)' }}>
+                          <div className="form-group">
+                            <label className="form-label">Nom du chatbot</label>
+                            <input type="text" className="form-input" value={chatbotForm.name} onChange={e => setChatbotForm(p => ({ ...p, name: e.target.value }))} placeholder="Assistant Immobilier" />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Message de bienvenue</label>
+                            <textarea className="form-input" value={chatbotForm.welcomeMessage} onChange={e => setChatbotForm(p => ({ ...p, welcomeMessage: e.target.value }))} rows={3} style={{ resize: 'none' }} />
+                          </div>
+                          <button className="btn btn-primary btn-full" onClick={handleCreateChatbot} disabled={chatbotCreating || !chatbotForm.name}>
+                            {chatbotCreating ? 'Création…' : '✓ Créer le chatbot'}
+                          </button>
+                        </div>
+                      )}
+                      {chatbots.length === 0 ? (
+                        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+                          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez un chatbot pour qualifier les visiteurs de votre site.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {chatbots.map(bot => (
+                            <div key={bot.id} className="card">
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <div>
+                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{bot.avatar} {bot.name}</div>
+                                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>{(bot.welcome_message || '').slice(0, 50)}…</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 20, background: bot.status === 'active' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: bot.status === 'active' ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${bot.status === 'active' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
+                                    {bot.status === 'active' ? '● Actif' : '○ Inactif'}
+                                  </span>
+                                  <button onClick={() => handleDeleteChatbot(bot.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                                </div>
+                              </div>
+                              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lien public du chatbot</div>
+                                <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'rgba(212,168,83,0.7)', wordBreak: 'break-all', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                  {`${origin}/chatbot/${bot.id}`}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                  <button onClick={() => { navigator.clipboard.writeText(`${origin}/chatbot/${bot.id}`).then(() => { setChatbotCopied(bot.id); setTimeout(() => setChatbotCopied(null), 2000); }); }} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: chatbotCopied === bot.id ? 'rgba(62,207,142,0.1)' : 'rgba(212,168,83,0.08)', color: chatbotCopied === bot.id ? '#3ecf8e' : '#d4a853', border: `1px solid ${chatbotCopied === bot.id ? 'rgba(62,207,142,0.2)' : 'rgba(212,168,83,0.2)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                                    {chatbotCopied === bot.id ? '✓ Copié !' : 'Copier le lien'}
+                                  </button>
+                                  <button onClick={() => window.open(`/chatbot/${bot.id}`, '_blank')} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                                    Ouvrir
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 16 }}>
+                        Conversations récentes <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>{conversations.length}</span>
+                      </h3>
+                      {conversations.length === 0 ? (
+                        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucune conversation pour l\'instant.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
+                          {conversations.slice(0, 20).map(conv => (
+                            <div key={conv.id} className="card" style={{ borderColor: conv.qualified ? 'rgba(62,207,142,0.15)' : undefined }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
+                                <div style={{ fontSize: 13, color: '#e8e8e8', fontWeight: 500 }}>{conv.visitor_email || 'Anonyme'}</div>
+                                <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: conv.qualified ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: conv.qualified ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${conv.qualified ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                  {conv.qualified ? '✓ Qualifié' : 'Non qualifié'}
+                                </span>
+                              </div>
+                              {conv.qualification_reason && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>💬 {conv.qualification_reason}</div>}
+                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>{new Date(conv.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Workflows ── */}
+                {b2bSubTab === 'workflows' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Mes workflows</h3>
+                        <button className="btn btn-secondary" onClick={() => setWorkflowShowForm(!workflowShowForm)}>
+                          {workflowShowForm ? '✕ Annuler' : '+ Nouveau workflow'}
+                        </button>
+                      </div>
+                      {workflowShowForm && (
+                        <div className="card" style={{ marginBottom: 14, background: 'rgba(212,168,83,0.04)', borderColor: 'rgba(212,168,83,0.15)' }}>
+                          <div className="form-group">
+                            <label className="form-label">Nom du workflow</label>
+                            <input type="text" className="form-input" value={workflowForm.name} onChange={e => setWorkflowForm(p => ({ ...p, name: e.target.value }))} placeholder="Accueil nouveau prospect" />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Déclencheur</label>
+                            <select className="form-input" value={workflowForm.trigger} onChange={e => setWorkflowForm(p => ({ ...p, trigger: e.target.value }))}>
+                              <option value="new_prospect">Nouveau prospect (chatbot)</option>
+                              <option value="new_match">Nouveau match immobilier</option>
+                              <option value="manual">Déclenchement manuel</option>
+                            </select>
+                          </div>
+                          <p style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', marginBottom: 14, lineHeight: 1.5 }}>Actions : email de bienvenue automatique + notification à votre équipe.</p>
+                          <button className="btn btn-primary btn-full" onClick={handleCreateWorkflow} disabled={workflowCreating || !workflowForm.name}>
+                            {workflowCreating ? 'Création…' : '✓ Créer le workflow'}
+                          </button>
+                        </div>
+                      )}
+                      {workflowsLoading ? (
+                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', padding: 16 }}>Chargement…</p>
+                      ) : workflows.length === 0 ? (
+                        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+                          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
+                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez un workflow pour automatiser votre suivi.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {workflows.map(wf => (
+                            <div key={wf.id} className="card" style={{ borderColor: wf.active ? 'rgba(62,207,142,0.15)' : undefined }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{wf.name}</div>
+                                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
+                                    {wf.trigger === 'new_prospect' ? 'Nouveau prospect' : wf.trigger === 'new_match' ? 'Nouveau match' : 'Manuel'}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                  <button onClick={() => handleToggleWorkflow(wf.id, wf.active)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: wf.active ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: wf.active ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${wf.active ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                                    {wf.active ? '● Actif' : '○ Inactif'}
+                                  </button>
+                                  <button onClick={() => handleDeleteWorkflow(wf.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="card">
+                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 18 }}>Comment ça marche ?</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                        {[
+                          { n: '1', t: 'Un prospect contacte votre chatbot', d: 'Il laisse son email ou ses coordonnées en discutant avec votre bot.' },
+                          { n: '2', t: 'Le workflow se déclenche', d: 'ProspectBot détecte le nouveau contact et exécute les actions configurées.' },
+                          { n: '3', t: 'Email automatique envoyé', d: 'Le prospect reçoit un email de bienvenue, votre équipe est notifiée.' },
+                          { n: '4', t: 'Vous intervenez au bon moment', d: 'Vous ne rappelez qu\'un prospect déjà informé et engagé.' },
+                        ].map(item => (
+                          <div key={item.n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#d4a853', flexShrink: 0 }}>{item.n}</div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{item.t}</div>
+                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.55 }}>{item.d}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          )}
+
+        </main>
+      </div>
+
+      {/* Onboarding Agent */}
+      {showOnboardingAgent && (
+        <OnboardingAgent agentName={agent?.name || 'Agent'} onComplete={handleOnboardingAgentComplete} />
+      )}
+
+      {/* Onboarding Acheteur */}
+      {showOnboardingAcheteur && (
+        <OnboardingAcheteur onComplete={handleOnboardingAcheteurComplete} onClose={() => setShowOnboardingAcheteur(false)} />
+      )}
+    </>
+  );
+}
+
+export default dynamic(() => Promise.resolve(ImmobilierDashboard), { ssr: false });

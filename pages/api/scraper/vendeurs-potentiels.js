@@ -335,12 +335,20 @@ async function enrichirContacts(vendeurs) {
 async function resolveCodeCommune(ville) {
   try {
     const res = await fetch(
-      `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(ville)}&fields=code,nom,codesPostaux&boost=population&limit=1`,
-      { signal: AbortSignal.timeout(4000) }
+      `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(ville)}&fields=code,nom,codesPostaux&boost=population&limit=5`,
+      { signal: AbortSignal.timeout(5000) }
     );
     if (!res.ok) return null;
     const data = await res.json();
-    return data?.[0]?.code || null;
+    if (!data?.length) return null;
+    // Préférer correspondance exacte (gère les fusions type "Baugé-en-Anjou")
+    const normalized = ville.trim().toLowerCase();
+    const exact = data.find(c => c.nom.toLowerCase() === normalized);
+    if (exact) return exact.code;
+    // Sinon chercher si le nom de la ville est contenu dans une commune fusionnée
+    const partial = data.find(c => c.nom.toLowerCase().includes(normalized));
+    if (partial) return partial.code;
+    return data[0].code;
   } catch {
     return null;
   }
@@ -351,7 +359,13 @@ async function resolveCodeCommune(ville) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { ville, type = 'all', surfaceMin = 0, scoreMin = 0, limit = 60 } = req.body;
+  const { ville, type = 'all', surfaceMin = 0, scoreMin = 0 } = req.body;
+
+  // Limite selon le plan
+  const planLimits = { gratuit: 20, pro: 100, agence: null };
+  const userPlan = req.headers['x-user-plan'] || 'gratuit';
+  const planLimit = planLimits[userPlan] ?? 20;
+  const limit = planLimit; // null = illimité (agence)
   if (!ville?.trim()) return res.status(400).json({ error: 'Ville requise' });
 
   try {
@@ -397,8 +411,8 @@ export default async function handler(req, res) {
     // 6. Filtrer et trier
     let vendeurs = avecScores
       .filter(v => v.score >= scoreMin)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+      .sort((a, b) => b.score - a.score);
+    if (limit !== null) vendeurs = vendeurs.slice(0, limit);
 
     // 7. Enrichissement contacts via annuaires (async, best effort)
     vendeurs = await enrichirContacts(vendeurs);
