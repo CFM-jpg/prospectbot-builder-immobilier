@@ -101,13 +101,17 @@ export default function OnboardingAgent({ onComplete, agentName = 'Agent', initi
     try { localStorage.setItem('pb_checklist', JSON.stringify(updated)); } catch {}
   };
 
-  // Charge la checklist depuis localStorage
+  // Charge la checklist depuis localStorage (client uniquement)
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('pb_checklist') || '{}');
       if (Object.keys(saved).length) setChecklist(c => ({ ...c, ...saved }));
     } catch {}
   }, []);
+
+  // Guard SSR : évite le mismatch hydration sur les éléments interactifs
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   return (
     <div style={overlay}>
@@ -168,7 +172,7 @@ export default function OnboardingAgent({ onComplete, agentName = 'Agent', initi
                     borderColor: checklist[item.key] ? '#4ade8040' : '#262626',
                   }}
                 >
-                  <div style={{
+                  <div suppressHydrationWarning style={{
                     ...checkbox,
                     background: checklist[item.key] ? '#4ade80' : 'transparent',
                     borderColor: checklist[item.key] ? '#4ade80' : '#4b5563',

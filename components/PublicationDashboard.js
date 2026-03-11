@@ -171,9 +171,7 @@ export default function PublicationDashboard() {
     const res = a.resultats_publication || {};
     return acc + Object.values(res).filter(r => r.status === 'lien_direct').length;
   }, 0);
-  const apisConnectees = ['LEBONCOIN_API_KEY', 'SELOGER_API_KEY'].filter(k =>
-    typeof window !== 'undefined' && false // côté client on ne peut pas voir les env vars
-  ).length;
+  const apisConnectees = 0; // Les env vars server ne sont pas accessibles côté client
 
   return (
     <div style={styles.container}>
@@ -245,7 +243,7 @@ export default function PublicationDashboard() {
                     <h3 style={styles.annonceTitre}>
                       {annonce.texte_genere?.titre || `${b.type} ${b.surface}m² - ${b.ville}`}
                     </h3>
-                    <span style={styles.annonceDate}>
+                    <span suppressHydrationWarning style={styles.annonceDate}>
                       {new Date(annonce.created_at).toLocaleDateString('fr-FR')}
                     </span>
                   </div>
@@ -255,7 +253,7 @@ export default function PublicationDashboard() {
                       <span style={styles.metaValue}>{b.surface}m²</span> · {b.pieces}p · {b.chambres}ch
                     </span>
                     <span style={styles.metaItem}>
-                      <span style={styles.metaValue}>
+                      <span suppressHydrationWarning style={styles.metaValue}>
                         {b.prix?.toLocaleString('fr-FR')}€{b.transaction === 'location' ? '/mois' : ''}
                       </span>
                     </span>

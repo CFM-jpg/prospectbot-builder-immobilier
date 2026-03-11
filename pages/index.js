@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import QuestionnaireOffre from '../components/QuestionnaireOffre';
 
 // ─── Lead capture API (simple Supabase insert) ────────────────────────────────
 async function saveLead(data) {
@@ -978,6 +979,20 @@ export default function LandingPage() {
           <p data-reveal style={{ textAlign: 'center', marginTop: 32, fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
             Prix hors taxes · Engagement mensuel ou annuel · Résiliation à tout moment
           </p>
+
+          {/* ── Questionnaire de recommandation ── */}
+          <div data-reveal data-delay="3" style={{ marginTop: 64 }}>
+            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#d4a853', marginBottom: 12 }}>Aide au choix</div>
+              <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 300, color: '#f0f0f0', marginBottom: 10 }}>
+                Pas sûr du plan qui vous convient ?
+              </h3>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif' }}>
+                Répondez à 5 questions — on vous recommande le plan idéal en 30 secondes.
+              </p>
+            </div>
+            <QuestionnaireOffre />
+          </div>
 
           {/* ── Section B2B ── */}
           <div data-reveal data-delay="4" style={{ marginTop: 72, background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.15)', borderRadius: 20, padding: '48px 44px' }}>
