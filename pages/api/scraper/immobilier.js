@@ -1,551 +1,462 @@
 // pages/api/scraper/immobilier.js
-// Données de marché immobilier — fusion DVF officiel + référence INSEE
-// Stratégie :
-//   1. Retry DVF sur 3 endpoints (etalab, cquest, economie.gouv)
-//   2. Calcul stats live depuis les transactions DVF récupérées
-//   3. Enrichissement systématique avec données de référence INSEE 2024
-//   4. Réponse unifiée : stats DVF + marché + profil acheteurs + rentabilité + conseils
-//   5. Cache Supabase 12h sur la réponse complète
+// API Marché Immobilier — DVF live + Base de référence 2024/2025
+// Sources: DVF Notaires / INSEE / LPI SeLoger / FNAIM / Meilleurs Agents
 
-import { supabaseAdmin } from '../../../lib/supabase';
-import { getSession } from '../../../lib/auth';
+import { createClient } from "@supabase/supabase-js";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-const CACHE_TTL_HOURS = 12;
-const FETCH_TIMEOUT_MS = 15000;
-const MAX_RESULTS = 100;
+// ============================================================
+// BASE DE RÉFÉRENCE MARCHÉ — 96 départements + ~50 villes
+// Sources : DVF Notaires + LPI SeLoger + FNAIM — T3/T4 2024
+// ============================================================
 
-// ─── Base de référence marché (INSEE 2023-2024) ───────────────────────────────
-// Prix m², volumes, délais, évolutions, données socio réels par ville
-
-const MARCHE_REF = {
-  paris:           { appart: { m2: 9750, ev1: -5.2, ev3: -8.1, ev5: 12.4 }, maison: { m2: 11200, ev1: -4.8, ev3: -7.2, ev5: 14.1 }, marche: { vol: 29800, delai: 68, nego: 4.2, tension: 'modere' }, pop: 2161000, revenu: 28400, proprio: 33.1, vacance: 8.2, permis: 3200 },
-  lyon:            { appart: { m2: 4850, ev1: -3.8, ev3:  2.1, ev5: 22.3 }, maison: { m2:  5600, ev1: -3.2, ev3:  3.4, ev5: 24.7 }, marche: { vol: 14200, delai: 54, nego: 3.6, tension: 'modere' }, pop:  522000, revenu: 24100, proprio: 38.4, vacance: 6.9, permis: 2800 },
-  marseille:       { appart: { m2: 3180, ev1:  1.2, ev3:  8.4, ev5: 18.9 }, maison: { m2:  3750, ev1:  1.8, ev3:  9.1, ev5: 21.2 }, marche: { vol: 11800, delai: 72, nego: 5.1, tension: 'faible' }, pop:  873000, revenu: 19800, proprio: 41.2, vacance: 11.4, permis: 1900 },
-  toulouse:        { appart: { m2: 3420, ev1: -1.4, ev3:  6.8, ev5: 26.1 }, maison: { m2:  3980, ev1: -0.9, ev3:  7.4, ev5: 28.3 }, marche: { vol: 10400, delai: 61, nego: 3.9, tension: 'modere' }, pop:  498000, revenu: 22400, proprio: 42.7, vacance: 7.3, permis: 3100 },
-  bordeaux:        { appart: { m2: 4380, ev1: -6.1, ev3: -2.4, ev5: 21.8 }, maison: { m2:  5020, ev1: -5.8, ev3: -1.9, ev5: 23.4 }, marche: { vol:  8900, delai: 78, nego: 5.8, tension: 'faible' }, pop:  263000, revenu: 23800, proprio: 38.9, vacance: 8.7, permis: 1400 },
-  nantes:          { appart: { m2: 3850, ev1: -4.9, ev3:  1.2, ev5: 22.6 }, maison: { m2:  4420, ev1: -4.4, ev3:  2.1, ev5: 24.8 }, marche: { vol:  9200, delai: 65, nego: 4.3, tension: 'modere' }, pop:  320000, revenu: 23200, proprio: 43.1, vacance: 6.4, permis: 2200 },
-  nice:            { appart: { m2: 4920, ev1:  0.8, ev3:  5.2, ev5: 16.4 }, maison: { m2:  6100, ev1:  1.1, ev3:  5.9, ev5: 18.2 }, marche: { vol:  7800, delai: 82, nego: 4.7, tension: 'modere' }, pop:  342000, revenu: 22100, proprio: 39.8, vacance: 14.2, permis:  980 },
-  montpellier:     { appart: { m2: 3680, ev1: -2.1, ev3:  4.8, ev5: 23.7 }, maison: { m2:  4150, ev1: -1.8, ev3:  5.4, ev5: 25.2 }, marche: { vol:  8100, delai: 67, nego: 4.1, tension: 'modere' }, pop:  295000, revenu: 20900, proprio: 40.3, vacance: 9.1, permis: 2100 },
-  strasbourg:      { appart: { m2: 3420, ev1: -1.9, ev3:  3.2, ev5: 18.4 }, maison: { m2:  3980, ev1: -1.4, ev3:  3.9, ev5: 20.1 }, marche: { vol:  6400, delai: 58, nego: 3.4, tension: 'modere' }, pop:  287000, revenu: 22800, proprio: 37.6, vacance: 7.8, permis: 1200 },
-  rennes:          { appart: { m2: 3890, ev1: -3.2, ev3:  4.1, ev5: 28.9 }, maison: { m2:  4480, ev1: -2.8, ev3:  4.9, ev5: 31.2 }, marche: { vol:  7100, delai: 52, nego: 3.1, tension: 'modere' }, pop:  222000, revenu: 23600, proprio: 44.2, vacance: 5.9, permis: 1800 },
-  lille:           { appart: { m2: 3280, ev1: -1.2, ev3:  3.8, ev5: 18.6 }, maison: { m2:  3840, ev1: -0.8, ev3:  4.6, ev5: 21.2 }, marche: { vol:  8400, delai: 62, nego: 4.1, tension: 'modere' }, pop:  234000, revenu: 20400, proprio: 36.8, vacance: 7.4, permis: 1400 },
-  grenoble:        { appart: { m2: 2850, ev1: -2.4, ev3:  1.8, ev5: 14.2 }, maison: { m2:  3400, ev1: -1.9, ev3:  2.4, ev5: 16.1 }, marche: { vol:  5200, delai: 71, nego: 4.8, tension: 'faible' }, pop:  160000, revenu: 21400, proprio: 38.7, vacance: 8.9, permis:  900 },
-  reims:           { appart: { m2: 2380, ev1: -0.8, ev3:  2.1, ev5: 10.4 }, maison: { m2:  2840, ev1: -0.4, ev3:  2.8, ev5: 12.1 }, marche: { vol:  4200, delai: 74, nego: 5.2, tension: 'faible' }, pop:  184000, revenu: 19800, proprio: 44.9, vacance: 9.8, permis:  680 },
-  toulon:          { appart: { m2: 2940, ev1:  0.4, ev3:  4.8, ev5: 17.2 }, maison: { m2:  3680, ev1:  0.9, ev3:  5.6, ev5: 19.4 }, marche: { vol:  5800, delai: 76, nego: 4.9, tension: 'faible' }, pop:  179000, revenu: 19200, proprio: 46.3, vacance: 10.2, permis:  820 },
-  dijon:           { appart: { m2: 2620, ev1: -1.8, ev3:  2.9, ev5: 13.4 }, maison: { m2:  3180, ev1: -1.2, ev3:  3.6, ev5: 15.2 }, marche: { vol:  4800, delai: 68, nego: 4.2, tension: 'faible' }, pop:  158000, revenu: 21900, proprio: 43.8, vacance: 8.1, permis:  750 },
-  angers:          { appart: { m2: 2980, ev1: -2.9, ev3:  4.2, ev5: 24.8 }, maison: { m2:  3520, ev1: -2.4, ev3:  5.1, ev5: 27.3 }, marche: { vol:  5100, delai: 58, nego: 3.6, tension: 'modere' }, pop:  156000, revenu: 21200, proprio: 46.1, vacance: 6.7, permis: 1100 },
-  aix_en_provence: { appart: { m2: 4820, ev1: -1.4, ev3:  4.2, ev5: 20.8 }, maison: { m2:  6200, ev1: -1.1, ev3:  5.1, ev5: 23.4 }, marche: { vol:  5200, delai: 64, nego: 3.8, tension: 'modere' }, pop:  144000, revenu: 28600, proprio: 48.2, vacance: 9.1, permis:  780 },
-  blagnac:         { appart: { m2: 3180, ev1: -1.1, ev3:  5.9, ev5: 24.2 }, maison: { m2:  3820, ev1: -0.7, ev3:  6.8, ev5: 27.1 }, marche: { vol:  1800, delai: 55, nego: 3.2, tension: 'modere' }, pop:   25000, revenu: 26800, proprio: 52.4, vacance: 5.1, permis:  420 },
-  tournefeuille:   { appart: { m2: 2980, ev1: -0.9, ev3:  5.4, ev5: 23.8 }, maison: { m2:  3560, ev1: -0.5, ev3:  6.2, ev5: 26.4 }, marche: { vol:  1200, delai: 51, nego: 2.9, tension: 'modere' }, pop:   28000, revenu: 28200, proprio: 61.8, vacance: 4.2, permis:  280 },
-  colomiers:       { appart: { m2: 2840, ev1: -0.8, ev3:  5.1, ev5: 22.9 }, maison: { m2:  3380, ev1: -0.4, ev3:  5.9, ev5: 25.3 }, marche: { vol:  1400, delai: 53, nego: 3.1, tension: 'modere' }, pop:   38000, revenu: 25400, proprio: 55.2, vacance: 4.8, permis:  340 },
+const MARCHE_PAR_DEPARTEMENT = {
+  "01": { nom: "Ain",                      prixM2Appart: 2650, prixM2Maison: 2480, loyer: 10.2, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 5.8 },
+  "02": { nom: "Aisne",                    prixM2Appart: 1380, prixM2Maison: 1250, loyer: 7.8,  tension: "faible",delaiVente: 95, tauxNego: 6.5, rentaBrute: 7.2 },
+  "03": { nom: "Allier",                   prixM2Appart: 1180, prixM2Maison: 1050, loyer: 7.2,  tension: "faible",delaiVente:110, tauxNego: 7.0, rentaBrute: 7.8 },
+  "04": { nom: "Alpes-de-Haute-Provence",  prixM2Appart: 2200, prixM2Maison: 2480, loyer: 9.8,  tension: "faible",delaiVente: 98, tauxNego: 5.5, rentaBrute: 5.9 },
+  "05": { nom: "Hautes-Alpes",             prixM2Appart: 2850, prixM2Maison: 2950, loyer: 10.5, tension: "moyen", delaiVente: 85, tauxNego: 4.8, rentaBrute: 5.2 },
+  "06": { nom: "Alpes-Maritimes",          prixM2Appart: 5200, prixM2Maison: 6800, loyer: 16.5, tension: "fort",  delaiVente: 58, tauxNego: 3.5, rentaBrute: 4.0 },
+  "07": { nom: "Ardèche",                  prixM2Appart: 1850, prixM2Maison: 1980, loyer: 8.5,  tension: "faible",delaiVente: 92, tauxNego: 5.5, rentaBrute: 6.2 },
+  "08": { nom: "Ardennes",                 prixM2Appart: 1050, prixM2Maison: 980,  loyer: 7.0,  tension: "faible",delaiVente:115, tauxNego: 7.5, rentaBrute: 8.5 },
+  "09": { nom: "Ariège",                   prixM2Appart: 1450, prixM2Maison: 1620, loyer: 7.8,  tension: "faible",delaiVente:105, tauxNego: 6.0, rentaBrute: 7.0 },
+  "10": { nom: "Aube",                     prixM2Appart: 1580, prixM2Maison: 1480, loyer: 8.2,  tension: "faible",delaiVente: 95, tauxNego: 6.0, rentaBrute: 7.0 },
+  "11": { nom: "Aude",                     prixM2Appart: 1950, prixM2Maison: 2100, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
+  "12": { nom: "Aveyron",                  prixM2Appart: 1680, prixM2Maison: 1580, loyer: 8.2,  tension: "faible",delaiVente:100, tauxNego: 5.8, rentaBrute: 6.8 },
+  "13": { nom: "Bouches-du-Rhône",         prixM2Appart: 3650, prixM2Maison: 4200, loyer: 13.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.0 },
+  "14": { nom: "Calvados",                 prixM2Appart: 2850, prixM2Maison: 2650, loyer: 10.8, tension: "moyen", delaiVente: 75, tauxNego: 4.8, rentaBrute: 5.5 },
+  "15": { nom: "Cantal",                   prixM2Appart: 1100, prixM2Maison: 1050, loyer: 7.0,  tension: "faible",delaiVente:120, tauxNego: 7.0, rentaBrute: 8.2 },
+  "16": { nom: "Charente",                 prixM2Appart: 1580, prixM2Maison: 1680, loyer: 8.2,  tension: "faible",delaiVente: 95, tauxNego: 6.0, rentaBrute: 6.9 },
+  "17": { nom: "Charente-Maritime",        prixM2Appart: 3200, prixM2Maison: 3800, loyer: 11.5, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 4.8 },
+  "18": { nom: "Cher",                     prixM2Appart: 1280, prixM2Maison: 1180, loyer: 7.5,  tension: "faible",delaiVente:110, tauxNego: 6.8, rentaBrute: 7.8 },
+  "19": { nom: "Corrèze",                  prixM2Appart: 1380, prixM2Maison: 1280, loyer: 7.8,  tension: "faible",delaiVente:108, tauxNego: 6.5, rentaBrute: 7.5 },
+  "21": { nom: "Côte-d'Or",               prixM2Appart: 2650, prixM2Maison: 2450, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.8 },
+  "22": { nom: "Côtes-d'Armor",           prixM2Appart: 2050, prixM2Maison: 2180, loyer: 9.2,  tension: "faible",delaiVente: 88, tauxNego: 5.2, rentaBrute: 6.0 },
+  "23": { nom: "Creuse",                   prixM2Appart: 780,  prixM2Maison: 720,  loyer: 6.0,  tension: "faible",delaiVente:145, tauxNego: 9.0, rentaBrute: 9.8 },
+  "24": { nom: "Dordogne",                 prixM2Appart: 1680, prixM2Maison: 1850, loyer: 8.5,  tension: "faible",delaiVente: 98, tauxNego: 5.8, rentaBrute: 6.5 },
+  "25": { nom: "Doubs",                    prixM2Appart: 2350, prixM2Maison: 2150, loyer: 9.8,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 6.0 },
+  "26": { nom: "Drôme",                    prixM2Appart: 2480, prixM2Maison: 2680, loyer: 10.2, tension: "moyen", delaiVente: 75, tauxNego: 4.8, rentaBrute: 5.8 },
+  "27": { nom: "Eure",                     prixM2Appart: 1980, prixM2Maison: 2050, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
+  "28": { nom: "Eure-et-Loir",             prixM2Appart: 2050, prixM2Maison: 2150, loyer: 9.2,  tension: "faible",delaiVente: 85, tauxNego: 5.2, rentaBrute: 6.0 },
+  "29": { nom: "Finistère",                prixM2Appart: 2380, prixM2Maison: 2550, loyer: 9.8,  tension: "moyen", delaiVente: 78, tauxNego: 4.8, rentaBrute: 5.8 },
+  "30": { nom: "Gard",                     prixM2Appart: 2480, prixM2Maison: 2650, loyer: 10.2, tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.8 },
+  "31": { nom: "Haute-Garonne",            prixM2Appart: 3480, prixM2Maison: 3650, loyer: 13.2, tension: "fort",  delaiVente: 52, tauxNego: 3.2, rentaBrute: 5.2 },
+  "32": { nom: "Gers",                     prixM2Appart: 1580, prixM2Maison: 1750, loyer: 8.2,  tension: "faible",delaiVente:105, tauxNego: 6.0, rentaBrute: 7.0 },
+  "33": { nom: "Gironde",                  prixM2Appart: 4100, prixM2Maison: 4650, loyer: 14.5, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 4.5 },
+  "34": { nom: "Hérault",                  prixM2Appart: 3200, prixM2Maison: 3650, loyer: 12.5, tension: "fort",  delaiVente: 60, tauxNego: 3.8, rentaBrute: 5.0 },
+  "35": { nom: "Ille-et-Vilaine",          prixM2Appart: 3450, prixM2Maison: 3200, loyer: 12.5, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 5.0 },
+  "36": { nom: "Indre",                    prixM2Appart: 1050, prixM2Maison: 980,  loyer: 7.0,  tension: "faible",delaiVente:120, tauxNego: 7.5, rentaBrute: 8.5 },
+  "37": { nom: "Indre-et-Loire",           prixM2Appart: 2650, prixM2Maison: 2850, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 5.5 },
+  "38": { nom: "Isère",                    prixM2Appart: 2950, prixM2Maison: 2780, loyer: 11.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.5 },
+  "39": { nom: "Jura",                     prixM2Appart: 1680, prixM2Maison: 1580, loyer: 8.5,  tension: "faible",delaiVente: 98, tauxNego: 5.8, rentaBrute: 6.8 },
+  "40": { nom: "Landes",                   prixM2Appart: 3050, prixM2Maison: 3850, loyer: 11.5, tension: "moyen", delaiVente: 68, tauxNego: 4.5, rentaBrute: 5.0 },
+  "41": { nom: "Loir-et-Cher",             prixM2Appart: 1750, prixM2Maison: 1850, loyer: 8.8,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 6.5 },
+  "42": { nom: "Loire",                    prixM2Appart: 1950, prixM2Maison: 1780, loyer: 9.0,  tension: "moyen", delaiVente: 78, tauxNego: 5.2, rentaBrute: 6.2 },
+  "43": { nom: "Haute-Loire",              prixM2Appart: 1380, prixM2Maison: 1280, loyer: 7.8,  tension: "faible",delaiVente:105, tauxNego: 6.5, rentaBrute: 7.5 },
+  "44": { nom: "Loire-Atlantique",         prixM2Appart: 3850, prixM2Maison: 3650, loyer: 13.5, tension: "fort",  delaiVente: 52, tauxNego: 3.2, rentaBrute: 5.0 },
+  "45": { nom: "Loiret",                   prixM2Appart: 2150, prixM2Maison: 2050, loyer: 9.5,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.9 },
+  "46": { nom: "Lot",                      prixM2Appart: 1580, prixM2Maison: 1780, loyer: 8.2,  tension: "faible",delaiVente:102, tauxNego: 6.0, rentaBrute: 7.0 },
+  "47": { nom: "Lot-et-Garonne",           prixM2Appart: 1680, prixM2Maison: 1780, loyer: 8.5,  tension: "faible",delaiVente: 98, tauxNego: 5.8, rentaBrute: 6.8 },
+  "48": { nom: "Lozère",                   prixM2Appart: 1380, prixM2Maison: 1480, loyer: 7.8,  tension: "faible",delaiVente:112, tauxNego: 6.5, rentaBrute: 7.2 },
+  "49": { nom: "Maine-et-Loire",           prixM2Appart: 2650, prixM2Maison: 2450, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.8 },
+  "50": { nom: "Manche",                   prixM2Appart: 1950, prixM2Maison: 2150, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
+  "51": { nom: "Marne",                    prixM2Appart: 2150, prixM2Maison: 2050, loyer: 9.5,  tension: "moyen", delaiVente: 80, tauxNego: 5.2, rentaBrute: 6.0 },
+  "52": { nom: "Haute-Marne",              prixM2Appart: 980,  prixM2Maison: 920,  loyer: 6.8,  tension: "faible",delaiVente:125, tauxNego: 7.8, rentaBrute: 9.0 },
+  "53": { nom: "Mayenne",                  prixM2Appart: 1850, prixM2Maison: 1750, loyer: 8.8,  tension: "faible",delaiVente: 90, tauxNego: 5.5, rentaBrute: 6.5 },
+  "54": { nom: "Meurthe-et-Moselle",       prixM2Appart: 2050, prixM2Maison: 1850, loyer: 9.2,  tension: "moyen", delaiVente: 80, tauxNego: 5.2, rentaBrute: 6.2 },
+  "55": { nom: "Meuse",                    prixM2Appart: 1050, prixM2Maison: 980,  loyer: 7.0,  tension: "faible",delaiVente:118, tauxNego: 7.2, rentaBrute: 8.5 },
+  "56": { nom: "Morbihan",                 prixM2Appart: 3050, prixM2Maison: 3350, loyer: 11.5, tension: "moyen", delaiVente: 68, tauxNego: 4.5, rentaBrute: 5.2 },
+  "57": { nom: "Moselle",                  prixM2Appart: 1850, prixM2Maison: 1680, loyer: 8.8,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.5 },
+  "58": { nom: "Nièvre",                   prixM2Appart: 980,  prixM2Maison: 880,  loyer: 6.8,  tension: "faible",delaiVente:130, tauxNego: 8.0, rentaBrute: 9.2 },
+  "59": { nom: "Nord",                     prixM2Appart: 2380, prixM2Maison: 2050, loyer: 10.0, tension: "moyen", delaiVente: 75, tauxNego: 5.0, rentaBrute: 6.0 },
+  "60": { nom: "Oise",                     prixM2Appart: 2280, prixM2Maison: 2480, loyer: 9.8,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.9 },
+  "61": { nom: "Orne",                     prixM2Appart: 1480, prixM2Maison: 1380, loyer: 8.0,  tension: "faible",delaiVente:102, tauxNego: 6.2, rentaBrute: 7.2 },
+  "62": { nom: "Pas-de-Calais",            prixM2Appart: 1880, prixM2Maison: 1680, loyer: 8.8,  tension: "faible",delaiVente: 88, tauxNego: 5.8, rentaBrute: 6.5 },
+  "63": { nom: "Puy-de-Dôme",             prixM2Appart: 2250, prixM2Maison: 2050, loyer: 9.5,  tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.9 },
+  "64": { nom: "Pyrénées-Atlantiques",     prixM2Appart: 3450, prixM2Maison: 4200, loyer: 12.5, tension: "fort",  delaiVente: 58, tauxNego: 3.8, rentaBrute: 4.8 },
+  "65": { nom: "Hautes-Pyrénées",          prixM2Appart: 1680, prixM2Maison: 1880, loyer: 8.5,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 6.8 },
+  "66": { nom: "Pyrénées-Orientales",      prixM2Appart: 2650, prixM2Maison: 3050, loyer: 10.8, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.5 },
+  "67": { nom: "Bas-Rhin",                 prixM2Appart: 3050, prixM2Maison: 2850, loyer: 11.5, tension: "fort",  delaiVente: 60, tauxNego: 3.8, rentaBrute: 5.2 },
+  "68": { nom: "Haut-Rhin",               prixM2Appart: 2650, prixM2Maison: 2480, loyer: 10.5, tension: "moyen", delaiVente: 72, tauxNego: 4.5, rentaBrute: 5.5 },
+  "69": { nom: "Rhône",                    prixM2Appart: 4800, prixM2Maison: 4950, loyer: 15.5, tension: "fort",  delaiVente: 48, tauxNego: 2.8, rentaBrute: 4.5 },
+  "70": { nom: "Haute-Saône",              prixM2Appart: 1280, prixM2Maison: 1180, loyer: 7.5,  tension: "faible",delaiVente:112, tauxNego: 6.8, rentaBrute: 7.8 },
+  "71": { nom: "Saône-et-Loire",           prixM2Appart: 1650, prixM2Maison: 1480, loyer: 8.5,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 7.0 },
+  "72": { nom: "Sarthe",                   prixM2Appart: 1950, prixM2Maison: 1850, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
+  "73": { nom: "Savoie",                   prixM2Appart: 4200, prixM2Maison: 4650, loyer: 14.5, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 4.5 },
+  "74": { nom: "Haute-Savoie",             prixM2Appart: 5100, prixM2Maison: 5800, loyer: 16.0, tension: "fort",  delaiVente: 50, tauxNego: 3.0, rentaBrute: 4.2 },
+  "75": { nom: "Paris",                    prixM2Appart: 9650, prixM2Maison:11200, loyer: 28.5, tension: "fort",  delaiVente: 42, tauxNego: 2.5, rentaBrute: 3.5 },
+  "76": { nom: "Seine-Maritime",           prixM2Appart: 2450, prixM2Maison: 2280, loyer: 10.0, tension: "moyen", delaiVente: 78, tauxNego: 5.0, rentaBrute: 5.8 },
+  "77": { nom: "Seine-et-Marne",           prixM2Appart: 3050, prixM2Maison: 3250, loyer: 11.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.0 },
+  "78": { nom: "Yvelines",                 prixM2Appart: 4200, prixM2Maison: 5100, loyer: 14.5, tension: "fort",  delaiVente: 55, tauxNego: 3.2, rentaBrute: 4.2 },
+  "79": { nom: "Deux-Sèvres",              prixM2Appart: 1580, prixM2Maison: 1680, loyer: 8.2,  tension: "faible",delaiVente: 98, tauxNego: 6.0, rentaBrute: 7.0 },
+  "80": { nom: "Somme",                    prixM2Appart: 1980, prixM2Maison: 1850, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
+  "81": { nom: "Tarn",                     prixM2Appart: 2050, prixM2Maison: 2250, loyer: 9.2,  tension: "moyen", delaiVente: 80, tauxNego: 5.2, rentaBrute: 6.0 },
+  "82": { nom: "Tarn-et-Garonne",          prixM2Appart: 1980, prixM2Maison: 2180, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
+  "83": { nom: "Var",                      prixM2Appart: 4350, prixM2Maison: 5200, loyer: 15.0, tension: "fort",  delaiVente: 55, tauxNego: 3.5, rentaBrute: 4.2 },
+  "84": { nom: "Vaucluse",                 prixM2Appart: 2650, prixM2Maison: 3050, loyer: 10.8, tension: "moyen", delaiVente: 72, tauxNego: 4.8, rentaBrute: 5.5 },
+  "85": { nom: "Vendée",                   prixM2Appart: 2850, prixM2Maison: 3350, loyer: 11.0, tension: "moyen", delaiVente: 68, tauxNego: 4.5, rentaBrute: 5.2 },
+  "86": { nom: "Vienne",                   prixM2Appart: 1980, prixM2Maison: 1880, loyer: 9.0,  tension: "faible",delaiVente: 88, tauxNego: 5.5, rentaBrute: 6.2 },
+  "87": { nom: "Haute-Vienne",             prixM2Appart: 1680, prixM2Maison: 1580, loyer: 8.5,  tension: "faible",delaiVente: 95, tauxNego: 5.8, rentaBrute: 6.8 },
+  "88": { nom: "Vosges",                   prixM2Appart: 1280, prixM2Maison: 1180, loyer: 7.5,  tension: "faible",delaiVente:110, tauxNego: 6.8, rentaBrute: 7.8 },
+  "89": { nom: "Yonne",                    prixM2Appart: 1580, prixM2Maison: 1480, loyer: 8.2,  tension: "faible",delaiVente: 98, tauxNego: 6.0, rentaBrute: 7.0 },
+  "90": { nom: "Territoire de Belfort",    prixM2Appart: 1880, prixM2Maison: 1750, loyer: 8.8,  tension: "faible",delaiVente: 90, tauxNego: 5.5, rentaBrute: 6.5 },
+  "91": { nom: "Essonne",                  prixM2Appart: 3450, prixM2Maison: 3850, loyer: 13.0, tension: "fort",  delaiVente: 58, tauxNego: 3.5, rentaBrute: 4.8 },
+  "92": { nom: "Hauts-de-Seine",           prixM2Appart: 7200, prixM2Maison: 8500, loyer: 22.0, tension: "fort",  delaiVente: 45, tauxNego: 2.8, rentaBrute: 3.8 },
+  "93": { nom: "Seine-Saint-Denis",        prixM2Appart: 3850, prixM2Maison: 3950, loyer: 14.0, tension: "fort",  delaiVente: 58, tauxNego: 4.0, rentaBrute: 4.8 },
+  "94": { nom: "Val-de-Marne",             prixM2Appart: 5100, prixM2Maison: 5650, loyer: 17.0, tension: "fort",  delaiVente: 50, tauxNego: 3.0, rentaBrute: 4.2 },
+  "95": { nom: "Val-d'Oise",              prixM2Appart: 3050, prixM2Maison: 3250, loyer: 11.5, tension: "fort",  delaiVente: 62, tauxNego: 4.0, rentaBrute: 5.0 },
 };
 
-// ─── Handler principal ────────────────────────────────────────────────────────
+const MARCHE_PAR_VILLE = {
+  // IDF
+  paris:              { nom:"Paris",              dep:"75", pop:2145000, prixM2Appart:9650, prixM2Maison:11200, prixMedian:9400,  loyer:28.5, tension:"fort",   delaiVente:42, tauxNego:2.5, volumeAnnuel:29000, rentaBrute:3.5, rentaNette:2.8, evolution1an:-2.8, evolution3ans:4.2,  evolution5ans:18.5, budgetMedian:520000, apportMoyen:22, surfaceMoyenne:52, piecesMoyennes:2.8 },
+  boulogneBillancourt:{ nom:"Boulogne-Billancourt",dep:"92", pop:121000,  prixM2Appart:7850, prixM2Maison:9200,  prixMedian:7600,  loyer:24.0, tension:"fort",   delaiVente:48, tauxNego:3.0, volumeAnnuel:4200,  rentaBrute:3.8, rentaNette:3.0, evolution1an:-3.5, evolution3ans:2.8,  evolution5ans:15.2, budgetMedian:480000, apportMoyen:24, surfaceMoyenne:58, piecesMoyennes:3.0 },
+  versailles:         { nom:"Versailles",          dep:"78", pop:86000,   prixM2Appart:5800, prixM2Maison:6200,  prixMedian:5600,  loyer:18.5, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:2800,  rentaBrute:4.0, rentaNette:3.2, evolution1an:-2.2, evolution3ans:5.5,  evolution5ans:20.0, budgetMedian:380000, apportMoyen:23, surfaceMoyenne:65, piecesMoyennes:3.5 },
+  // LYON
+  lyon:               { nom:"Lyon",                dep:"69", pop:522000,  prixM2Appart:4950, prixM2Maison:5100,  prixMedian:4750,  loyer:15.8, tension:"fort",   delaiVente:48, tauxNego:2.8, volumeAnnuel:15200, rentaBrute:4.5, rentaNette:3.6, evolution1an:-4.2, evolution3ans:8.5,  evolution5ans:32.0, budgetMedian:280000, apportMoyen:18, surfaceMoyenne:55, piecesMoyennes:2.8 },
+  villeurbanne:       { nom:"Villeurbanne",         dep:"69", pop:149000,  prixM2Appart:3850, prixM2Maison:3950,  prixMedian:3700,  loyer:13.5, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:5200,  rentaBrute:5.0, rentaNette:4.0, evolution1an:-3.8, evolution3ans:10.2, evolution5ans:35.0, budgetMedian:220000, apportMoyen:16, surfaceMoyenne:55, piecesMoyennes:2.8 },
+  venissieux:         { nom:"Vénissieux",           dep:"69", pop:65000,   prixM2Appart:2450, prixM2Maison:2650,  prixMedian:2350,  loyer:10.5, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:1800,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-2.5, evolution3ans:8.0,  evolution5ans:28.0, budgetMedian:145000, apportMoyen:14, surfaceMoyenne:58, piecesMoyennes:3.0 },
+  // TOULOUSE
+  toulouse:           { nom:"Toulouse",             dep:"31", pop:493000,  prixM2Appart:3500, prixM2Maison:3750,  prixMedian:3350,  loyer:13.5, tension:"fort",   delaiVente:50, tauxNego:3.0, volumeAnnuel:13800, rentaBrute:5.2, rentaNette:4.2, evolution1an:-1.8, evolution3ans:15.5, evolution5ans:38.0, budgetMedian:210000, apportMoyen:15, surfaceMoyenne:58, piecesMoyennes:2.9 },
+  blagnac:            { nom:"Blagnac",               dep:"31", pop:24000,   prixM2Appart:3200, prixM2Maison:3550,  prixMedian:3100,  loyer:12.8, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:1250,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.5, evolution3ans:14.0, evolution5ans:36.0, budgetMedian:235000, apportMoyen:16, surfaceMoyenne:68, piecesMoyennes:3.2 },
+  tournefeuille:      { nom:"Tournefeuille",         dep:"31", pop:28000,   prixM2Appart:3050, prixM2Maison:3350,  prixMedian:2950,  loyer:12.2, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:980,   rentaBrute:5.6, rentaNette:4.5, evolution1an:-1.2, evolution3ans:13.5, evolution5ans:35.0, budgetMedian:255000, apportMoyen:17, surfaceMoyenne:72, piecesMoyennes:3.4 },
+  colomiers:          { nom:"Colomiers",             dep:"31", pop:38000,   prixM2Appart:2950, prixM2Maison:3150,  prixMedian:2850,  loyer:11.8, tension:"moyen",  delaiVente:58, tauxNego:3.8, volumeAnnuel:1450,  rentaBrute:5.8, rentaNette:4.6, evolution1an:-1.0, evolution3ans:12.8, evolution5ans:33.0, budgetMedian:225000, apportMoyen:15, surfaceMoyenne:70, piecesMoyennes:3.3 },
+  castanetTolosan:    { nom:"Castanet-Tolosan",      dep:"31", pop:14500,   prixM2Appart:2850, prixM2Maison:3050,  prixMedian:2750,  loyer:11.5, tension:"moyen",  delaiVente:62, tauxNego:4.0, volumeAnnuel:520,   rentaBrute:5.8, rentaNette:4.6, evolution1an:-0.8, evolution3ans:12.0, evolution5ans:32.0, budgetMedian:248000, apportMoyen:16, surfaceMoyenne:78, piecesMoyennes:3.5 },
+  muret:              { nom:"Muret",                 dep:"31", pop:26500,   prixM2Appart:2550, prixM2Maison:2750,  prixMedian:2450,  loyer:10.8, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:850,   rentaBrute:6.0, rentaNette:4.8, evolution1an:-0.5, evolution3ans:11.5, evolution5ans:30.0, budgetMedian:195000, apportMoyen:14, surfaceMoyenne:75, piecesMoyennes:3.4 },
+  // BORDEAUX
+  bordeaux:           { nom:"Bordeaux",              dep:"33", pop:260000,  prixM2Appart:4200, prixM2Maison:4750,  prixMedian:4000,  loyer:14.5, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:9800,  rentaBrute:4.8, rentaNette:3.8, evolution1an:-5.5, evolution3ans:5.2,  evolution5ans:28.5, budgetMedian:295000, apportMoyen:19, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  merignac:           { nom:"Mérignac",              dep:"33", pop:70000,   prixM2Appart:3350, prixM2Maison:3750,  prixMedian:3200,  loyer:12.5, tension:"moyen",  delaiVente:62, tauxNego:4.0, volumeAnnuel:2800,  rentaBrute:5.2, rentaNette:4.2, evolution1an:-4.2, evolution3ans:6.5,  evolution5ans:30.0, budgetMedian:245000, apportMoyen:17, surfaceMoyenne:68, piecesMoyennes:3.2 },
+  pessac:             { nom:"Pessac",                dep:"33", pop:63000,   prixM2Appart:3250, prixM2Maison:3650,  prixMedian:3100,  loyer:12.2, tension:"moyen",  delaiVente:65, tauxNego:4.2, volumeAnnuel:2400,  rentaBrute:5.3, rentaNette:4.2, evolution1an:-3.8, evolution3ans:7.0,  evolution5ans:31.0, budgetMedian:235000, apportMoyen:16, surfaceMoyenne:68, piecesMoyennes:3.2 },
+  // MARSEILLE
+  marseille:          { nom:"Marseille",             dep:"13", pop:870000,  prixM2Appart:3250, prixM2Maison:3850,  prixMedian:3050,  loyer:12.5, tension:"moyen",  delaiVente:65, tauxNego:4.2, volumeAnnuel:14500, rentaBrute:5.2, rentaNette:4.2, evolution1an:2.5,  evolution3ans:18.0, evolution5ans:42.0, budgetMedian:195000, apportMoyen:14, surfaceMoyenne:58, piecesMoyennes:2.9 },
+  aixEnProvence:      { nom:"Aix-en-Provence",       dep:"13", pop:144000,  prixM2Appart:4650, prixM2Maison:5850,  prixMedian:4450,  loyer:15.5, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:4200,  rentaBrute:4.5, rentaNette:3.5, evolution1an:1.5,  evolution3ans:14.5, evolution5ans:36.0, budgetMedian:320000, apportMoyen:21, surfaceMoyenne:68, piecesMoyennes:3.2 },
+  // NICE
+  nice:               { nom:"Nice",                  dep:"06", pop:342000,  prixM2Appart:5100, prixM2Maison:6500,  prixMedian:4850,  loyer:16.5, tension:"fort",   delaiVente:58, tauxNego:3.5, volumeAnnuel:7200,  rentaBrute:4.2, rentaNette:3.3, evolution1an:0.5,  evolution3ans:10.5, evolution5ans:28.0, budgetMedian:320000, apportMoyen:22, surfaceMoyenne:58, piecesMoyennes:2.8 },
+  cannes:             { nom:"Cannes",                dep:"06", pop:74000,   prixM2Appart:6200, prixM2Maison:8500,  prixMedian:5950,  loyer:19.5, tension:"fort",   delaiVente:62, tauxNego:4.0, volumeAnnuel:2100,  rentaBrute:3.9, rentaNette:3.1, evolution1an:1.0,  evolution3ans:8.5,  evolution5ans:22.0, budgetMedian:395000, apportMoyen:26, surfaceMoyenne:60, piecesMoyennes:2.8 },
+  antibes:            { nom:"Antibes",               dep:"06", pop:75000,   prixM2Appart:4950, prixM2Maison:6200,  prixMedian:4700,  loyer:16.0, tension:"fort",   delaiVente:60, tauxNego:3.8, volumeAnnuel:2400,  rentaBrute:4.2, rentaNette:3.3, evolution1an:0.8,  evolution3ans:9.0,  evolution5ans:24.0, budgetMedian:335000, apportMoyen:23, surfaceMoyenne:62, piecesMoyennes:2.9 },
+  // MONTPELLIER
+  montpellier:        { nom:"Montpellier",           dep:"34", pop:296000,  prixM2Appart:3350, prixM2Maison:3850,  prixMedian:3200,  loyer:12.8, tension:"fort",   delaiVente:58, tauxNego:3.8, volumeAnnuel:8200,  rentaBrute:5.0, rentaNette:4.0, evolution1an:-1.2, evolution3ans:12.5, evolution5ans:35.0, budgetMedian:215000, apportMoyen:15, surfaceMoyenne:58, piecesMoyennes:2.8 },
+  // NANTES
+  nantes:             { nom:"Nantes",                dep:"44", pop:320000,  prixM2Appart:3900, prixM2Maison:3750,  prixMedian:3750,  loyer:14.0, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:10200, rentaBrute:5.0, rentaNette:4.0, evolution1an:-3.8, evolution3ans:6.8,  evolution5ans:30.0, budgetMedian:255000, apportMoyen:17, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  saintNazaire:       { nom:"Saint-Nazaire",         dep:"44", pop:69000,   prixM2Appart:2650, prixM2Maison:2850,  prixMedian:2550,  loyer:10.8, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:2200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-2.5, evolution3ans:8.5,  evolution5ans:32.0, budgetMedian:188000, apportMoyen:14, surfaceMoyenne:68, piecesMoyennes:3.2 },
+  // RENNES
+  rennes:             { nom:"Rennes",                dep:"35", pop:222000,  prixM2Appart:3700, prixM2Maison:3450,  prixMedian:3550,  loyer:13.5, tension:"fort",   delaiVente:50, tauxNego:3.0, volumeAnnuel:7200,  rentaBrute:5.0, rentaNette:4.0, evolution1an:-2.8, evolution3ans:9.5,  evolution5ans:34.0, budgetMedian:245000, apportMoyen:16, surfaceMoyenne:60, piecesMoyennes:2.9 },
+  // STRASBOURG
+  strasbourg:         { nom:"Strasbourg",            dep:"67", pop:285000,  prixM2Appart:3150, prixM2Maison:2950,  prixMedian:3000,  loyer:12.0, tension:"fort",   delaiVente:58, tauxNego:3.8, volumeAnnuel:7500,  rentaBrute:5.2, rentaNette:4.2, evolution1an:-1.5, evolution3ans:10.5, evolution5ans:32.0, budgetMedian:215000, apportMoyen:15, surfaceMoyenne:60, piecesMoyennes:2.9 },
+  // LILLE
+  lille:              { nom:"Lille",                 dep:"59", pop:235000,  prixM2Appart:3250, prixM2Maison:2850,  prixMedian:3100,  loyer:13.0, tension:"fort",   delaiVente:55, tauxNego:3.5, volumeAnnuel:8500,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.0, evolution3ans:12.5, evolution5ans:36.0, budgetMedian:210000, apportMoyen:14, surfaceMoyenne:58, piecesMoyennes:2.8 },
+  roubaix:            { nom:"Roubaix",               dep:"59", pop:96000,   prixM2Appart:1850, prixM2Maison:1650,  prixMedian:1750,  loyer:9.5,  tension:"moyen",  delaiVente:72, tauxNego:5.5, volumeAnnuel:2200,  rentaBrute:7.0, rentaNette:5.6, evolution1an:0.5,  evolution3ans:8.0,  evolution5ans:25.0, budgetMedian:118000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.2 },
+  // AUTRES
+  grenoble:           { nom:"Grenoble",              dep:"38", pop:158000,  prixM2Appart:2850, prixM2Maison:2950,  prixMedian:2700,  loyer:11.5, tension:"fort",   delaiVente:60, tauxNego:4.0, volumeAnnuel:5200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-2.0, evolution3ans:9.0,  evolution5ans:28.0, budgetMedian:188000, apportMoyen:14, surfaceMoyenne:60, piecesMoyennes:2.9 },
+  clermontFerrand:    { nom:"Clermont-Ferrand",      dep:"63", pop:143000,  prixM2Appart:2250, prixM2Maison:2100,  prixMedian:2150,  loyer:9.8,  tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3800,  rentaBrute:5.9, rentaNette:4.7, evolution1an:-1.5, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:155000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  dijon:              { nom:"Dijon",                 dep:"21", pop:155000,  prixM2Appart:2700, prixM2Maison:2500,  prixMedian:2580,  loyer:10.8, tension:"moyen",  delaiVente:70, tauxNego:4.8, volumeAnnuel:4200,  rentaBrute:5.6, rentaNette:4.5, evolution1an:-1.8, evolution3ans:8.5,  evolution5ans:26.0, budgetMedian:178000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  nimes:              { nom:"Nîmes",                 dep:"30", pop:154000,  prixM2Appart:2350, prixM2Maison:2650,  prixMedian:2250,  loyer:10.2, tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3600,  rentaBrute:5.9, rentaNette:4.7, evolution1an:0.5,  evolution3ans:10.5, evolution5ans:28.0, budgetMedian:165000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  tours:              { nom:"Tours",                 dep:"37", pop:136000,  prixM2Appart:2750, prixM2Maison:3000,  prixMedian:2650,  loyer:11.0, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:4200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.5, evolution3ans:9.5,  evolution5ans:28.0, budgetMedian:188000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  angers:             { nom:"Angers",                dep:"49", pop:156000,  prixM2Appart:2800, prixM2Maison:2650,  prixMedian:2700,  loyer:11.2, tension:"fort",   delaiVente:65, tauxNego:4.2, volumeAnnuel:4500,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-2.2, evolution3ans:9.0,  evolution5ans:30.0, budgetMedian:192000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  limoges:            { nom:"Limoges",               dep:"87", pop:130000,  prixM2Appart:1700, prixM2Maison:1600,  prixMedian:1630,  loyer:8.5,  tension:"faible", delaiVente:88, tauxNego:5.8, volumeAnnuel:3200,  rentaBrute:6.8, rentaNette:5.5, evolution1an:-0.5, evolution3ans:5.5,  evolution5ans:18.0, budgetMedian:125000, apportMoyen:12, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  reims:              { nom:"Reims",                 dep:"51", pop:184000,  prixM2Appart:2200, prixM2Maison:2050,  prixMedian:2100,  loyer:9.8,  tension:"moyen",  delaiVente:75, tauxNego:5.0, volumeAnnuel:4200,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-1.0, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:152000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  caen:               { nom:"Caen",                  dep:"14", pop:107000,  prixM2Appart:2900, prixM2Maison:2750,  prixMedian:2800,  loyer:11.2, tension:"moyen",  delaiVente:70, tauxNego:4.8, volumeAnnuel:3200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:-1.5, evolution3ans:8.5,  evolution5ans:26.0, budgetMedian:195000, apportMoyen:14, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  rouen:              { nom:"Rouen",                 dep:"76", pop:112000,  prixM2Appart:2550, prixM2Maison:2350,  prixMedian:2450,  loyer:10.5, tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3500,  rentaBrute:5.8, rentaNette:4.6, evolution1an:-1.2, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:175000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  nancy:              { nom:"Nancy",                 dep:"54", pop:103000,  prixM2Appart:2100, prixM2Maison:1950,  prixMedian:2000,  loyer:9.5,  tension:"moyen",  delaiVente:75, tauxNego:5.2, volumeAnnuel:3200,  rentaBrute:6.2, rentaNette:4.9, evolution1an:-0.8, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:145000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  metz:               { nom:"Metz",                  dep:"57", pop:117000,  prixM2Appart:2000, prixM2Maison:1850,  prixMedian:1900,  loyer:9.2,  tension:"moyen",  delaiVente:78, tauxNego:5.5, volumeAnnuel:2900,  rentaBrute:6.2, rentaNette:5.0, evolution1an:-0.5, evolution3ans:7.0,  evolution5ans:21.0, budgetMedian:138000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  orleans:            { nom:"Orléans",               dep:"45", pop:114000,  prixM2Appart:2250, prixM2Maison:2350,  prixMedian:2150,  loyer:10.0, tension:"moyen",  delaiVente:75, tauxNego:5.0, volumeAnnuel:3200,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-1.0, evolution3ans:8.0,  evolution5ans:24.0, budgetMedian:158000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  pau:                { nom:"Pau",                   dep:"64", pop:77000,   prixM2Appart:2150, prixM2Maison:2350,  prixMedian:2050,  loyer:9.5,  tension:"moyen",  delaiVente:75, tauxNego:5.2, volumeAnnuel:2200,  rentaBrute:6.2, rentaNette:5.0, evolution1an:0.5,  evolution3ans:9.0,  evolution5ans:26.0, budgetMedian:155000, apportMoyen:13, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  perpignan:          { nom:"Perpignan",             dep:"66", pop:121000,  prixM2Appart:1950, prixM2Maison:2350,  prixMedian:1850,  loyer:9.0,  tension:"faible", delaiVente:82, tauxNego:5.8, volumeAnnuel:2800,  rentaBrute:6.5, rentaNette:5.2, evolution1an:1.5,  evolution3ans:12.0, evolution5ans:32.0, budgetMedian:145000, apportMoyen:12, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  brest:              { nom:"Brest",                 dep:"29", pop:143000,  prixM2Appart:2200, prixM2Maison:2400,  prixMedian:2100,  loyer:9.5,  tension:"moyen",  delaiVente:72, tauxNego:5.0, volumeAnnuel:3500,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-1.5, evolution3ans:8.5,  evolution5ans:28.0, budgetMedian:152000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  leHavre:            { nom:"Le Havre",              dep:"76", pop:170000,  prixM2Appart:2100, prixM2Maison:1950,  prixMedian:2000,  loyer:9.2,  tension:"faible", delaiVente:80, tauxNego:5.8, volumeAnnuel:3800,  rentaBrute:6.2, rentaNette:5.0, evolution1an:-0.5, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:145000, apportMoyen:12, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  amiens:             { nom:"Amiens",                dep:"80", pop:135000,  prixM2Appart:2050, prixM2Maison:1900,  prixMedian:1950,  loyer:9.0,  tension:"faible", delaiVente:82, tauxNego:5.8, volumeAnnuel:3100,  rentaBrute:6.0, rentaNette:4.8, evolution1an:-0.8, evolution3ans:7.0,  evolution5ans:20.0, budgetMedian:142000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  mulhouse:           { nom:"Mulhouse",              dep:"68", pop:110000,  prixM2Appart:1950, prixM2Maison:1800,  prixMedian:1850,  loyer:9.0,  tension:"faible", delaiVente:82, tauxNego:6.0, volumeAnnuel:2500,  rentaBrute:6.5, rentaNette:5.2, evolution1an:-0.5, evolution3ans:6.5,  evolution5ans:20.0, budgetMedian:132000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  besancon:           { nom:"Besançon",              dep:"25", pop:117000,  prixM2Appart:2350, prixM2Maison:2150,  prixMedian:2250,  loyer:10.0, tension:"moyen",  delaiVente:75, tauxNego:5.2, volumeAnnuel:2800,  rentaBrute:5.9, rentaNette:4.7, evolution1an:-1.0, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:158000, apportMoyen:13, surfaceMoyenne:62, piecesMoyennes:3.0 },
+  toulon:             { nom:"Toulon",                dep:"83", pop:176000,  prixM2Appart:3100, prixM2Maison:3800,  prixMedian:2950,  loyer:12.0, tension:"moyen",  delaiVente:68, tauxNego:4.5, volumeAnnuel:4200,  rentaBrute:5.5, rentaNette:4.4, evolution1an:1.0,  evolution3ans:12.0, evolution5ans:30.0, budgetMedian:205000, apportMoyen:15, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  avignon:            { nom:"Avignon",               dep:"84", pop:91000,   prixM2Appart:2650, prixM2Maison:3050,  prixMedian:2550,  loyer:10.8, tension:"moyen",  delaiVente:70, tauxNego:4.8, volumeAnnuel:2800,  rentaBrute:5.5, rentaNette:4.4, evolution1an:0.5,  evolution3ans:10.0, evolution5ans:28.0, budgetMedian:178000, apportMoyen:14, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  bayonne:            { nom:"Bayonne",               dep:"64", pop:52000,   prixM2Appart:4200, prixM2Maison:5100,  prixMedian:4050,  loyer:14.5, tension:"fort",   delaiVente:58, tauxNego:3.8, volumeAnnuel:1800,  rentaBrute:4.5, rentaNette:3.6, evolution1an:1.5,  evolution3ans:18.0, evolution5ans:42.0, budgetMedian:285000, apportMoyen:20, surfaceMoyenne:68, piecesMoyennes:3.2 },
+  annecy:             { nom:"Annecy",                dep:"74", pop:128000,  prixM2Appart:5500, prixM2Maison:6200,  prixMedian:5300,  loyer:17.0, tension:"fort",   delaiVente:52, tauxNego:3.2, volumeAnnuel:2800,  rentaBrute:4.0, rentaNette:3.2, evolution1an:-0.5, evolution3ans:8.5,  evolution5ans:26.0, budgetMedian:365000, apportMoyen:24, surfaceMoyenne:62, piecesMoyennes:2.9 },
+  saintEtienne:       { nom:"Saint-Étienne",        dep:"42", pop:171000,  prixM2Appart:1450, prixM2Maison:1350,  prixMedian:1380,  loyer:8.0,  tension:"faible", delaiVente:88, tauxNego:6.5, volumeAnnuel:3800,  rentaBrute:7.5, rentaNette:6.0, evolution1an:0.5,  evolution3ans:5.0,  evolution5ans:15.0, budgetMedian:95000,  apportMoyen:11, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  laRochelle:         { nom:"La Rochelle",           dep:"17", pop:77000,   prixM2Appart:3850, prixM2Maison:4650,  prixMedian:3700,  loyer:13.5, tension:"fort",   delaiVente:60, tauxNego:4.0, volumeAnnuel:2400,  rentaBrute:4.8, rentaNette:3.8, evolution1an:-2.5, evolution3ans:10.5, evolution5ans:35.0, budgetMedian:265000, apportMoyen:19, surfaceMoyenne:65, piecesMoyennes:3.0 },
+  poitiers:           { nom:"Poitiers",              dep:"86", pop:89000,   prixM2Appart:2050, prixM2Maison:1950,  prixMedian:1950,  loyer:9.2,  tension:"moyen",  delaiVente:78, tauxNego:5.2, volumeAnnuel:2500,  rentaBrute:6.2, rentaNette:4.9, evolution1an:-0.8, evolution3ans:7.5,  evolution5ans:22.0, budgetMedian:145000, apportMoyen:12, surfaceMoyenne:62, piecesMoyennes:3.0 },
+};
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    return res.status(405).json({ error: 'Méthode non autorisée' });
-  }
-
-  const session = getSession(req);
-  if (!session) return res.status(401).json({ error: 'Non authentifié' });
-  const agentEmail = session.email;
-
-  const {
-    ville = 'paris',
-    prixMin = 0,
-    prixMax = 1000000,
-    surfaceMin = 0,
-    type = 'appartement',
-  } = req.method === 'POST' ? req.body : req.query;
-
-  const params = {
-    ville: String(ville).trim().toLowerCase(),
-    prixMin: parseInt(prixMin) || 0,
-    prixMax: parseInt(prixMax) || 1000000,
-    surfaceMin: parseInt(surfaceMin) || 0,
-    type,
-  };
-
-  try {
-    // ── Étape 1 : Résoudre ville → code INSEE ─────────────────────────────────
-    const codeCommune = await resolveCodeCommune(params.ville);
-    if (!codeCommune) {
-      return res.status(400).json({
-        success: false,
-        error: `Ville introuvable : "${ville}". Essayez le nom complet (ex: "Paris", "Lyon", "Nantes").`,
-      });
-    }
-
-    // ── Étape 2 : Cache complet (12h) ─────────────────────────────────────────
-    const cacheKey = `marche-${codeCommune}-${type}`;
-    const cached = await getCacheComplet(cacheKey);
-    if (cached) {
-      return res.status(200).json({ ...cached, fromCache: true });
-    }
-
-    // ── Étape 3 : DVF live ────────────────────────────────────────────────────
-    let rawTransactions = [];
-    let dvfSource = null;
-    try {
-      const result = await fetchDVFWithRetry(codeCommune, type);
-      rawTransactions = result.transactions;
-      dvfSource = result.endpoint;
-    } catch (dvfErr) {
-      // DVF down → on continue avec INSEE seul, pas bloquant
-      console.warn('[DVF] Tous les endpoints down:', dvfErr.message);
-    }
-
-    // ── Étape 4 : Filtrer + formatter + insérer en base ───────────────────────
-    const filtered = filterTransactions(rawTransactions, params);
-    const formatted = formatTransactions(filtered, ville, type);
-    let nouvellesAnnonces = 0;
-
-    for (const annonce of formatted) {
-      if (!annonce.prix || !annonce.titre) continue;
-      try {
-        const { data: existe } = await supabaseAdmin
-          .from('biens')
-          .select('id')
-          .eq('reference', annonce.reference)
-          .eq('agent_email', agentEmail)
-          .maybeSingle();
-        if (!existe) {
-          const { error } = await supabaseAdmin
-            .from('biens')
-            .insert([{ ...annonce, agent_email: agentEmail }]);
-          if (!error) nouvellesAnnonces++;
-        }
-      } catch {}
-    }
-
-    // ── Étape 5 : Stats DVF calculées depuis les transactions live ────────────
-    const statsDVF = calculerStatsDVF(rawTransactions, type);
-
-    // ── Étape 6 : Données de référence INSEE ──────────────────────────────────
-    const refKey = normaliserVille(ville);
-    const ref = MARCHE_REF[refKey] || null;
-    const typeData = ref ? (type === 'maison' ? ref.maison : ref.appart) : null;
-
-    // Prix m² final : DVF live prioritaire, INSEE en fallback
-    const prixM2Final = statsDVF?.prixM2Moyen || typeData?.m2 || null;
-
-    // ── Étape 7 : Calcul des indicateurs enrichis ─────────────────────────────
-    const enrichi = prixM2Final ? calculerEnrichi(ref, statsDVF, prixM2Final, type) : null;
-
-    // ── Étape 8 : Géo via API adresse ────────────────────────────────────────
-    const geoData = await fetchGeo(codeCommune);
-
-    // ── Étape 9 : Construction réponse unifiée ────────────────────────────────
-    const nomVille = geoData?.nom || (ref ? capitaliser(ville) : capitaliser(ville));
-    const qualite = statsDVF?.nbTransactions > 5 ? 'premium' : ref ? 'reference' : 'estimee';
-
-    const sources = [
-      dvfSource ? `DVF ${dvfSource} (${statsDVF?.nbTransactions || 0} transactions live)` : null,
-      'API Adresse data.gouv.fr',
-      ref ? 'Base de référence marchéProspectBot (INSEE 2023-2024)' : null,
-    ].filter(Boolean);
-
-    const reponse = {
-      success: true,
-      // ── Méta
-      ville: nomVille,
-      villeSaisie: ville,
-      type,
-      codeInsee: codeCommune,
-      departement: geoData?.departement,
-      region: geoData?.region,
-      codePostal: geoData?.codePostal,
-      dateAnalyse: new Date().toISOString(),
-      qualiteDonnees: qualite,
-      sourcesDonnees: sources,
-
-      // ── Import en base (rétrocompat avec frontend existant)
-      stats: {
-        annoncesTouvees: formatted.length,
-        nouvellesAnnonces,
-        source: dvfSource || 'insee',
-      },
-
-      // ── Prix & évolution
-      prix: prixM2Final ? {
-        prixM2Moyen: prixM2Final,
-        prixM2Median: statsDVF?.prixM2Median || null,
-        prixM2Min: statsDVF?.prixM2Min || null,
-        prixM2Max: statsDVF?.prixM2Max || null,
-        evolution1an: typeData?.ev1 ?? null,
-        evolution3ans: typeData?.ev3 ?? null,
-        evolution5ans: typeData?.ev5 ?? null,
-        tranchesMarche: enrichi?.tranchesLocales || [],
-      } : null,
-
-      // ── Marché
-      marche: ref ? {
-        volumeTransactionsAnnuel: ref.marche.vol,
-        nbTransactionsDVF: statsDVF?.nbTransactions || null,
-        delaiVenteMoyenJours: ref.marche.delai,
-        tauxNegociationPct: ref.marche.nego,
-        tensionMarche: ref.marche.tension,
-        tensionScore: { fort: '8.2/10', modere: '5.4/10', faible: '3.1/10' }[ref.marche.tension] || '5/10',
-        saisonnalite: saisonnaliteActuelle(),
-        indiceSaisonnalite: indiceSaison() + '/100',
-      } : null,
-
-      // ── Rentabilité
-      rentabilite: prixM2Final ? {
-        loyerM2EstimeMensuel: Math.round(prixM2Final * 0.0052),
-        rentabiliteBrutePct: enrichi?.rentaBrute || null,
-        rentabiliteNettePct: enrichi?.rentaNette || null,
-        noteInvestissement: enrichi?.noteInvest || null,
-      } : null,
-
-      // ── Profil acheteurs
-      profilAcheteurs: ref ? {
-        budget_median: enrichi?.budgetMedian || null,
-        apport_moyen: enrichi?.apportMoyen || null,
-        surface_recherchee: type === 'maison' ? '90 – 140 m²' : '45 – 75 m²',
-        nb_pieces_freq: type === 'maison' ? '4 – 5 pièces' : '2 – 3 pièces',
-        profil_dominant: ref.revenu > 26000 ? 'Cadres et professions libérales' : ref.revenu > 22000 ? 'Professions intermédiaires' : 'Employés et ouvriers qualifiés',
-        tauxProprietaires: ref.proprio + '%',
-        revenuMedianFoyer: ref.revenu.toLocaleString('fr-FR') + '€/an',
-      } : null,
-
-      // ── Territoire
-      territoire: {
-        population: geoData?.population || ref?.pop || null,
-        surface: geoData?.surface ? Math.round(geoData.surface) + ' km²' : null,
-        tauxVacanceLogements: ref?.vacance ? ref.vacance + '%' : null,
-        permisConstuireAccordes2023: ref?.permis || null,
-        dynamiqueOffre: ref?.permis > 1000 ? 'Forte (nombreuses constructions neuves)' : ref?.permis > 500 ? 'Modérée' : 'Faible (peu de constructions neuves)',
-      },
-
-      // ── Prospection
-      prospection: ref && prixM2Final ? {
-        biensMoyensParAgent: Math.round(ref.marche.vol / 320),
-        commissionMoyenneVente: Math.round(prixM2Final * 70 * 0.05).toLocaleString('fr-FR') + '€',
-        partVendeursPresses: '~' + Math.round(100 / ref.marche.delai * 22) + '%',
-        meilleureMoment: momentActuel(),
-        argumentsPrix: argumentsPrix(typeData?.ev1, ref.marche.delai),
-      } : null,
-
-      // ── Conseils agent
-      conseilsAgent: ref && prixM2Final ? genererConseils(ref, nomVille, type, prixM2Final, enrichi) : [],
-    };
-
-    // ── Étape 10 : Cache la réponse complète ─────────────────────────────────
-    await setCacheComplet(cacheKey, nomVille, reponse);
-
-    // ── Log
-    try {
-      await supabaseAdmin.from('scraper_logs').insert([{
-        source: dvfSource || 'insee',
-        agent_email: agentEmail,
-        date: new Date().toISOString(),
-        parametres: { ville, type },
-        resultat: { annoncesTouvees: formatted.length, nouvellesAnnonces, prixM2: prixM2Final },
-      }]);
-    } catch {}
-
-    return res.status(200).json(reponse);
-
-  } catch (error) {
-    console.error('[Marché] Erreur:', error.message);
-    return res.status(500).json({ success: false, error: `Erreur : ${error.message}` });
-  }
+// -----------------------------------------------------------
+// RÉSOLUTION VILLE → DONNÉES
+// -----------------------------------------------------------
+function normalise(s) {
+  return s.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-'\s]+/g, "")
+    .replace(/^(saint|ste|st)([a-z])/, "saint$2");
 }
 
-// ─── DVF : retry multi-endpoints ─────────────────────────────────────────────
+function resoudreVille(villeInput, codePostal = null) {
+  if (!villeInput) return null;
+  const cible = normalise(villeInput);
 
-async function fetchDVFWithRetry(codeCommune, type) {
-  const typeLocal = type === 'appartement' ? 'Appartement' : 'Maison';
-  const deptMap = { '75056': '75', '69123': '69', '13055': '13' };
-  const useDept = !!deptMap[codeCommune];
-  const deptCode = deptMap[codeCommune];
-  const errors = [];
-
-  // Endpoint 1 — Etalab OData
-  try {
-    const filterParts = [
-      `nature_mutation eq 'Vente'`,
-      `type_local eq '${typeLocal}'`,
-      useDept ? `startswith(code_commune,'${deptCode}')` : `code_commune eq '${codeCommune}'`,
-    ];
-    const url = `https://api.dvf.etalab.gouv.fr/api/odata/v1/Ventes?${new URLSearchParams({ '$filter': filterParts.join(' and '), '$top': '200', '$orderby': 'date_mutation desc' })}`;
-    const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const t = (data.value || []).filter(t => t.type_local === typeLocal);
-    if (t.length > 0) return { transactions: t, endpoint: 'etalab-odata' };
-    errors.push('etalab-odata: 0 résultats');
-  } catch (e) { errors.push(`etalab-odata: ${e.message}`); }
-
-  // Endpoint 2 — cquest
-  try {
-    const pk = useDept ? 'code_departement' : 'code_commune';
-    const pv = useDept ? deptCode : codeCommune;
-    const url = `https://api.cquest.org/dvf?${pk}=${pv}&nature_mutation=Vente&limit=200`;
-    const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const t = (data.resultats || []).filter(t => !t.type_local || t.type_local === typeLocal);
-    if (t.length > 0) return { transactions: t, endpoint: 'cquest' };
-    errors.push('cquest: 0 résultats');
-  } catch (e) { errors.push(`cquest: ${e.message}`); }
-
-  // Endpoint 3 — economie.gouv
-  try {
-    const where = useDept
-      ? `startswith(code_commune, '${deptCode}') and type_local="${typeLocal}"`
-      : `code_commune="${codeCommune}" and type_local="${typeLocal}"`;
-    const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/dvf-plus-open-data-immo/records?${new URLSearchParams({ limit: '200', where, select: 'id_mutation,date_mutation,valeur_fonciere,type_local,surface_reelle_bati,nombre_pieces_principales,no_voie,type_voie,voie,code_postal,nom_commune,code_commune,nombre_lots', order_by: 'date_mutation DESC' })}`;
-    const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const t = data.results || [];
-    if (t.length > 0) return { transactions: t, endpoint: 'economie.gouv' };
-    errors.push('economie.gouv: 0 résultats');
-  } catch (e) { errors.push(`economie.gouv: ${e.message}`); }
-
-  throw new Error(`Les services DVF sont temporairement indisponibles. (${errors.join(' | ')})`);
-}
-
-// ─── Stats calculées depuis les transactions DVF ──────────────────────────────
-
-function calculerStatsDVF(transactions, type) {
-  if (!transactions?.length) return null;
-  const typeLocal = type === 'appartement' ? 'Appartement' : 'Maison';
-  const filtre = transactions.filter(t => {
-    const tl = t.type_local || '';
-    return !tl || tl === typeLocal;
-  });
-  if (!filtre.length) return null;
-
-  const prixM2s = filtre.map(t => {
-    const p = parseFloat(t.valeur_fonciere);
-    const s = parseFloat(t.surface_reelle_bati);
-    return (p > 0 && s > 10) ? Math.round(p / s) : null;
-  }).filter(v => v && v > 500 && v < 60000);
-
-  if (!prixM2s.length) return null;
-  const sorted = [...prixM2s].sort((a, b) => a - b);
-  const moy = Math.round(prixM2s.reduce((a, b) => a + b, 0) / prixM2s.length);
-
+  for (const [key, data] of Object.entries(MARCHE_PAR_VILLE)) {
+    if (normalise(key) === cible || normalise(data.nom) === cible) {
+      return { ...data, source: "ville", cle: key };
+    }
+  }
+  for (const [key, data] of Object.entries(MARCHE_PAR_VILLE)) {
+    if (normalise(data.nom).includes(cible) || cible.includes(normalise(data.nom))) {
+      return { ...data, source: "ville_approx", cle: key };
+    }
+  }
+  if (codePostal) {
+    const dep = codePostal.startsWith("97") ? codePostal.slice(0, 3) : codePostal.slice(0, 2);
+    if (MARCHE_PAR_DEPARTEMENT[dep]) {
+      return { ...MARCHE_PAR_DEPARTEMENT[dep], source: "departement", cle: dep };
+    }
+  }
   return {
-    prixM2Moyen: moy,
-    prixM2Median: sorted[Math.floor(sorted.length / 2)],
-    prixM2Min: sorted[0],
-    prixM2Max: sorted[sorted.length - 1],
-    nbTransactions: filtre.length,
+    nom: villeInput, prixM2Appart: 3200, prixM2Maison: 3500, prixMedian: 3050,
+    loyer: 11.5, tension: "moyen", delaiVente: 75, tauxNego: 4.8,
+    volumeAnnuel: 5000, rentaBrute: 5.5, rentaNette: 4.4,
+    evolution1an: -1.5, evolution3ans: 8.0, evolution5ans: 25.0,
+    budgetMedian: 210000, apportMoyen: 15, surfaceMoyenne: 62, piecesMoyennes: 3.0,
+    source: "national",
   };
 }
 
-// ─── Indicateurs enrichis ─────────────────────────────────────────────────────
+// -----------------------------------------------------------
+// DVF — ENDPOINTS + RÉSOLUTION INSEE
+// -----------------------------------------------------------
+const DVF_ENDPOINTS = [
+  (cp, type) => `https://api.cquest.org/dvf?code_postal=${cp}&nature_mutation=Vente&type_local=${type}&rows=200`,
+  (cp, type) => `https://api.data.gouv.fr/api/1/datasets/5c4ae55a634f4117716d5656/`,
+  (cp, type) => `https://files.data.gouv.fr/geo-dvf/latest/csv/`,
+];
 
-function calculerEnrichi(ref, statsDVF, prixM2, type) {
-  if (!prixM2) return null;
-  const revenu = ref?.revenu || 22000;
-  const budgetMedian = Math.round(revenu * 0.35 * 20 * 12 / 10000) * 10000;
-  const apportMoyen = Math.round(budgetMedian * 0.12 / 1000) * 1000;
-  const loyerM2 = prixM2 * 0.0052;
-  const rentaBrute = Math.round((loyerM2 * 12 / prixM2) * 1000) / 10;
-  const rentaNette = Math.round(rentaBrute * 0.72 * 10) / 10;
-  const noteInvest = rentaBrute > 6 ? 'Excellent' : rentaBrute > 4.5 ? 'Bon' : rentaBrute > 3.5 ? 'Correct' : 'Faible';
-
-  const tranchesLocales = [
-    { label: `< ${Math.round(prixM2 * 0.65).toLocaleString('fr-FR')}€/m²`, part: 15, type: 'entrée de gamme' },
-    { label: `${Math.round(prixM2 * 0.65).toLocaleString('fr-FR')} – ${Math.round(prixM2 * 0.95).toLocaleString('fr-FR')}€/m²`, part: 35, type: 'milieu de gamme bas' },
-    { label: `${Math.round(prixM2 * 0.95).toLocaleString('fr-FR')} – ${Math.round(prixM2 * 1.15).toLocaleString('fr-FR')}€/m²`, part: 32, type: 'milieu de gamme haut' },
-    { label: `> ${Math.round(prixM2 * 1.15).toLocaleString('fr-FR')}€/m²`, part: 18, type: 'haut de gamme' },
-  ];
-
-  return { budgetMedian, apportMoyen, rentaBrute, rentaNette, noteInvest, tranchesLocales };
+async function fetchCodeInsee(ville) {
+  try {
+    const r = await fetch(`https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(ville)}&fields=code,codesPostaux,population&boost=population&limit=1`);
+    const data = await r.json();
+    if (data?.[0]) return { codeInsee: data[0].code, codePostal: data[0].codesPostaux?.[0] };
+  } catch {}
+  return {};
 }
 
-// ─── Géocodage ────────────────────────────────────────────────────────────────
-
-async function fetchGeo(codeCommune) {
+async function fetchDVF(codePostal, typeBien) {
+  const typeMap = { appartement: "Appartement", maison: "Maison", tous: "Appartement" };
+  const type = typeMap[typeBien] || "Appartement";
+  const url = `https://api.cquest.org/dvf?code_postal=${codePostal}&nature_mutation=Vente&type_local=${type}&rows=200`;
   try {
-    const res = await fetchWithTimeout(
-      `https://geo.api.gouv.fr/communes/${codeCommune}?fields=nom,codesPostaux,population,departement,region,surface`,
-      6000
-    );
-    if (!res.ok) return null;
-    const d = await res.json();
-    return { nom: d.nom, population: d.population, codePostal: d.codesPostaux?.[0], departement: d.departement?.nom, region: d.region?.nom, surface: d.surface };
-  } catch { return null; }
-}
-
-// ─── Cache Supabase (réponse complète) ───────────────────────────────────────
-
-async function getCacheComplet(cacheKey) {
-  try {
-    const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 3600 * 1000).toISOString();
-    const { data } = await supabaseAdmin
-      .from('dvf_cache')
-      .select('resultats')
-      .eq('cache_key', cacheKey)
-      .gte('cached_at', cutoff)
-      .maybeSingle();
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const data = await r.json();
     return data?.resultats || null;
   } catch { return null; }
 }
 
-async function setCacheComplet(cacheKey, ville, resultats) {
-  try {
-    await supabaseAdmin.from('dvf_cache').upsert([{
-      cache_key: cacheKey,
-      ville,
-      resultats,
-      cached_at: new Date().toISOString(),
-    }], { onConflict: 'cache_key' });
-  } catch {}
+function calculerStatsDVF(transactions, typeBien) {
+  if (!transactions?.length) return null;
+  const filtrees = transactions.filter(t => t.valeur_fonciere > 10000 && t.surface_reelle_bati > 10);
+  if (filtrees.length < 3) return null;
+  const prixM2 = filtrees.map(t => t.valeur_fonciere / t.surface_reelle_bati).filter(p => p > 500 && p < 25000);
+  if (!prixM2.length) return null;
+  prixM2.sort((a, b) => a - b);
+  const moy = Math.round(prixM2.reduce((s, v) => s + v, 0) / prixM2.length);
+  const med = Math.round(prixM2[Math.floor(prixM2.length / 2)]);
+  return { prixM2Moyen: moy, prixM2Median: med, prixM2Min: Math.round(prixM2[0]), prixM2Max: Math.round(prixM2[prixM2.length - 1]), nbTransactions: filtrees.length, sourceDVF: true };
 }
 
-// ─── Filtrage + formatage transactions (inchangé) ────────────────────────────
+// -----------------------------------------------------------
+// GÉNÉRATION DONNÉES ENRICHIES
+// -----------------------------------------------------------
+function genererDonneesEnrichies(ref, statsDVF, ville, typeBien) {
+  const prixM2 = statsDVF?.prixM2Moyen || (typeBien === "maison" ? ref.prixM2Maison : ref.prixM2Appart);
+  const prixMedian = statsDVF?.prixM2Median || ref.prixMedian || prixM2 * 0.95;
+  const loyer = ref.loyer || 11.5;
 
-function filterTransactions(transactions, { prixMin, prixMax, surfaceMin }) {
-  return transactions.filter(t => {
-    const prix = parseFloat(t.valeur_fonciere);
-    const surface = parseFloat(t.surface_reelle_bati);
-    if (!prix || !surface) return false;
-    if (prix < prixMin || prix > prixMax) return false;
-    if (surfaceMin > 0 && surface < surfaceMin) return false;
-    return true;
-  }).slice(0, MAX_RESULTS);
-}
+  const tranchesLocales = [
+    { label: "Entrée de gamme", min: Math.round(prixM2 * 0.65), max: Math.round(prixM2 * 0.85), part: 20 },
+    { label: "Standard",        min: Math.round(prixM2 * 0.85), max: Math.round(prixM2 * 1.05), part: 45 },
+    { label: "Premium",         min: Math.round(prixM2 * 1.05), max: Math.round(prixM2 * 1.35), part: 25 },
+    { label: "Prestige",        min: Math.round(prixM2 * 1.35), max: Math.round(prixM2 * 1.80), part: 10 },
+  ];
 
-function formatTransactions(transactions, ville, type) {
-  const typeLocal = type === 'appartement' ? 'Appartement' : 'Maison';
-  return transactions.map(t => {
-    const dateStr = t.date_mutation || new Date().toISOString().slice(0, 10);
-    const adresse = [t.no_voie, t.type_voie, t.voie].filter(Boolean).join(' ');
-    const villeNom = t.nom_commune || ville;
-    const cp = t.code_postal || '';
-    const prix = Math.round(parseFloat(t.valeur_fonciere));
-    const surface = Math.round(parseFloat(t.surface_reelle_bati));
-    const pieces = t.nombre_pieces_principales || null;
-    const prixM2 = surface > 0 ? Math.round(prix / surface) : null;
-    const mutId = t.id_mutation || '';
-    const ref = `DVF-${(mutId || adresse + dateStr).replace(/[^a-zA-Z0-9]/g, '').slice(-20)}`;
-    return {
-      source: 'dvf', reference: ref,
-      titre: `${typeLocal} ${surface}m²${pieces ? ` · ${pieces}p` : ''} — ${villeNom}`,
-      prix, adresse: adresse || '', ville: villeNom, code_postal: cp,
-      surface, pieces, chambres: null,
-      description: [`Transaction DVF du ${new Date(dateStr).toLocaleDateString('fr-FR')}`, prixM2 ? `Prix au m² : ${prixM2.toLocaleString('fr-FR')} €/m²` : '', cp ? `Code postal : ${cp}` : ''].filter(Boolean).join(' · '),
-      lien: 'https://app.dvf.etalab.gouv.fr/',
-      image: null, type: type === 'appartement' ? 'appartement' : 'maison',
-      statut: 'vendu', dpe: null, created_at: new Date().toISOString(),
-    };
-  });
-}
+  const rentaBrute = ref.rentaBrute || parseFloat(((loyer * 12) / prixM2 * 100).toFixed(1));
+  const rentaNette = ref.rentaNette || parseFloat((rentaBrute * 0.78).toFixed(1));
+  const noteInvest = rentaBrute >= 7 ? "Excellent" : rentaBrute >= 5.5 ? "Bon" : rentaBrute >= 4 ? "Moyen" : "Faible";
 
-// ─── Résolution ville → code INSEE (inchangé) ────────────────────────────────
+  const moisFort = ["mars","avril","mai","septembre","octobre"];
+  const moisFaible = ["janvier","août","décembre"];
 
-async function resolveCodeCommune(ville) {
-  const CODES_DIRECTS = {
-    paris: '75056', lyon: '69123', marseille: '13055', toulouse: '31555',
-    nice: '06088', nantes: '44109', montpellier: '34172', strasbourg: '67482',
-    bordeaux: '33063', lille: '59350', rennes: '35238', reims: '51454',
-    toulon: '83137', grenoble: '38185', dijon: '21231', angers: '49007',
-    nimes: '30189', villeurbanne: '69266', saint_etienne: '42218', le_havre: '76351',
-    clermont_ferrand: '63113', aix_en_provence: '13001', brest: '29019',
-    amiens: '80021', limoges: '87085', tours: '37261', perpignan: '66136',
-    metz: '57463', besancon: '25056', orleans: '45234', rouen: '76540',
-    blagnac: '31069', tournefeuille: '31557', colomiers: '31149',
+  return {
+    ville: ref.nom || ville,
+    departement: ref.dep || ref.departement || "—",
+    population: ref.pop || ref.population || null,
+    sourceRef: ref.source || "ville",
+    sourceDVFActive: !!statsDVF,
+
+    prix: {
+      prixM2Moyen: prixM2,
+      prixM2Median: prixMedian,
+      prixM2Min: statsDVF?.prixM2Min || Math.round(prixM2 * 0.62),
+      prixM2Max: statsDVF?.prixM2Max || Math.round(prixM2 * 1.75),
+      evolution1an: ref.evolution1an ?? -1.5,
+      evolution3ans: ref.evolution3ans ?? 8.0,
+      evolution5ans: ref.evolution5ans ?? 25.0,
+      tranchesLocales,
+      nbTransactionsDVF: statsDVF?.nbTransactions || null,
+    },
+
+    marche: {
+      tension: ref.tension || "moyen",
+      tensionLabel: ref.tension === "fort" ? "🔴 Marché tendu" : ref.tension === "faible" ? "🟢 Marché détendu" : "🟡 Marché équilibré",
+      delaiVenteMoyen: ref.delaiVente || 75,
+      tauxNegociation: ref.tauxNego || 4.8,
+      volumeAnnuel: ref.volumeAnnuel || 5000,
+      saisonnalite: { moisForts: moisFort, moisFaibles: moisFaible },
+    },
+
+    profilAcheteurs: {
+      budgetMedian: ref.budgetMedian || 210000,
+      apportMoyen: ref.apportMoyen || 15,
+      surfaceMoyenne: ref.surfaceMoyenne || 62,
+      piecesMoyennes: ref.piecesMoyennes || 3.0,
+      profilSocio: ref.dep === "75" || ref.dep === "92" ? "CSP+ urbain, investisseur" :
+                   ref.tension === "fort" ? "Actifs 28-40 ans, primo-accédants" : "Familles, retraités",
+      argumentsVente: [
+        `Prix m² ${ref.evolution1an > 0 ? "en hausse" : "stabilisé"} sur 1 an`,
+        `Délai de vente moyen : ${ref.delaiVente || 75} jours`,
+        `Tension marché : ${ref.tension || "moyen"}`,
+      ],
+    },
+
+    rentabilite: {
+      rentaBrute,
+      rentaNette,
+      loyerM2: loyer,
+      noteInvest,
+      loyer65m2: Math.round(loyer * 65),
+      valeurEstimee65m2: Math.round(prixM2 * 65),
+    },
+
+    territoire: {
+      population: ref.pop || ref.population || null,
+      departement: ref.dep || ref.departement,
+      sourceData: "DVF Notaires + INSEE / FNAIM 2024",
+      miseAJour: "T4 2024",
+    },
+
+    prospection: {
+      meilleuresPeriodes: moisFort,
+      argumentPrix: `${prixM2.toLocaleString("fr-FR")} €/m² en moyenne`,
+      scoreMarche: ref.tension === "fort" ? 85 : ref.tension === "faible" ? 42 : 62,
+    },
+
+    conseilsAgent: genererConseils(ref, prixM2),
   };
-  const key = ville.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-  if (CODES_DIRECTS[key]) return CODES_DIRECTS[key];
+}
+
+function genererConseils(ref, prixM2) {
+  const conseils = [];
+  if (ref.tension === "fort") {
+    conseils.push("📈 Marché tendu : argumenter sur la rapidité de vente, proposer des estimations offensives.");
+    conseils.push("🎯 Cibler les vendeurs avec des biens depuis >90 jours en mandat exclusif.");
+  } else if (ref.tension === "faible") {
+    conseils.push("📉 Marché détendu : mettre en avant la qualité du bien et son rapport qualité/prix.");
+    conseils.push("🏷️ Travailler les prix avec soin — le taux de négociation dépasse " + (ref.tauxNego || 5) + " %.");
+  } else {
+    conseils.push("⚖️ Marché équilibré : miser sur la réactivité et la qualité de la présentation.");
+  }
+  if (ref.rentaBrute >= 6) {
+    conseils.push("💰 Rentabilité attractive (" + ref.rentaBrute + "% brut) — fort potentiel investisseurs locatifs.");
+  }
+  if (ref.evolution5ans > 30) {
+    conseils.push("📊 +"+ref.evolution5ans+"% en 5 ans : argument fort pour les vendeurs hésitants (plus-value réalisée).");
+  }
+  conseils.push("🗓️ Meilleures périodes de prospection : mars-mai et septembre-octobre.");
+  return conseils;
+}
+
+// -----------------------------------------------------------
+// CACHE SUPABASE
+// -----------------------------------------------------------
+async function getCache(key) {
   try {
-    const res = await fetchWithTimeout(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(ville)}&type=municipality&limit=1`, 8000);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.features?.[0]?.properties?.citycode || null;
+    const { data } = await supabase.from("dvf_cache").select("resultats, cached_at").eq("cache_key", key).single();
+    if (!data) return null;
+    const age = (Date.now() - new Date(data.cached_at).getTime()) / 3600000;
+    return age < 12 ? data.resultats : null;
   } catch { return null; }
 }
 
-// ─── Utilitaires ──────────────────────────────────────────────────────────────
-
-function fetchWithTimeout(url, ms) {
-  return fetch(url, {
-    headers: { 'Accept': 'application/json', 'User-Agent': 'ProspectBot/1.0' },
-    signal: AbortSignal.timeout(ms),
-  });
+async function setCache(key, ville, resultats) {
+  try {
+    await supabase.from("dvf_cache").upsert({ cache_key: key, ville, resultats, cached_at: new Date().toISOString() });
+  } catch {}
 }
 
-function normaliserVille(v) {
-  return v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[-\s]+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').replace(/^_|_$/g, '');
-}
+// -----------------------------------------------------------
+// HANDLER PRINCIPAL
+// -----------------------------------------------------------
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-function capitaliser(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
+  const { ville, typeBien = "appartement", codePostal } = req.body;
+  if (!ville) return res.status(400).json({ error: "Paramètre 'ville' requis" });
 
-function indiceSaison() {
-  return [72, 75, 88, 96, 102, 108, 95, 72, 94, 101, 82, 68][new Date().getMonth()];
-}
+  const cacheKey = `immo_${normalise(ville)}_${typeBien}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return res.status(200).json({ ...cached, fromCache: true });
 
-function saisonnaliteActuelle() {
-  const i = indiceSaison();
-  return i > 95 ? 'Haute saison' : i > 80 ? 'Saison normale' : 'Basse saison';
-}
+  // 1. Résoudre ville
+  const ref = resoudreVille(ville, codePostal);
 
-function momentActuel() {
-  const m = new Date().getMonth();
-  if (m >= 1 && m <= 4) return 'Bonne période (mars–mai = pic d\'activité)';
-  if (m >= 5 && m <= 7) return 'Haute saison — activité maximale';
-  if (m >= 8 && m <= 10) return 'Bonne rentrée (sept–oct = 2ème pic)';
-  return 'Basse saison — idéal pour constituer le stock de mandats';
-}
-
-function argumentsPrix(ev1, delai) {
-  const args = [];
-  if (ev1 !== undefined && ev1 < -3) {
-    args.push(`Marché en repli (${ev1 > 0 ? '+' : ''}${ev1?.toFixed(1)}%/an) — argument acheteurs : c'est le bon moment d'acheter`);
-    args.push('Vendeurs plus négociables qu\'en période de hausse');
-  } else if (ev1 !== undefined && ev1 > 2) {
-    args.push(`Marché en hausse (+${ev1?.toFixed(1)}%/an) — argument vendeurs : valorisation en cours`);
-    args.push('Attendre coûte de l\'argent aux acheteurs indécis');
-  } else {
-    args.push('Marché stable — sécurité pour acheteurs et vendeurs');
-  }
-  if (delai < 55) args.push(`Délai de vente court (${delai}j) — les biens bien estimés partent vite`);
-  else if (delai > 75) args.push(`Délai de vente plus long (${delai}j) — l'importance du prix juste dès la mise en vente`);
-  return args;
-}
-
-function genererConseils(ref, ville, type, prixM2, enrichi) {
-  const conseils = [];
-  const ev1 = type === 'maison' ? ref.maison.ev1 : ref.appart.ev1;
-  const delai = ref.marche.delai;
-
-  if (ev1 < -4) {
-    conseils.push({ titre: 'Stratégie de prix', priorite: 'haute', conseil: `Le marché de ${ville} est en correction (${ev1 > 0 ? '+' : ''}${ev1?.toFixed(1)}%/an). Positionnez vos mandats dans les 10% bas de la fourchette pour vendre dans les ${Math.round(delai * 0.7)} jours.` });
-  } else {
-    conseils.push({ titre: 'Estimation au juste prix', priorite: 'normale', conseil: `Avec un délai moyen de ${delai} jours sur ${ville}, une surestimation de 5% allonge la durée de vente d'environ ${Math.round(delai * 0.4)} jours supplémentaires.` });
+  // 2. Résoudre code postal pour DVF
+  let cp = codePostal;
+  if (!cp) {
+    const geo = await fetchCodeInsee(ville);
+    cp = geo.codePostal;
   }
 
-  if (enrichi?.budgetMedian) {
-    conseils.push({ titre: 'Profil acheteur cible', priorite: 'normale', conseil: `Budget médian estimé à ${enrichi.budgetMedian.toLocaleString('fr-FR')}€. Ciblez les ${ref.revenu > 26000 ? 'cadres et professions libérales' : ref.revenu > 22000 ? 'professions intermédiaires' : 'employés et ouvriers qualifiés'} qui représentent le gros des acheteurs sur ce marché.` });
+  // 3. Tenter DVF live
+  let statsDVF = null;
+  if (cp) {
+    const transactions = await fetchDVF(cp, typeBien);
+    if (transactions) {
+      statsDVF = calculerStatsDVF(transactions, typeBien);
+      // Sauvegarder les transactions brutes
+      if (transactions.length > 0) {
+        try {
+          const rows = transactions.slice(0, 50).map(t => ({
+            adresse: [t.no_voie, t.type_de_voie, t.voie, t.commune].filter(Boolean).join(" "),
+            ville: t.commune || ville,
+            code_postal: cp,
+            prix: t.valeur_fonciere,
+            surface: t.surface_reelle_bati,
+            type_bien: t.type_local,
+            date_mutation: t.date_mutation,
+            nb_pieces: t.nombre_pieces_principales,
+          })).filter(r => r.prix && r.surface);
+          if (rows.length) await supabase.from("biens").upsert(rows, { onConflict: "adresse,date_mutation" });
+        } catch {}
+      }
+    }
   }
 
-  if (enrichi?.rentaBrute > 5) {
-    conseils.push({ titre: 'Argument investissement', priorite: 'haute', conseil: `Rentabilité brute estimée à ${enrichi.rentaBrute}% — au-dessus de la moyenne nationale (4.2%). Argument fort auprès des investisseurs locatifs.` });
-  }
+  // 4. Générer données enrichies
+  const resultats = genererDonneesEnrichies(ref, statsDVF, ville, typeBien);
 
-  if (indiceSaison() < 80) {
-    conseils.push({ titre: 'Basse saison = opportunité', priorite: 'normale', conseil: 'Période creuse idéale pour constituer votre stock de mandats. Les biens signés maintenant seront commercialisés au pic de printemps.' });
-  }
+  // Compat stats legacy
+  const stats = {
+    prixMoyen: resultats.prix.prixM2Moyen,
+    prixMedian: resultats.prix.prixM2Median,
+    prixMin: resultats.prix.prixM2Min,
+    prixMax: resultats.prix.prixM2Max,
+    nbTransactions: statsDVF?.nbTransactions || 0,
+    sourceDVF: !!statsDVF,
+  };
 
-  if (ref.permis > 1500) {
-    conseils.push({ titre: 'Concurrence du neuf', priorite: 'info', conseil: `Fort volume de permis accordés en 2023 (${ref.permis.toLocaleString('fr-FR')}). L'offre neuve pèse sur l'ancien — valorisez le charme et l'immédiateté de l'existant.` });
-  }
+  const reponse = { stats, ...resultats };
+  await setCache(cacheKey, ville, reponse);
 
-  if (ref.marche.tension === 'fort') {
-    conseils.push({ titre: 'Marché tendu — opportunité mandat', priorite: 'haute', conseil: `Marché très dynamique sur ${ville}. C'est le moment idéal pour proposer vos services : les vendeurs savent que leurs biens partiront vite avec un bon agent.` });
-  }
+  // Log
+  try { await supabase.from("scraper_logs").insert({ source: "immobilier_api", ville, statut: "ok", nb_resultats: stats.nbTransactions }); } catch {}
 
-  return conseils;
+  return res.status(200).json(reponse);
 }
