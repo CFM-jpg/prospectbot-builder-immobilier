@@ -589,9 +589,9 @@ function PublicationModal({ onClose, onSuccess }) {
                 <p style={{ color: '#4b5563', fontFamily: 'DM Sans, sans-serif', fontSize: 12, marginTop: 4 }}>JPG, PNG · Max 10 photos</p>
                 <input id="pub-photo-input" type="file" accept="image/*" multiple hidden onChange={handlePhotos} />
               </div>
-              {bien.photos.length > 0 ? (
+              {(bien.photos || []).length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                  {bien.photos.map((p, i) => (
+                  {(bien.photos || []).map((p, i) => (
                     <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'hidden' }}>
                       <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       <button onClick={() => upd('photos', bien.photos.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', width: 22, height: 22, borderRadius: '50%', cursor: 'pointer', fontSize: 12 }}>×</button>
@@ -1978,7 +1978,7 @@ function ImmobilierDashboard() {
 
                   {/* Liste vendeurs */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {vendeursData.vendeurs
+                    {(vendeursData.vendeurs || [])
                       .filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter)
                       .map((vendeur, i) => {
                         const prospecte = vendeurProspecte[vendeur.id];
@@ -2039,7 +2039,7 @@ function ImmobilierDashboard() {
 
                               {/* Raisons */}
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: vendeur.argumentProsSpection?.length ? 8 : 0 }}>
-                                {vendeur.raisons.map((r, ri) => (
+                                {(vendeur.raisons || []).map((r, ri) => (
                                   <span key={ri} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: 'var(--text-muted)' }}>
                                     {r}
                                   </span>
@@ -2049,7 +2049,7 @@ function ImmobilierDashboard() {
                               {vendeur.argumentProsSpection?.length > 0 && (
                                 <div style={{ marginTop: 4 }}>
                                   <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Script de prospection</div>
-                                  {vendeur.argumentProsSpection.map((arg, ai) => (
+                                  {(vendeur.argumentProsSpection || []).map((arg, ai) => (
                                     <div key={ai} style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', padding: '6px 10px', background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.1)', borderRadius: 6, marginBottom: 4, lineHeight: 1.5 }}>
                                       {arg}
                                     </div>
@@ -2079,7 +2079,7 @@ function ImmobilierDashboard() {
                         );
                       })
                     }
-                    {vendeursData.vendeurs.filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter).length === 0 && (
+                    {(vendeursData.vendeurs || []).filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter).length === 0 && (
                       <div className="empty">Aucun vendeur correspondant à ce filtre</div>
                     )}
                   </div>
@@ -2504,20 +2504,20 @@ function ImmobilierDashboard() {
                         <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>
                           Résultats {b2bScraperResult && <span style={{ fontSize: 12, color: '#d4a853', fontWeight: 400 }}>— {b2bScraperResult.count} email(s)</span>}
                         </h3>
-                        {b2bScraperResult && b2bScraperResult.emails.length > 0 && (
-                          <button onClick={() => setB2bSelectedEmails(b2bSelectedEmails.length === b2bScraperResult.emails.length ? [] : [...b2bScraperResult.emails])} style={{ fontSize: 11, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                            {b2bSelectedEmails.length === b2bScraperResult.emails.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                        {b2bScraperResult && (b2bScraperResult.emails?.length ?? 0) > 0 && (
+                          <button onClick={() => setB2bSelectedEmails(b2bSelectedEmails.length === (b2bScraperResult.emails?.length ?? 0) ? [] : [...(b2bScraperResult.emails || [])])} style={{ fontSize: 11, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                            {b2bSelectedEmails.length === (b2bScraperResult.emails?.length ?? 0) ? 'Tout désélectionner' : 'Tout sélectionner'}
                           </button>
                         )}
                       </div>
                       {!b2bScraperResult ? (
                         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', paddingTop: 8 }}>Lance un scraping pour voir les résultats ici.</p>
-                      ) : b2bScraperResult.emails.length === 0 ? (
+                      ) : (b2bScraperResult.emails?.length ?? 0) === 0 ? (
                         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucun email trouvé sur ce site.</p>
                       ) : (
                         <>
                           <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
-                            {b2bScraperResult.emails.map(email => (
+                            {(b2bScraperResult.emails || []).map(email => (
                               <div key={email} onClick={() => setB2bSelectedEmails(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email])} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.25)' : 'rgba(255,255,255,0.05)'}`, cursor: 'pointer', transition: 'all 0.15s' }}>
                                 <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${b2bSelectedEmails.includes(email) ? '#d4a853' : 'rgba(255,255,255,0.2)'}`, background: b2bSelectedEmails.includes(email) ? '#d4a853' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   {b2bSelectedEmails.includes(email) && <span style={{ fontSize: 9, color: '#000', fontWeight: 700 }}>✓</span>}
