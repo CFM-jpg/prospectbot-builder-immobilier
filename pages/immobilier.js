@@ -910,11 +910,12 @@ export default function ImmobilierDashboard() {
   const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect' });
   const [workflowCreating, setWorkflowCreating] = useState(false);
   const [workflowShowForm, setWorkflowShowForm] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     loadAll();
     try {
-      if (typeof window === 'undefined') return;
       const done = localStorage.getItem('pb_onboarding_done');
       if (!done) setTimeout(() => setShowOnboardingAgent(true), 400);
     } catch {}
@@ -1209,6 +1210,8 @@ export default function ImmobilierDashboard() {
     const matchSearch = !biensFilter.search || b.titre?.toLowerCase().includes(biensFilter.search.toLowerCase()) || b.ville?.toLowerCase().includes(biensFilter.search.toLowerCase());
     return matchType && matchSearch;
   });
+
+  if (!mounted) return null;
 
   return (
     <>
