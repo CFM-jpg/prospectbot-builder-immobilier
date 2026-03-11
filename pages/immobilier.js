@@ -1702,7 +1702,7 @@ function ImmobilierDashboard() {
                           { l: 'Délai de vente', v: `${marcheData.marche?.delaiVenteMoyenJours} jours`, s: 'Mise en vente → compromis' },
                           { l: 'Taux de négociation', v: `${marcheData.marche?.tauxNegociationPct}%`, s: 'Prix affiché vs vendu' },
                           ...(marcheData.marche?.volumeTransactionsAnnuel ? [{ l: 'Transactions / an', v: marcheData.marche.volumeTransactionsAnnuel.toLocaleString('fr-FR'), s: 'Volume local' }] : []),
-                          { l: 'Saisonnalité', v: marcheData.marche?.saisonnalite, s: `Indice ${marcheData.marche?.indiceSaisonnalite}` },
+                          { l: 'Saisonnalité', v: marcheData.marche?.saisonnalite ? `${marcheData.marche.saisonnalite.moisForts || '–'} / ${marcheData.marche.saisonnalite.moisFaibles || '–'}` : '–', s: `Indice ${marcheData.marche?.indiceSaisonnalite ?? '–'}` },
                         ].map((item, i) => (
                           <div key={i} className="card" style={{ padding: '14px 16px' }}>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
