@@ -958,7 +958,7 @@ export default function LandingPage() {
                 <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, color: '#d4a853', marginBottom: 12, fontWeight: 700 }}>
                   + Module B2B inclus
                 </div>
-                {['🤖 Chatbot IA de prospection', '📧 Campagnes email auto', '🌐 Scraper web B2B', '⚡ Workflows automatisés', '🎯 Support prioritaire'].map((f, i) => (
+                {[' Chatbot IA de prospection', ' Campagnes email auto', ' Scraper web B2B', ' Workflows automatisés', ' Support prioritaire'].map((f, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{f}</span>
@@ -1014,10 +1014,10 @@ export default function LandingPage() {
               </div>
               <div style={{ flex: '1 1 280px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {[
-                  { icon: '🤖', title: 'Chatbot IA', desc: 'Qualifie vos prospects automatiquement' },
-                  { icon: '📧', title: 'Campagnes email', desc: 'Séquences automatisées et personnalisées' },
-                  { icon: '🌐', title: 'Scraper B2B', desc: 'Extrayez des contacts et entreprises' },
-                  { icon: '⚡', title: 'Workflows', desc: 'Automatisez vos processus métier' },
+                  { icon: '', title: 'Chatbot IA', desc: 'Qualifie vos prospects automatiquement' },
+                  { icon: '', title: 'Campagnes email', desc: 'Séquences automatisées et personnalisées' },
+                  { icon: '', title: 'Scraper B2B', desc: 'Extrayez des contacts et entreprises' },
+                  { icon: '', title: 'Workflows', desc: 'Automatisez vos processus métier' },
                 ].map((item, i) => (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '16px 14px' }}>
                     <div style={{ fontSize: 22, marginBottom: 8 }}>{item.icon}</div>
