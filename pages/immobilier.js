@@ -998,13 +998,12 @@ function ImmobilierDashboard() {
     try {
       const res = await fetch('/api/scraper/vendeurs-potentiels', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-user-plan': plan || 'gratuit' },
         body: JSON.stringify({
           ville: vendeursForm.ville.trim(),
           type: vendeursForm.type,
           surfaceMin: parseInt(vendeursForm.surfaceMin) || 0,
           scoreMin: parseInt(vendeursForm.scoreMin) || 0,
-          limit: 60,
         }),
       });
       const data = await res.json();
