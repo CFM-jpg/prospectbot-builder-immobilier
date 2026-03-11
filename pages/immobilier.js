@@ -86,6 +86,7 @@ function OnboardingAgent({ agentName, onComplete }) {
 
   useEffect(() => {
     try {
+      if (typeof window === 'undefined') return;
       const saved = JSON.parse(localStorage.getItem('pb_checklist') || '{}');
       if (Object.keys(saved).length) setChecklist(c => ({ ...c, ...saved }));
     } catch {}
@@ -106,7 +107,7 @@ function OnboardingAgent({ agentName, onComplete }) {
   const toggleCheck = (key) => {
     const updated = { ...checklist, [key]: !checklist[key] };
     setChecklist(updated);
-    try { localStorage.setItem('pb_checklist', JSON.stringify(updated)); } catch {}
+    try { if (typeof window !== 'undefined') localStorage.setItem('pb_checklist', JSON.stringify(updated)); } catch {}
   };
 
   const cur = ONBOARDING_STEPS[step];
@@ -876,7 +877,7 @@ export default function ImmobilierDashboard() {
   const [marcheOnglet, setMarcheOnglet] = useState('prix');
 
   // ── Vendeurs potentiels ──
-  const [vendeursForm, setVendeursForm] = useState({ ville: '', type: 'all', surfaceMin: 0, scoreMin: 30 });
+  const [vendeursForm, setVendeursForm] = useState({ ville: '', type: 'all', surfaceMin: 0, scoreMin: 0 });
   const [vendeursLoading, setVendeursLoading] = useState(false);
   const [vendeursData, setVendeursData] = useState(null);
   const [vendeursError, setVendeursError] = useState(null);
@@ -913,6 +914,7 @@ export default function ImmobilierDashboard() {
   useEffect(() => {
     loadAll();
     try {
+      if (typeof window === 'undefined') return;
       const done = localStorage.getItem('pb_onboarding_done');
       if (!done) setTimeout(() => setShowOnboardingAgent(true), 400);
     } catch {}
@@ -997,7 +999,7 @@ export default function ImmobilierDashboard() {
           ville: vendeursForm.ville.trim(),
           type: vendeursForm.type,
           surfaceMin: parseInt(vendeursForm.surfaceMin) || 0,
-          scoreMin: parseInt(vendeursForm.scoreMin) || 30,
+          scoreMin: parseInt(vendeursForm.scoreMin) || 0,
           limit: 60,
         }),
       });
@@ -1874,10 +1876,11 @@ export default function ImmobilierDashboard() {
                     <div>
                       <label>Score minimum</label>
                       <select value={vendeursForm.scoreMin} onChange={e => setVendeursForm(f => ({ ...f, scoreMin: e.target.value }))}>
-                        <option value={20}>20+ (tous)</option>
-                        <option value={30}>30+ (filtré)</option>
-                        <option value={50}>50+ (motivés)</option>
-                        <option value={70}>70+ (très motivés)</option>
+                        <option value={0}>Tous les scores</option>
+                        <option value={20}>20+ (filtré léger)</option>
+                        <option value={40}>40+ (motivés)</option>
+                        <option value={60}>60+ (très motivés)</option>
+                        <option value={75}>75+ (prioritaires)</option>
                       </select>
                     </div>
                   </div>
