@@ -1,3 +1,4 @@
+import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -35,8 +36,8 @@ const NAV_ITEMS = [
 const TYPES_BIEN = ['Appartement', 'Maison', 'Villa', 'Studio', 'Loft', 'Terrain', 'Local commercial', 'Tous'];
 
 const ONBOARDING_STEPS = [
-  { id: 'bienvenue', icon: '🏠', title: null, desc: 'Votre assistant immobilier automatisé. En quelques minutes, découvrez comment NestLead trouve, trie et notifie vos acheteurs automatiquement.', highlight: null },
-  { id: 'biens', icon: '🏗️', title: 'Données de marché', desc: 'NestLead collecte les transactions immobilières officielles (DVF) pour analyser les prix du marché. Utilisez ces données pour conseiller vos clients avec des chiffres réels.', highlight: 'Onglet "Données marché" dans la sidebar' },
+  { id: 'bienvenue', icon: '🏠', title: null, desc: 'Votre assistant immobilier automatisé. En quelques minutes, découvrez comment ProspectBot trouve, trie et notifie vos acheteurs automatiquement.', highlight: null },
+  { id: 'biens', icon: '🏗️', title: 'Données de marché', desc: 'ProspectBot collecte les transactions immobilières officielles (DVF) pour analyser les prix du marché. Utilisez ces données pour conseiller vos clients avec des chiffres réels.', highlight: 'Onglet "Données marché" dans la sidebar' },
   { id: 'acheteurs', icon: '👤', title: 'Gérez vos acheteurs', desc: 'Ajoutez vos clients avec leurs critères de recherche : budget, localisation, surface, type de bien. Plus les critères sont précis, meilleurs sont les matchs.', highlight: 'Onglet "Acheteurs" dans la sidebar' },
   { id: 'matching', icon: '⚡', title: 'Le matching automatique', desc: 'Chaque bien est comparé à chaque acheteur. Un score de 0 à 100% est calculé selon le budget, la surface, la localisation et les critères spécifiques.', highlight: 'Onglet "Correspondances"' },
   { id: 'emails', icon: '✉️', title: 'Alertes email automatiques', desc: 'Quand un bien correspond à plus de 60% aux critères d\'un acheteur, un email lui est envoyé automatiquement via Brevo. Vous pouvez aussi envoyer manuellement.', highlight: 'Onglet "Emails"' },
@@ -856,7 +857,7 @@ function SidebarPlanBlock({ plan }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function ImmobilierDashboard() {
+function ImmobilierDashboard() {
   const { agent, logout, plan, isPro, isAgence } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1090,8 +1091,8 @@ export default function ImmobilierDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          senderName: b2bEmailForm.senderName || 'NestLead',
-          senderEmail: b2bEmailForm.senderEmail || 'noreply@nestlead.fr',
+          senderName: b2bEmailForm.senderName || 'ProspectBot',
+          senderEmail: b2bEmailForm.senderEmail || 'noreply@prospectbot.fr',
           subject: b2bEmailForm.subject,
           template: b2bEmailForm.template,
           recipients: b2bSelectedEmails.map(email => ({ email, name: 'Prospect' })),
@@ -2753,7 +2754,7 @@ export default function ImmobilierDashboard() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                         {[
                           { n: '1', t: 'Un prospect contacte votre chatbot', d: 'Il laisse son email ou ses coordonnées en discutant avec votre bot.' },
-                          { n: '2', t: 'Le workflow se déclenche', d: 'NestLead détecte le nouveau contact et exécute les actions configurées.' },
+                          { n: '2', t: 'Le workflow se déclenche', d: 'ProspectBot détecte le nouveau contact et exécute les actions configurées.' },
                           { n: '3', t: 'Email automatique envoyé', d: 'Le prospect reçoit un email de bienvenue, votre équipe est notifiée.' },
                           { n: '4', t: 'Vous intervenez au bon moment', d: 'Vous ne rappelez qu\'un prospect déjà informé et engagé.' },
                         ].map(item => (
@@ -2787,4 +2788,6 @@ export default function ImmobilierDashboard() {
       )}
     </>
   );
-}  
+}
+
+export default dynamic(() => Promise.resolve(ImmobilierDashboard), { ssr: false });
