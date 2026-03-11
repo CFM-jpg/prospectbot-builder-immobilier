@@ -24,6 +24,7 @@ const PROPERTY_TYPES = [
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Vue d\'ensemble' },
   { id: 'scraper', label: 'Marché' },
+  { id: 'vendeurs', label: 'Vendeurs potentiels', badge: 'NEW' },
   { id: 'biens', label: 'Données marché' },
   { id: 'acheteurs', label: 'Acheteurs' },
   { id: 'matches', label: 'Correspondances' },
@@ -874,6 +875,14 @@ export default function ImmobilierDashboard() {
   const [marcheData, setMarcheData] = useState(null);
   const [marcheOnglet, setMarcheOnglet] = useState('prix');
 
+  // ── Vendeurs potentiels ──
+  const [vendeursForm, setVendeursForm] = useState({ ville: '', type: 'all', anneeMin: new Date().getFullYear() - 15, anneeMax: new Date().getFullYear() - 7, surfaceMin: 0, plusValueMin: 15, scoreMin: 40 });
+  const [vendeursLoading, setVendeursLoading] = useState(false);
+  const [vendeursData, setVendeursData] = useState(null);
+  const [vendeursError, setVendeursError] = useState(null);
+  const [vendeursFilter, setVendeursFilter] = useState('all'); // 'all' | 'Fort' | 'Moyen' | 'Faible'
+  const [vendeurProspecte, setVendeurProspecte] = useState({}); // id → true
+
   const [emailForm, setEmailForm] = useState({ subject: '', message: '', senderName: '', senderEmail: '' });
   const [emailStatus, setEmailStatus] = useState(null);
 
@@ -973,6 +982,39 @@ export default function ImmobilierDashboard() {
     setScrapingProgress(null);
     setMarcheData(null);
     setScraperForm({ location: '', propertyType: 'appartement' });
+  };
+
+  const handleVendeurs = async () => {
+    if (!vendeursForm.ville.trim()) return;
+    setVendeursLoading(true);
+    setVendeursError(null);
+    setVendeursData(null);
+    try {
+      const res = await fetch('/api/scraper/vendeurs-potentiels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ville: vendeursForm.ville.trim(),
+          type: vendeursForm.type,
+          anneeMin: parseInt(vendeursForm.anneeMin),
+          anneeMax: parseInt(vendeursForm.anneeMax),
+          surfaceMin: parseInt(vendeursForm.surfaceMin) || 0,
+          plusValueMin: parseInt(vendeursForm.plusValueMin) || 0,
+          scoreMin: parseInt(vendeursForm.scoreMin) || 30,
+          limit: 60,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setVendeursData(data);
+      } else {
+        setVendeursError(data.error || 'Erreur inconnue');
+      }
+    } catch (err) {
+      setVendeursError(err.message);
+    } finally {
+      setVendeursLoading(false);
+    }
   };
 
   const fmtPrix = (v) => v ? Math.round(v).toLocaleString('fr-FR') + '€' : '–';
@@ -1340,6 +1382,11 @@ export default function ImmobilierDashboard() {
               <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
                 <span className="nav-dot" />
                 {item.label}
+                {item.badge && (
+                  <span style={{ marginLeft: 'auto', fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(212,168,83,0.2)', color: 'var(--accent)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                    {item.badge}
+                  </span>
+                )}
               </button>
             ))}
             <div className="nav-divider" />
@@ -1792,6 +1839,262 @@ export default function ImmobilierDashboard() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Vendeurs potentiels ── */}
+          {activeTab === 'vendeurs' && (
+            <>
+              <div className="page-header">
+                <h2 className="page-title">Vendeurs potentiels</h2>
+                <p className="page-subtitle">Identifiez les propriétaires susceptibles de vendre — ancienneté, plus-value estimée, score de motivation</p>
+              </div>
+
+              {/* Formulaire */}
+              {!vendeursData && (
+                <div className="card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px', gap: 12, marginBottom: 16 }}>
+                    <div>
+                      <label>Ville ou commune</label>
+                      <input
+                        type="text"
+                        value={vendeursForm.ville}
+                        onChange={e => setVendeursForm(f => ({ ...f, ville: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && handleVendeurs()}
+                        placeholder="Toulouse, Blagnac, Tournefeuille…"
+                      />
+                    </div>
+                    <div>
+                      <label>Type de bien</label>
+                      <select value={vendeursForm.type} onChange={e => setVendeursForm(f => ({ ...f, type: e.target.value }))}>
+                        <option value="all">Tous</option>
+                        <option value="appartement">Appartement</option>
+                        <option value="maison">Maison</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Score minimum</label>
+                      <select value={vendeursForm.scoreMin} onChange={e => setVendeursForm(f => ({ ...f, scoreMin: e.target.value }))}>
+                        <option value={30}>30+ (tous)</option>
+                        <option value={40}>40+ (filtré)</option>
+                        <option value={55}>55+ (motivés)</option>
+                        <option value={70}>70+ (très motivés)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Filtres avancés */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <label style={{ fontSize: 11 }}>Acheté après</label>
+                      <select value={vendeursForm.anneeMin} onChange={e => setVendeursForm(f => ({ ...f, anneeMin: e.target.value }))}>
+                        {[...Array(15)].map((_, i) => { const y = new Date().getFullYear() - 20 + i; return <option key={y} value={y}>{y}</option>; })}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11 }}>Acheté avant</label>
+                      <select value={vendeursForm.anneeMax} onChange={e => setVendeursForm(f => ({ ...f, anneeMax: e.target.value }))}>
+                        {[...Array(15)].map((_, i) => { const y = new Date().getFullYear() - 15 + i; return <option key={y} value={y}>{y}</option>; })}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11 }}>Surface min (m²)</label>
+                      <select value={vendeursForm.surfaceMin} onChange={e => setVendeursForm(f => ({ ...f, surfaceMin: e.target.value }))}>
+                        <option value={0}>Toutes surfaces</option>
+                        <option value={50}>50m² et +</option>
+                        <option value={80}>80m² et +</option>
+                        <option value={100}>100m² et +</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11 }}>Plus-value min</label>
+                      <select value={vendeursForm.plusValueMin} onChange={e => setVendeursForm(f => ({ ...f, plusValueMin: e.target.value }))}>
+                        <option value={0}>Sans minimum</option>
+                        <option value={10}>+10% et +</option>
+                        <option value={20}>+20% et +</option>
+                        <option value={30}>+30% et +</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Villes rapides */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '26px' }}>Accès rapide :</span>
+                    {['Toulouse', 'Blagnac', 'Tournefeuille', 'Colomiers', 'Lyon', 'Bordeaux', 'Nantes'].map(v => (
+                      <button key={v} onClick={() => setVendeursForm(f => ({ ...f, ville: v }))}
+                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20,
+                          background: vendeursForm.ville === v ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${vendeursForm.ville === v ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.09)'}`,
+                          color: vendeursForm.ville === v ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer' }}>
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+
+                  {vendeursError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{vendeursError}</div>}
+
+                  <button className="btn btn-primary" onClick={handleVendeurs} disabled={vendeursLoading || !vendeursForm.ville.trim()} style={{ width: '100%' }}>
+                    {vendeursLoading
+                      ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Analyse des transactions DVF en cours…</>
+                      : 'Identifier les vendeurs potentiels'}
+                  </button>
+                </div>
+              )}
+
+              {/* Résultats */}
+              {vendeursData && (
+                <div>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                    <div>
+                      <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' }}>
+                        {vendeursData.stats.total} vendeurs potentiels · {vendeursData.ville}
+                      </h3>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <span className="badge badge-gold">{vendeursData.stats.forts} score fort</span>
+                        <span className="badge badge-blue">{vendeursData.stats.moyens} score moyen</span>
+                        <span className="badge badge-neutral">{vendeursData.stats.faibles} score faible</span>
+                        {vendeursData.fromCache && <span className="badge badge-neutral">Cache 6h</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => { setVendeursData(null); setVendeursError(null); }}>Nouvelle recherche</button>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
+                    {[
+                      { l: 'Score moyen', v: vendeursData.stats.scoreMoyen + '/100', c: 'var(--accent)' },
+                      vendeursData.stats.plusValueMoyennePct !== null && { l: 'Plus-value moy.', v: '+' + vendeursData.stats.plusValueMoyennePct + '%', c: 'var(--green)' },
+                      { l: 'Ancienneté moy.', v: vendeursData.stats.ancienneteMoyenne + ' ans' },
+                      vendeursData.stats.prixM2Actuel && { l: 'Prix m² actuel', v: vendeursData.stats.prixM2Actuel.toLocaleString('fr-FR') + '€/m²' },
+                    ].filter(Boolean).map((item, i) => (
+                      <div key={i} className="card" style={{ padding: '12px 14px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{item.l}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: item.c || 'var(--text)' }}>{item.v}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Filtre niveau */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    {['all', 'Fort', 'Moyen', 'Faible'].map(f => (
+                      <button key={f} onClick={() => setVendeursFilter(f)} style={{
+                        padding: '5px 14px', fontSize: 12, borderRadius: 20, cursor: 'pointer',
+                        background: vendeursFilter === f ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${vendeursFilter === f ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                        color: vendeursFilter === f ? 'var(--accent)' : 'var(--text-muted)',
+                      }}>
+                        {f === 'all' ? 'Tous' : f}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Liste vendeurs */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {vendeursData.vendeurs
+                      .filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter)
+                      .map((vendeur, i) => {
+                        const prospecte = vendeurProspecte[vendeur.id];
+                        const scoreColor = vendeur.scoreMotivation >= 70 ? 'var(--green)' : vendeur.scoreMotivation >= 50 ? 'var(--accent)' : 'var(--text-muted)';
+                        return (
+                          <div key={i} style={{
+                            padding: '16px 18px',
+                            background: prospecte ? 'rgba(62,207,142,0.03)' : 'var(--card-bg)',
+                            border: `1px solid ${prospecte ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
+                            borderRadius: 10,
+                            display: 'grid',
+                            gridTemplateColumns: '1fr auto',
+                            gap: 16,
+                            alignItems: 'start',
+                          }}>
+                            {/* Infos bien */}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+                                {/* Score */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '3px 10px' }}>
+                                  <span style={{ fontSize: 15, fontWeight: 700, color: scoreColor }}>{vendeur.scoreMotivation}</span>
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted)'}}>/100</span>
+                                  <span style={{ fontSize: 11, color: scoreColor, marginLeft: 2 }}>{vendeur.niveauMotivation}</span>
+                                </div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                                  {vendeur.adresse}{vendeur.codePostal ? ` — ${vendeur.codePostal}` : ''}
+                                </span>
+                                {vendeur.nomProprietaire && (
+                                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                    {vendeur.nomProprietaire}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Caractéristiques */}
+                              <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                                  {vendeur.type === 'appartement' ? 'Appart.' : 'Maison'} {vendeur.surface}m²
+                                  {vendeur.pieces ? ` · ${vendeur.pieces}p` : ''}
+                                </span>
+                                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Acheté en {vendeur.anneeAchat} · {vendeur.anciennete} ans</span>
+                                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                                  Achat : {vendeur.prixAchat.toLocaleString('fr-FR')}€
+                                  {vendeur.prixAchatM2 ? ` (${vendeur.prixAchatM2.toLocaleString('fr-FR')}€/m²)` : ''}
+                                </span>
+                                {vendeur.valeurActuelle && (
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: vendeur.plusValuePct > 0 ? 'var(--green)' : 'var(--red)' }}>
+                                    Estimé aujourd'hui : {vendeur.valeurActuelle.toLocaleString('fr-FR')}€
+                                    {vendeur.plusValuePct !== null ? ` (${vendeur.plusValuePct > 0 ? '+' : ''}${vendeur.plusValuePct}%)` : ''}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Raisons */}
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {vendeur.raisons.map((r, ri) => (
+                                  <span key={ri} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: 'var(--text-muted)' }}>
+                                    {r}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 130, alignItems: 'flex-end' }}>
+                              <button
+                                onClick={() => setVendeurProspecte(p => ({ ...p, [vendeur.id]: !p[vendeur.id] }))}
+                                className={prospecte ? 'btn btn-ghost' : 'btn btn-primary'}
+                                style={{ fontSize: 12, padding: '7px 14px', width: '100%' }}
+                              >
+                                {prospecte ? '✓ Prospecté' : 'Prospecter'}
+                              </button>
+                              <a
+                                href={`https://www.google.com/maps/search/${encodeURIComponent(vendeur.adresse + ', ' + vendeur.ville)}`}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none', textAlign: 'center', width: '100%', padding: '4px 0' }}
+                              >
+                                Voir sur Maps ↗
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })
+                    }
+                    {vendeursData.vendeurs.filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter).length === 0 && (
+                      <div className="empty">Aucun vendeur correspondant à ce filtre</div>
+                    )}
+                  </div>
+
+                  {/* Sources */}
+                  <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Sources des données</div>
+                    {vendeursData.sourcesDonnees?.map((s, i) => (
+                      <div key={i} style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginBottom: 2 }}>{s}</div>
+                    ))}
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', marginTop: 6 }}>
+                      Analyse : {new Date(vendeursData.dateAnalyse).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
                 </div>
               )}
             </>
