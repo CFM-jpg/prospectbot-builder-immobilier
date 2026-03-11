@@ -170,21 +170,15 @@ async function scraperDVF({ codeCommune, ville, prixMin, prixMax, surfaceMin, ty
   const transactions = data.resultats || [];
 
   return transactions
-    .filter(t => {
-      if (!t.valeur_fonciere || !t.surface_reelle_bati) return false;
-      if (t.type_local !== typeLocal) return false;
-      if (t.valeur_fonciere < prixMin || t.valeur_fonciere > prixMax) return false;
-      if (surfaceMin > 0 && t.surface_reelle_bati < surfaceMin) return false;
-      return true;
-    })
+    .filter(t => t.valeur_fonciere && t.surface_reelle_bati)
     .slice(0, 30)
     .map(t => {
       const dateStr = t.date_mutation || new Date().toISOString().slice(0, 10);
       const adresse = [t.no_voie, t.type_voie, t.voie].filter(Boolean).join(' ');
       const villeNom = t.nom_commune || ville;
       const cp = t.code_postal || '';
-      const prix = Math.round(t.valeur_fonciere);
-      const surface = Math.round(t.surface_reelle_bati);
+      const prix = Math.round(parseFloat(t.valeur_fonciere));
+      const surface = Math.round(parseFloat(t.surface_reelle_bati));
       const pieces = t.nombre_pieces_principales || null;
       const prixM2 = surface > 0 ? Math.round(prix / surface) : null;
 
