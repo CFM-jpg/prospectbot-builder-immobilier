@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const DVF_BASE_URL = 'https://files.data.gouv.fr/geo-dvf/latest/csv';
+const DVF_BASE_URL = 'https://files.data.gouv.fr/geo-dvf/latest/csv/2024/departements';
 
 export const config = {
   maxDuration: 60, // max Vercel
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   if (!dep) return res.status(400).json({ error: 'Département requis' });
 
   try {
-    const url = `${DVF_BASE_URL}/${dep}/mutations.csv.gz`;
+    const url = `${DVF_BASE_URL}/${dep}.csv.gz`;
     console.log(`[DVF Import] Téléchargement département ${dep}...`);
 
     // Téléchargement du fichier CSV.gz
