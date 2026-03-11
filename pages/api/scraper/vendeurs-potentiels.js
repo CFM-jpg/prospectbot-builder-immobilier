@@ -14,34 +14,89 @@ const FETCH_TIMEOUT_MS = 15000;
 // ─── Prix marché actuel par ville (INSEE 2024) ────────────────────────────────
 
 const PRIX_MARCHE = {
-  paris: { appart: 9750, maison: 11200 }, lyon: { appart: 4850, maison: 5600 },
-  marseille: { appart: 3180, maison: 3750 }, toulouse: { appart: 3420, maison: 3980 },
-  bordeaux: { appart: 4380, maison: 5020 }, nantes: { appart: 3850, maison: 4420 },
-  nice: { appart: 4920, maison: 6100 }, montpellier: { appart: 3680, maison: 4150 },
-  strasbourg: { appart: 3420, maison: 3980 }, rennes: { appart: 3890, maison: 4480 },
-  lille: { appart: 3280, maison: 3840 }, grenoble: { appart: 2850, maison: 3400 },
-  reims: { appart: 2380, maison: 2840 }, toulon: { appart: 2940, maison: 3680 },
-  dijon: { appart: 2620, maison: 3180 }, angers: { appart: 2980, maison: 3520 },
-  aix_en_provence: { appart: 4820, maison: 6200 },
-  blagnac: { appart: 3180, maison: 3820 },
-  tournefeuille: { appart: 2980, maison: 3560 },
-  colomiers: { appart: 2840, maison: 3380 },
+  paris:              { appart: 9650,  maison: 11200 },
+  boulogne_billancourt:{ appart: 7850, maison: 9200  },
+  versailles:         { appart: 5800,  maison: 6200  },
+  lyon:               { appart: 4950,  maison: 5100  },
+  villeurbanne:       { appart: 3850,  maison: 3950  },
+  venissieux:         { appart: 2450,  maison: 2650  },
+  marseille:          { appart: 3250,  maison: 3850  },
+  aix_en_provence:    { appart: 4650,  maison: 5850  },
+  toulouse:           { appart: 3500,  maison: 3750  },
+  blagnac:            { appart: 3200,  maison: 3550  },
+  tournefeuille:      { appart: 3050,  maison: 3350  },
+  colomiers:          { appart: 2950,  maison: 3150  },
+  castanet_tolosan:   { appart: 2850,  maison: 3050  },
+  muret:              { appart: 2550,  maison: 2750  },
+  bordeaux:           { appart: 4200,  maison: 4750  },
+  merignac:           { appart: 3350,  maison: 3750  },
+  pessac:             { appart: 3250,  maison: 3650  },
+  nice:               { appart: 5100,  maison: 6500  },
+  cannes:             { appart: 6200,  maison: 8500  },
+  antibes:            { appart: 4950,  maison: 6200  },
+  montpellier:        { appart: 3350,  maison: 3850  },
+  nantes:             { appart: 3900,  maison: 3750  },
+  saint_nazaire:      { appart: 2650,  maison: 2850  },
+  rennes:             { appart: 3700,  maison: 3450  },
+  strasbourg:         { appart: 3150,  maison: 2950  },
+  lille:              { appart: 3250,  maison: 2850  },
+  roubaix:            { appart: 1850,  maison: 1650  },
+  grenoble:           { appart: 2850,  maison: 2950  },
+  clermont_ferrand:   { appart: 2250,  maison: 2100  },
+  dijon:              { appart: 2700,  maison: 2500  },
+  nimes:              { appart: 2350,  maison: 2650  },
+  tours:              { appart: 2750,  maison: 3000  },
+  angers:             { appart: 2800,  maison: 2650  },
+  limoges:            { appart: 1700,  maison: 1600  },
+  reims:              { appart: 2200,  maison: 2050  },
+  caen:               { appart: 2900,  maison: 2750  },
+  rouen:              { appart: 2550,  maison: 2350  },
+  nancy:              { appart: 2100,  maison: 1950  },
+  metz:               { appart: 2000,  maison: 1850  },
+  orleans:            { appart: 2250,  maison: 2350  },
+  pau:                { appart: 2150,  maison: 2350  },
+  perpignan:          { appart: 1950,  maison: 2350  },
+  brest:              { appart: 2200,  maison: 2400  },
+  le_havre:           { appart: 2100,  maison: 1950  },
+  amiens:             { appart: 2050,  maison: 1900  },
+  mulhouse:           { appart: 1950,  maison: 1800  },
+  besancon:           { appart: 2350,  maison: 2150  },
+  toulon:             { appart: 3100,  maison: 3800  },
+  avignon:            { appart: 2650,  maison: 3050  },
+  bayonne:            { appart: 4200,  maison: 5100  },
+  annecy:             { appart: 5500,  maison: 6200  },
+  saint_etienne:      { appart: 1450,  maison: 1350  },
+  la_rochelle:        { appart: 3850,  maison: 4650  },
+  poitiers:           { appart: 2050,  maison: 1950  },
+  // Fallback : toute ville non listée → prix moyen France
+  _default:           { appart: 3200,  maison: 3500  },
 };
 
 // ─── Ancienneté moyenne par taux propriétaires (proxy INSEE) ─────────────────
 // Villes où les propriétaires restent longtemps = plus de potentiel de vente ancienne
 
 const PROFIL_VILLE = {
-  paris: { anciennete_moy: 8, rotation: 'rapide', proprio: 33 },
-  lyon: { anciennete_moy: 10, rotation: 'normale', proprio: 38 },
-  toulouse: { anciennete_moy: 11, rotation: 'normale', proprio: 43 },
-  bordeaux: { anciennete_moy: 9, rotation: 'normale', proprio: 39 },
-  blagnac: { anciennete_moy: 13, rotation: 'lente', proprio: 52 },
-  tournefeuille: { anciennete_moy: 15, rotation: 'lente', proprio: 62 },
-  colomiers: { anciennete_moy: 14, rotation: 'lente', proprio: 55 },
-  nantes: { anciennete_moy: 11, rotation: 'normale', proprio: 43 },
-  rennes: { anciennete_moy: 10, rotation: 'normale', proprio: 44 },
-  default: { anciennete_moy: 11, rotation: 'normale', proprio: 45 },
+  paris:              { anciennete_moy: 8,  rotation: 'rapide', proprio: 33 },
+  lyon:               { anciennete_moy: 10, rotation: 'normale', proprio: 38 },
+  marseille:          { anciennete_moy: 12, rotation: 'normale', proprio: 42 },
+  toulouse:           { anciennete_moy: 11, rotation: 'normale', proprio: 43 },
+  bordeaux:           { anciennete_moy: 9,  rotation: 'normale', proprio: 39 },
+  nice:               { anciennete_moy: 11, rotation: 'normale', proprio: 40 },
+  montpellier:        { anciennete_moy: 9,  rotation: 'normale', proprio: 38 },
+  nantes:             { anciennete_moy: 11, rotation: 'normale', proprio: 43 },
+  rennes:             { anciennete_moy: 10, rotation: 'normale', proprio: 44 },
+  lille:              { anciennete_moy: 10, rotation: 'normale', proprio: 41 },
+  strasbourg:         { anciennete_moy: 11, rotation: 'normale', proprio: 42 },
+  grenoble:           { anciennete_moy: 11, rotation: 'normale', proprio: 40 },
+  blagnac:            { anciennete_moy: 13, rotation: 'lente', proprio: 52 },
+  tournefeuille:      { anciennete_moy: 15, rotation: 'lente', proprio: 62 },
+  colomiers:          { anciennete_moy: 14, rotation: 'lente', proprio: 55 },
+  castanet_tolosan:   { anciennete_moy: 14, rotation: 'lente', proprio: 58 },
+  muret:              { anciennete_moy: 13, rotation: 'lente', proprio: 54 },
+  versailles:         { anciennete_moy: 14, rotation: 'lente', proprio: 58 },
+  annecy:             { anciennete_moy: 12, rotation: 'normale', proprio: 48 },
+  bayonne:            { anciennete_moy: 11, rotation: 'normale', proprio: 44 },
+  default:            { anciennete_moy: 11, rotation: 'normale', proprio: 45 },
 };
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -57,7 +112,7 @@ export default async function handler(req, res) {
     ville = 'toulouse',
     type = 'all',
     surfaceMin = 0,
-    scoreMin = 30,
+    scoreMin = 10,
     limit = 60,
   } = req.body;
 
@@ -90,7 +145,7 @@ export default async function handler(req, res) {
 
     // ── 4. Données de référence ville ─────────────────────────────────────────
     const villeKey = normaliserVille(ville);
-    const prixRef = PRIX_MARCHE[villeKey] || null;
+    const prixRef = PRIX_MARCHE[villeKey] || PRIX_MARCHE._default;
     const profilVille = PROFIL_VILLE[villeKey] || PROFIL_VILLE.default;
 
     // ── 5. Grouper par rue pour calculer la densité de ventes ─────────────────
@@ -407,13 +462,29 @@ async function resolveCodeCommune(ville) {
     bordeaux: '33063', lille: '59350', rennes: '35238', reims: '51454',
     toulon: '83137', grenoble: '38185', dijon: '21231', angers: '49007',
     aix_en_provence: '13001', blagnac: '31069', tournefeuille: '31557', colomiers: '31149',
+    castanet_tolosan: '31113', muret: '31395', merignac: '33281', pessac: '33318',
+    villeurbanne: '69266', venissieux: '69259', saint_nazaire: '44184',
+    roubaix: '59512', nancy: '54395', metz: '57463', caen: '14118',
+    rouen: '76540', le_havre: '76351', amiens: '80021', orleans: '45234',
+    tours: '37261', brest: '29019', mulhouse: '68224', besancon: '25056',
+    bayonne: '64102', annecy: '74010', saint_etienne: '42218', pau: '64445',
+    perpignan: '66136', la_rochelle: '17300', poitiers: '86194',
+    clermont_ferrand: '63113', limoges: '87085', avignon: '84007',
+    antibes: '06004', cannes: '06029', toulon: '83137', nimes: '30189',
+    versailles: '78646',
   };
-  const key = ville.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  const key = ville.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
   if (CODES[key]) return CODES[key];
+  // Fallback : API Geo INSEE (plus fiable qu'api-adresse pour les codes communes)
   try {
-    const r = await fetchWithTimeout(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(ville)}&type=municipality&limit=1`, 6000);
+    const r = await fetchWithTimeout(
+      `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(ville)}&fields=code,codesPostaux&boost=population&limit=1`,
+      6000
+    );
     const data = await r.json();
-    return data.features?.[0]?.properties?.citycode || null;
+    return data?.[0]?.code || null;
   } catch { return null; }
 }
 
