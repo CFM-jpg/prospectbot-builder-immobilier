@@ -876,12 +876,12 @@ export default function ImmobilierDashboard() {
   const [marcheOnglet, setMarcheOnglet] = useState('prix');
 
   // ── Vendeurs potentiels ──
-  const [vendeursForm, setVendeursForm] = useState({ ville: '', type: 'all', anneeMin: new Date().getFullYear() - 15, anneeMax: new Date().getFullYear() - 7, surfaceMin: 0, plusValueMin: 15, scoreMin: 40 });
+  const [vendeursForm, setVendeursForm] = useState({ ville: '', type: 'all', surfaceMin: 0, scoreMin: 30 });
   const [vendeursLoading, setVendeursLoading] = useState(false);
   const [vendeursData, setVendeursData] = useState(null);
   const [vendeursError, setVendeursError] = useState(null);
-  const [vendeursFilter, setVendeursFilter] = useState('all'); // 'all' | 'Fort' | 'Moyen' | 'Faible'
-  const [vendeurProspecte, setVendeurProspecte] = useState({}); // id → true
+  const [vendeursFilter, setVendeursFilter] = useState('all');
+  const [vendeurProspecte, setVendeurProspecte] = useState({});
 
   const [emailForm, setEmailForm] = useState({ subject: '', message: '', senderName: '', senderEmail: '' });
   const [emailStatus, setEmailStatus] = useState(null);
@@ -996,10 +996,7 @@ export default function ImmobilierDashboard() {
         body: JSON.stringify({
           ville: vendeursForm.ville.trim(),
           type: vendeursForm.type,
-          anneeMin: parseInt(vendeursForm.anneeMin),
-          anneeMax: parseInt(vendeursForm.anneeMax),
           surfaceMin: parseInt(vendeursForm.surfaceMin) || 0,
-          plusValueMin: parseInt(vendeursForm.plusValueMin) || 0,
           scoreMin: parseInt(vendeursForm.scoreMin) || 30,
           limit: 60,
         }),
@@ -1877,46 +1874,23 @@ export default function ImmobilierDashboard() {
                     <div>
                       <label>Score minimum</label>
                       <select value={vendeursForm.scoreMin} onChange={e => setVendeursForm(f => ({ ...f, scoreMin: e.target.value }))}>
-                        <option value={30}>30+ (tous)</option>
-                        <option value={40}>40+ (filtré)</option>
-                        <option value={55}>55+ (motivés)</option>
+                        <option value={20}>20+ (tous)</option>
+                        <option value={30}>30+ (filtré)</option>
+                        <option value={50}>50+ (motivés)</option>
                         <option value={70}>70+ (très motivés)</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Filtres avancés */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div>
-                      <label style={{ fontSize: 11 }}>Acheté après</label>
-                      <select value={vendeursForm.anneeMin} onChange={e => setVendeursForm(f => ({ ...f, anneeMin: e.target.value }))}>
-                        {[...Array(15)].map((_, i) => { const y = new Date().getFullYear() - 20 + i; return <option key={y} value={y}>{y}</option>; })}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11 }}>Acheté avant</label>
-                      <select value={vendeursForm.anneeMax} onChange={e => setVendeursForm(f => ({ ...f, anneeMax: e.target.value }))}>
-                        {[...Array(15)].map((_, i) => { const y = new Date().getFullYear() - 15 + i; return <option key={y} value={y}>{y}</option>; })}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11 }}>Surface min (m²)</label>
-                      <select value={vendeursForm.surfaceMin} onChange={e => setVendeursForm(f => ({ ...f, surfaceMin: e.target.value }))}>
-                        <option value={0}>Toutes surfaces</option>
-                        <option value={50}>50m² et +</option>
-                        <option value={80}>80m² et +</option>
-                        <option value={100}>100m² et +</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11 }}>Plus-value min</label>
-                      <select value={vendeursForm.plusValueMin} onChange={e => setVendeursForm(f => ({ ...f, plusValueMin: e.target.value }))}>
-                        <option value={0}>Sans minimum</option>
-                        <option value={10}>+10% et +</option>
-                        <option value={20}>+20% et +</option>
-                        <option value={30}>+30% et +</option>
-                      </select>
-                    </div>
+                  {/* Filtre surface */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 11 }}>Surface minimum</label>
+                    <select value={vendeursForm.surfaceMin} onChange={e => setVendeursForm(f => ({ ...f, surfaceMin: e.target.value }))}>
+                      <option value={0}>Toutes surfaces</option>
+                      <option value={50}>50m² et +</option>
+                      <option value={80}>80m² et +</option>
+                      <option value={100}>100m² et +</option>
+                    </select>
                   </div>
 
                   {/* Villes rapides */}
@@ -2036,27 +2010,43 @@ export default function ImmobilierDashboard() {
                                   {vendeur.type === 'appartement' ? 'Appart.' : 'Maison'} {vendeur.surface}m²
                                   {vendeur.pieces ? ` · ${vendeur.pieces}p` : ''}
                                 </span>
-                                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Acheté en {vendeur.anneeAchat} · {vendeur.anciennete} ans</span>
-                                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                                  Achat : {vendeur.prixAchat.toLocaleString('fr-FR')}€
-                                  {vendeur.prixAchatM2 ? ` (${vendeur.prixAchatM2.toLocaleString('fr-FR')}€/m²)` : ''}
-                                </span>
-                                {vendeur.valeurActuelle && (
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: vendeur.plusValuePct > 0 ? 'var(--green)' : 'var(--red)' }}>
-                                    Estimé aujourd'hui : {vendeur.valeurActuelle.toLocaleString('fr-FR')}€
-                                    {vendeur.plusValuePct !== null ? ` (${vendeur.plusValuePct > 0 ? '+' : ''}${vendeur.plusValuePct}%)` : ''}
+                                {vendeur.densiteRue > 1 && (
+                                  <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
+                                    {vendeur.densiteRue} ventes récentes dans la rue
+                                  </span>
+                                )}
+                                {vendeur.prixM2Actuel && (
+                                  <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                                    Marché : {vendeur.prixM2Actuel.toLocaleString('fr-FR')}€/m²
+                                  </span>
+                                )}
+                                {vendeur.valeurEstimee && (
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>
+                                    Valeur estimée : {vendeur.valeurEstimee.toLocaleString('fr-FR')}€
+                                    {vendeur.plusValuePct !== null ? ` (+${vendeur.plusValuePct}% vs achat estimé)` : ''}
                                   </span>
                                 )}
                               </div>
 
                               {/* Raisons */}
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: vendeur.argumentProsSpection?.length ? 8 : 0 }}>
                                 {vendeur.raisons.map((r, ri) => (
                                   <span key={ri} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: 'var(--text-muted)' }}>
                                     {r}
                                   </span>
                                 ))}
                               </div>
+                              {/* Argumentaire de prospection */}
+                              {vendeur.argumentProsSpection?.length > 0 && (
+                                <div style={{ marginTop: 4 }}>
+                                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Script de prospection</div>
+                                  {vendeur.argumentProsSpection.map((arg, ai) => (
+                                    <div key={ai} style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', padding: '6px 10px', background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.1)', borderRadius: 6, marginBottom: 4, lineHeight: 1.5 }}>
+                                      {arg}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
 
                             {/* Actions */}
@@ -2085,12 +2075,17 @@ export default function ImmobilierDashboard() {
                     )}
                   </div>
 
-                  {/* Sources */}
+                  {/* Sources + méthodologie */}
                   <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Sources des données</div>
                     {vendeursData.sourcesDonnees?.map((s, i) => (
                       <div key={i} style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginBottom: 2 }}>{s}</div>
                     ))}
+                    {vendeursData.methodologie && (
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8, lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
+                        <strong style={{ color: 'rgba(255,255,255,0.3)' }}>Méthodologie :</strong> {vendeursData.methodologie}
+                      </div>
+                    )}
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', marginTop: 6 }}>
                       Analyse : {new Date(vendeursData.dateAnalyse).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>

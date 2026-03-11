@@ -1,15 +1,17 @@
 // pages/api/scraper/vendeurs-potentiels.js
-// Identifie les propriétaires susceptibles de vendre via les données DVF
-// Logique : biens achetés il y a 7-15 ans → plus-value estimée → score motivation vendeur
-// Source : DVF Etalab + API Adresse + prix marché actuel (base INSEE)
+// Identifie les zones et propriétaires à prospecter via DVF récent
+// Logique réelle :
+//   DVF ne donne que ~5 ans → on prend les ventes récentes
+//   Un bien vendu récemment dans une rue = les voisins sont les cibles
+//   Score basé sur : densité de ventes dans la rue, type de bien, surface, prix/m² attractif
+// + Enrichissement INSEE pour estimer ancienneté probable des propriétaires actuels
 
 import { supabaseAdmin } from '../../../lib/supabase';
 import { getSession } from '../../../lib/auth';
 
 const FETCH_TIMEOUT_MS = 15000;
 
-// ─── Prix marché actuel par ville (INSEE 2024) ─────────────────────────────────
-// Utilisé pour calculer la plus-value estimée
+// ─── Prix marché actuel par ville (INSEE 2024) ────────────────────────────────
 
 const PRIX_MARCHE = {
   paris: { appart: 9750, maison: 11200 }, lyon: { appart: 4850, maison: 5600 },
@@ -26,6 +28,22 @@ const PRIX_MARCHE = {
   colomiers: { appart: 2840, maison: 3380 },
 };
 
+// ─── Ancienneté moyenne par taux propriétaires (proxy INSEE) ─────────────────
+// Villes où les propriétaires restent longtemps = plus de potentiel de vente ancienne
+
+const PROFIL_VILLE = {
+  paris: { anciennete_moy: 8, rotation: 'rapide', proprio: 33 },
+  lyon: { anciennete_moy: 10, rotation: 'normale', proprio: 38 },
+  toulouse: { anciennete_moy: 11, rotation: 'normale', proprio: 43 },
+  bordeaux: { anciennete_moy: 9, rotation: 'normale', proprio: 39 },
+  blagnac: { anciennete_moy: 13, rotation: 'lente', proprio: 52 },
+  tournefeuille: { anciennete_moy: 15, rotation: 'lente', proprio: 62 },
+  colomiers: { anciennete_moy: 14, rotation: 'lente', proprio: 55 },
+  nantes: { anciennete_moy: 11, rotation: 'normale', proprio: 43 },
+  rennes: { anciennete_moy: 10, rotation: 'normale', proprio: 44 },
+  default: { anciennete_moy: 11, rotation: 'normale', proprio: 45 },
+};
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -37,13 +55,10 @@ export default async function handler(req, res) {
 
   const {
     ville = 'toulouse',
-    type = 'all', // 'appartement' | 'maison' | 'all'
-    anneeMin = new Date().getFullYear() - 15,
-    anneeMax = new Date().getFullYear() - 7,
+    type = 'all',
     surfaceMin = 0,
-    plusValueMin = 0, // % minimum de plus-value estimée
-    scoreMin = 30,    // score motivation minimum
-    limit = 50,
+    scoreMin = 30,
+    limit = 60,
   } = req.body;
 
   try {
@@ -53,132 +68,178 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: `Ville introuvable : "${ville}"` });
     }
 
-    // ── 2. Cache Supabase 6h ──────────────────────────────────────────────────
-    const cacheKey = `vendeurs-${codeCommune}-${type}-${anneeMin}-${anneeMax}`;
+    // ── 2. Cache 6h ───────────────────────────────────────────────────────────
+    const cacheKey = `vendeurs2-${codeCommune}-${type}-${surfaceMin}-${scoreMin}`;
     const cached = await getCache(cacheKey);
     if (cached) return res.status(200).json({ ...cached, fromCache: true });
 
-    // ── 3. Récupérer les transactions DVF de la période cible ─────────────────
-    const transactions = await fetchTransactionsDVF(codeCommune, ville, type, anneeMin, anneeMax);
+    // ── 3. DVF — transactions récentes (fenêtre disponible) ───────────────────
+    const { transactions, endpoint } = await fetchTransactionsDVF(codeCommune, type);
 
-    // ── 4. Prix marché actuel pour la ville ───────────────────────────────────
+    if (transactions.length === 0) {
+      return res.status(200).json({
+        success: true,
+        ville: capitaliser(ville),
+        stats: { total: 0, forts: 0, moyens: 0, faibles: 0, scoreMoyen: 0, plusValueMoyennePct: null, ancienneteMoyenne: 0, prixM2Actuel: null },
+        vendeurs: [],
+        sourcesDonnees: ['DVF Etalab', 'Base INSEE 2024'],
+        dateAnalyse: new Date().toISOString(),
+        message: `Aucune transaction DVF disponible pour ${ville}. Essayez une ville plus grande (Toulouse, Lyon…).`,
+      });
+    }
+
+    // ── 4. Données de référence ville ─────────────────────────────────────────
     const villeKey = normaliserVille(ville);
     const prixRef = PRIX_MARCHE[villeKey] || null;
+    const profilVille = PROFIL_VILLE[villeKey] || PROFIL_VILLE.default;
 
-    // ── 5. Calcul score + filtrage ────────────────────────────────────────────
+    // ── 5. Grouper par rue pour calculer la densité de ventes ─────────────────
+    const rueMap = {}; // rue → [transactions]
+    for (const t of transactions) {
+      const rue = normaliserRue(t);
+      if (!rueMap[rue]) rueMap[rue] = [];
+      rueMap[rue].push(t);
+    }
+
+    // ── 6. Construire les fiches vendeurs potentiels ──────────────────────────
     const vendeurs = [];
     const anneeActuelle = new Date().getFullYear();
 
     for (const t of transactions) {
-      const prixAchat = parseFloat(t.valeur_fonciere);
+      const prixVente = parseFloat(t.valeur_fonciere);
       const surface = parseFloat(t.surface_reelle_bati);
-      if (!prixAchat || prixAchat < 10000 || !surface || surface < 10) continue;
+      if (!prixVente || prixVente < 10000 || !surface || surface < 10) continue;
       if (surfaceMin > 0 && surface < surfaceMin) continue;
 
-      const dateAchat = t.date_mutation ? new Date(t.date_mutation) : null;
-      if (!dateAchat) continue;
-      const anneeAchat = dateAchat.getFullYear();
-      const anciennete = anneeActuelle - anneeAchat;
-      if (anciennete < 1) continue;
+      const typeLocal = (t.type_local || '').toLowerCase();
+      if (type !== 'all') {
+        const typeVoulu = type === 'maison' ? 'maison' : 'appartement';
+        if (!typeLocal.includes(typeVoulu)) continue;
+      }
+      const typeNorm = typeLocal.includes('maison') ? 'maison' : 'appartement';
 
-      const typeLocal = t.type_local || '';
-      const typeNorm = typeLocal.toLowerCase().includes('maison') ? 'maison' : 'appartement';
+      const dateVente = t.date_mutation ? new Date(t.date_mutation) : null;
+      const anneeVente = dateVente ? dateVente.getFullYear() : null;
 
-      // Prix marché actuel pour ce type
+      // Rue et densité
+      const rue = normaliserRue(t);
+      const densiteRue = rueMap[rue]?.length || 1;
+
+      // Prix au m² de cette transaction
+      const prixM2Vente = Math.round(prixVente / surface);
+
+      // Prix marché actuel
       const prixM2Actuel = prixRef ? (typeNorm === 'maison' ? prixRef.maison : prixRef.appart) : null;
-      const valeurActuelle = prixM2Actuel ? Math.round(prixM2Actuel * surface) : null;
-      const plusValueEuros = valeurActuelle ? valeurActuelle - prixAchat : null;
-      const plusValuePct = plusValueEuros ? Math.round((plusValueEuros / prixAchat) * 100) : null;
 
-      // Filtre plus-value minimum
-      if (plusValueMin > 0 && (plusValuePct === null || plusValuePct < plusValueMin)) continue;
+      // Estimation : les voisins qui ont acheté il y a ~ancienneteMoy ans
+      // ont une plus-value de (prixM2Actuel - prixM2IlYaXAns) / prixM2IlYaXAns
+      // On estime le prix d'achat probable des voisins selon l'évolution marché
+      const ancienneteProbable = profilVille.anciennete_moy;
+      const facteursHistoriques = { blagnac: 0.65, tournefeuille: 0.62, colomiers: 0.64, toulouse: 0.72, bordeaux: 0.68, lyon: 0.75, paris: 0.85, default: 0.70 };
+      const facteur = facteursHistoriques[villeKey] || facteursHistoriques.default;
+      const prixM2AchatEstime = prixM2Actuel ? Math.round(prixM2Actuel * facteur) : null;
+      const plusValuePct = prixM2AchatEstime && prixM2Actuel ? Math.round(((prixM2Actuel - prixM2AchatEstime) / prixM2AchatEstime) * 100) : null;
+      const valeurEstimee = prixM2Actuel ? Math.round(prixM2Actuel * surface) : null;
+      const plusValueEuros = valeurEstimee && prixM2AchatEstime ? valeurEstimee - Math.round(prixM2AchatEstime * surface) : null;
 
-      // ── Score de motivation vendeur (0-100) ────────────────────────────────
+      // ── Score motivation (0-100) ───────────────────────────────────────────
       let score = 0;
-      let raisons = [];
+      const raisons = [];
 
-      // Ancienneté (0-40 pts) — pic à 10 ans, décroît après 15 ans
-      if (anciennete >= 7 && anciennete <= 10) { score += 40; raisons.push(`Acheté il y a ${anciennete} ans — fenêtre idéale`); }
-      else if (anciennete > 10 && anciennete <= 15) { score += 32; raisons.push(`Acheté il y a ${anciennete} ans — bien mûr`); }
-      else if (anciennete > 15 && anciennete <= 20) { score += 20; raisons.push(`Acheté il y a ${anciennete} ans`); }
-      else if (anciennete > 20) { score += 12; raisons.push(`Propriété ancienne (${anciennete} ans)`); }
-      else { score += 5; } // < 7 ans
+      // Densité de ventes dans la rue (signal de mobilité du quartier)
+      if (densiteRue >= 5) { score += 30; raisons.push(`Rue très active : ${densiteRue} ventes récentes — quartier en mouvement`); }
+      else if (densiteRue >= 3) { score += 20; raisons.push(`${densiteRue} ventes récentes dans la rue — signal positif`); }
+      else if (densiteRue >= 2) { score += 12; raisons.push(`${densiteRue} ventes récentes à proximité`); }
+      else { score += 5; }
 
-      // Plus-value (0-30 pts)
+      // Plus-value estimée des voisins propriétaires
       if (plusValuePct !== null) {
-        if (plusValuePct >= 40) { score += 30; raisons.push(`+${plusValuePct}% de plus-value estimée — très incitatif`); }
-        else if (plusValuePct >= 25) { score += 22; raisons.push(`+${plusValuePct}% de plus-value — attractif`); }
-        else if (plusValuePct >= 15) { score += 14; raisons.push(`+${plusValuePct}% de plus-value`); }
-        else if (plusValuePct >= 0) { score += 6; }
-        else { raisons.push('Marché en baisse sur la période'); }
+        if (plusValuePct >= 35) { score += 30; raisons.push(`Plus-value voisins estimée +${plusValuePct}% — très incitatif à vendre`); }
+        else if (plusValuePct >= 25) { score += 22; raisons.push(`Plus-value estimée +${plusValuePct}% — attractif`); }
+        else if (plusValuePct >= 15) { score += 14; raisons.push(`Plus-value estimée +${plusValuePct}%`); }
+        else { score += 6; }
       }
 
-      // Surface > 80m² = famille, souvent en mobilité (0-20 pts)
-      if (surface >= 120) { score += 20; raisons.push(`Grande surface (${Math.round(surface)}m²) — profil familial mobile`); }
+      // Surface — les grandes surfaces = familles, souvent en mobilité scolaire/professionnelle
+      if (surface >= 120) { score += 20; raisons.push(`Grande surface (${Math.round(surface)}m²) — cible famille en mobilité`); }
       else if (surface >= 80) { score += 14; raisons.push(`Surface familiale (${Math.round(surface)}m²)`); }
       else if (surface >= 60) { score += 8; }
 
-      // Prix d'achat DVF connu avec précision (0-10 pts)
-      if (t.id_mutation && prixAchat > 50000) { score += 10; raisons.push('Transaction DVF officielle — valorisation fiable'); }
+      // Rotation ville
+      if (profilVille.rotation === 'rapide') { score += 10; raisons.push('Marché à rotation rapide'); }
+      else if (profilVille.rotation === 'lente') {
+        if (anneeVente && anneeActuelle - anneeVente >= 2) {
+          score += 8; raisons.push(`Marché à rotation lente — propriétaires détenteurs longtemps (moy. ${profilVille.anciennete_moy} ans)`);
+        }
+      }
 
-      // Filtre score minimum
+      // Prix DVF connu = valorisation fiable
+      if (t.id_mutation) { score += 10; raisons.push('Transaction DVF officielle — valorisation fiable'); }
+
       if (score < scoreMin) continue;
 
-      // ── Construction adresse lisible ───────────────────────────────────────
+      // ── Adresse ───────────────────────────────────────────────────────────
       const adresse = [t.no_voie, t.type_voie, t.voie].filter(Boolean).join(' ');
       const villeNom = t.nom_commune ? capitaliser(t.nom_commune) : capitaliser(ville);
       const cp = t.code_postal || '';
-
-      // Nom probable du propriétaire via DVF (champ vendeur si dispo, sinon prénom_vendeur_1)
-      // DVF expose : nom_1_vendeur, prenom_1_vendeur (quand personne physique)
       const nomVendeur = [t.prenom_1_vendeur, t.nom_1_vendeur].filter(Boolean).join(' ') || null;
 
+      // ── Argumentaire personnalisé ──────────────────────────────────────────
+      const argumentProsSpection = genererArgumentProsSpection(typeNorm, surface, plusValuePct, densiteRue, profilVille, villeNom);
+
       vendeurs.push({
-        id: t.id_mutation || `${adresse}-${anneeAchat}`,
+        id: t.id_mutation || `${adresse}-${anneeVente}`,
         adresse: adresse || 'Adresse non renseignée',
         ville: villeNom,
         codePostal: cp,
         type: typeNorm,
         surface: Math.round(surface),
         pieces: t.nombre_pieces_principales || null,
-        // Acquisition
-        dateAchat: dateAchat.toISOString().slice(0, 10),
-        anneeAchat,
-        anciennete,
-        prixAchat: Math.round(prixAchat),
-        prixAchatM2: Math.round(prixAchat / surface),
-        // Valeur actuelle estimée
+        // Transaction de référence (vente récente dans la rue)
+        dateVenteRef: dateVente ? dateVente.toISOString().slice(0, 10) : null,
+        anneeVenteRef: anneeVente,
+        prixVenteRef: Math.round(prixVente),
+        prixM2VenteRef: prixM2Vente,
+        densiteRue,
+        // Estimation pour les voisins propriétaires
+        ancienneteProbable,
         prixM2Actuel,
-        valeurActuelle,
-        plusValueEuros,
+        valeurEstimee,
         plusValuePct,
-        // Propriétaire
-        nomProprietaire: nomVendeur,
+        plusValueEuros,
+        // Propriétaire de la transaction DVF (acheteur récent = pas la cible, mais utile pour l'adresse)
+        nomVendeurDVF: nomVendeur,
         // Score
         scoreMotivation: Math.min(score, 100),
         niveauMotivation: score >= 70 ? 'Fort' : score >= 50 ? 'Moyen' : 'Faible',
         raisons,
-        // Action
+        argumentProsSpection,
         statut: 'a_prospecter',
       });
     }
 
-    // Trier par score décroissant
-    vendeurs.sort((a, b) => b.scoreMotivation - a.scoreMotivation);
-    const top = vendeurs.slice(0, parseInt(limit));
+    // Dédupliquer par adresse normalisée (garder le meilleur score)
+    const dedup = {};
+    for (const v of vendeurs) {
+      const k = `${v.adresse}-${v.codePostal}`.toLowerCase().replace(/\s+/g, '');
+      if (!dedup[k] || v.scoreMotivation > dedup[k].scoreMotivation) dedup[k] = v;
+    }
+    const top = Object.values(dedup).sort((a, b) => b.scoreMotivation - a.scoreMotivation).slice(0, parseInt(limit));
 
-    // ── 6. Stats globales ─────────────────────────────────────────────────────
+    // ── 7. Stats ──────────────────────────────────────────────────────────────
     const stats = {
       total: top.length,
       scoreMoyen: top.length ? Math.round(top.reduce((s, v) => s + v.scoreMotivation, 0) / top.length) : 0,
       plusValueMoyennePct: top.filter(v => v.plusValuePct !== null).length
         ? Math.round(top.filter(v => v.plusValuePct !== null).reduce((s, v) => s + v.plusValuePct, 0) / top.filter(v => v.plusValuePct !== null).length)
         : null,
-      ancienneteMoyenne: top.length ? Math.round(top.reduce((s, v) => s + v.anciennete, 0) / top.length) : 0,
+      ancienneteMoyenne: profilVille.anciennete_moy,
       forts: top.filter(v => v.scoreMotivation >= 70).length,
       moyens: top.filter(v => v.scoreMotivation >= 50 && v.scoreMotivation < 70).length,
       faibles: top.filter(v => v.scoreMotivation < 50).length,
       prixM2Actuel: prixRef ? (type === 'maison' ? prixRef.maison : type === 'all' ? Math.round((prixRef.appart + prixRef.maison) / 2) : prixRef.appart) : null,
+      transactionsDVFAnalysees: transactions.length,
+      sourceEndpoint: endpoint,
     };
 
     const reponse = {
@@ -186,14 +247,17 @@ export default async function handler(req, res) {
       ville: top[0]?.ville || capitaliser(ville),
       villeKey,
       type,
-      filtres: { anneeMin, anneeMax, surfaceMin, plusValueMin, scoreMin },
       stats,
       vendeurs: top,
-      sourcesDonnees: ['DVF Etalab (Ministère des Finances)', 'API Adresse data.gouv.fr', 'Base de référence prix INSEE 2024'],
+      sourcesDonnees: [
+        `DVF ${endpoint} (${transactions.length} transactions analysées)`,
+        'API Adresse data.gouv.fr',
+        'Base de référence INSEE 2024',
+      ],
+      methodologie: `Basé sur les ventes DVF récentes : les rues avec forte densité de ventes sont les meilleures zones de prospection. La plus-value estimée représente le gain probable des propriétaires actuels ayant acheté il y a ~${profilVille.anciennete_moy} ans (ancienneté moyenne ${capitaliser(ville)}).`,
       dateAnalyse: new Date().toISOString(),
     };
 
-    // ── 7. Cache + log ────────────────────────────────────────────────────────
     await setCache(cacheKey, capitaliser(ville), reponse);
 
     try {
@@ -201,7 +265,7 @@ export default async function handler(req, res) {
         source: 'vendeurs-potentiels',
         agent_email: agentEmail,
         date: new Date().toISOString(),
-        parametres: { ville, type, anneeMin, anneeMax },
+        parametres: { ville, type },
         resultat: { totalVendeurs: top.length, scoreMoyen: stats.scoreMoyen },
       }]);
     } catch {}
@@ -214,17 +278,13 @@ export default async function handler(req, res) {
   }
 }
 
-// ─── Fetch DVF sur la période cible ───────────────────────────────────────────
+// ─── Fetch DVF sans filtre de date (prend ce que l'API retourne) ──────────────
 
-async function fetchTransactionsDVF(codeCommune, ville, type, anneeMin, anneeMax) {
+async function fetchTransactionsDVF(codeCommune, type) {
   const deptMap = { '75056': '75', '69123': '69', '13055': '13' };
   const useDept = !!deptMap[codeCommune];
   const deptCode = deptMap[codeCommune];
-
   const typesLocaux = type === 'all' ? ['Appartement', 'Maison'] : [type === 'maison' ? 'Maison' : 'Appartement'];
-  const dateDebut = `${anneeMin}-01-01`;
-  const dateFin = `${anneeMax}-12-31`;
-
   const errors = [];
 
   // Endpoint 1 — Etalab OData
@@ -234,22 +294,20 @@ async function fetchTransactionsDVF(codeCommune, ville, type, anneeMin, anneeMax
       const filterParts = [
         `nature_mutation eq 'Vente'`,
         `type_local eq '${tl}'`,
-        `date_mutation ge ${dateDebut}`,
-        `date_mutation le ${dateFin}`,
         useDept ? `startswith(code_commune,'${deptCode}')` : `code_commune eq '${codeCommune}'`,
       ];
       const url = `https://api.dvf.etalab.gouv.fr/api/odata/v1/Ventes?${new URLSearchParams({
         '$filter': filterParts.join(' and '),
-        '$top': '200',
+        '$top': '300',
         '$orderby': 'date_mutation desc',
-        '$select': 'id_mutation,date_mutation,valeur_fonciere,type_local,surface_reelle_bati,nombre_pieces_principales,no_voie,type_voie,voie,code_postal,nom_commune,code_commune,nom_1_vendeur,prenom_1_vendeur,nombre_lots',
+        '$select': 'id_mutation,date_mutation,valeur_fonciere,type_local,surface_reelle_bati,nombre_pieces_principales,no_voie,type_voie,voie,code_postal,nom_commune,code_commune,nom_1_vendeur,prenom_1_vendeur',
       })}`;
-      const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const r = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
       results.push(...(data.value || []).filter(t => t.type_local === tl));
     }
-    if (results.length > 0) return results;
+    if (results.length > 0) return { transactions: results, endpoint: 'etalab-odata' };
     errors.push('etalab: 0 résultats');
   } catch (e) { errors.push(`etalab: ${e.message}`); }
 
@@ -260,81 +318,86 @@ async function fetchTransactionsDVF(codeCommune, ville, type, anneeMin, anneeMax
       const where = [
         useDept ? `startswith(code_commune, '${deptCode}')` : `code_commune="${codeCommune}"`,
         `type_local="${tl}"`,
-        `date_mutation>="${dateDebut}"`,
-        `date_mutation<="${dateFin}"`,
       ].join(' and ');
       const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/dvf-plus-open-data-immo/records?${new URLSearchParams({
-        limit: '200',
+        limit: '300',
         where,
-        select: 'id_mutation,date_mutation,valeur_fonciere,type_local,surface_reelle_bati,nombre_pieces_principales,no_voie,type_voie,voie,code_postal,nom_commune,code_commune,nombre_lots',
+        select: 'id_mutation,date_mutation,valeur_fonciere,type_local,surface_reelle_bati,nombre_pieces_principales,no_voie,type_voie,voie,code_postal,nom_commune,code_commune',
         order_by: 'date_mutation DESC',
       })}`;
-      const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const r = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
       results.push(...(data.results || []));
     }
-    if (results.length > 0) return results;
+    if (results.length > 0) return { transactions: results, endpoint: 'economie.gouv' };
     errors.push('economie.gouv: 0 résultats');
   } catch (e) { errors.push(`economie.gouv: ${e.message}`); }
 
-  // Endpoint 3 — cquest (sans filtre date, on filtre après)
+  // Endpoint 3 — cquest
   try {
     const results = [];
     for (const tl of typesLocaux) {
       const pk = useDept ? 'code_departement' : 'code_commune';
       const pv = useDept ? deptCode : codeCommune;
       const url = `https://api.cquest.org/dvf?${pk}=${pv}&nature_mutation=Vente&limit=300`;
-      const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const filtered = (data.resultats || []).filter(t => {
-        if (t.type_local && t.type_local !== tl) return false;
-        const year = t.date_mutation ? new Date(t.date_mutation).getFullYear() : null;
-        return year && year >= anneeMin && year <= anneeMax;
-      });
-      results.push(...filtered);
+      const r = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      results.push(...(data.resultats || []).filter(t => !t.type_local || t.type_local === tl));
     }
-    if (results.length > 0) return results;
+    if (results.length > 0) return { transactions: results, endpoint: 'cquest' };
     errors.push('cquest: 0 résultats');
   } catch (e) { errors.push(`cquest: ${e.message}`); }
 
-  // Aucun résultat — retourner tableau vide plutôt qu'erreur
-  console.warn('[Vendeurs] Aucune transaction trouvée:', errors.join(' | '));
-  return [];
+  return { transactions: [], endpoint: null };
 }
 
-// ─── Cache Supabase 6h ────────────────────────────────────────────────────────
+// ─── Normaliser une rue pour le regroupement ──────────────────────────────────
+
+function normaliserRue(t) {
+  const voie = (t.voie || t.type_voie || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const cp = t.code_postal || '';
+  return `${cp}-${voie}`;
+}
+
+// ─── Argumentaire de prospection ──────────────────────────────────────────────
+
+function genererArgumentProsSpection(type, surface, plusValuePct, densiteRue, profil, ville) {
+  const args = [];
+  if (plusValuePct && plusValuePct >= 20) {
+    args.push(`"Votre ${type === 'maison' ? 'maison' : 'appartement'} vaut aujourd'hui environ +${plusValuePct}% de plus qu'il y a ${profil.anciennete_moy} ans — c'est le bon moment pour capitaliser."`);
+  }
+  if (densiteRue >= 3) {
+    args.push(`"${densiteRue} biens ont été vendus dans votre rue récemment — le marché est très actif dans votre secteur."`);
+  }
+  if (surface >= 80) {
+    args.push(`"Les ${Math.round(surface)}m² sont très recherchés par les familles — la demande est forte pour ce type de bien."`);
+  }
+  if (profil.rotation === 'lente') {
+    args.push(`"${ville} est une ville où les propriétaires restent longtemps — ceux qui vendent maintenant profitent d'une forte demande accumulée."`);
+  }
+  return args;
+}
+
+// ─── Cache / utilitaires ──────────────────────────────────────────────────────
 
 async function getCache(cacheKey) {
   try {
     const cutoff = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
-    const { data } = await supabaseAdmin
-      .from('dvf_cache')
-      .select('resultats')
-      .eq('cache_key', cacheKey)
-      .gte('cached_at', cutoff)
-      .maybeSingle();
+    const { data } = await supabaseAdmin.from('dvf_cache').select('resultats').eq('cache_key', cacheKey).gte('cached_at', cutoff).maybeSingle();
     return data?.resultats || null;
   } catch { return null; }
 }
 
 async function setCache(cacheKey, ville, resultats) {
   try {
-    await supabaseAdmin.from('dvf_cache').upsert([{
-      cache_key: cacheKey, ville, resultats,
-      cached_at: new Date().toISOString(),
-    }], { onConflict: 'cache_key' });
+    await supabaseAdmin.from('dvf_cache').upsert([{ cache_key: cacheKey, ville, resultats, cached_at: new Date().toISOString() }], { onConflict: 'cache_key' });
   } catch {}
 }
 
-// ─── Utilitaires ──────────────────────────────────────────────────────────────
-
 function fetchWithTimeout(url, ms) {
-  return fetch(url, {
-    headers: { 'Accept': 'application/json', 'User-Agent': 'ProspectBot/1.0' },
-    signal: AbortSignal.timeout(ms),
-  });
+  return fetch(url, { headers: { 'Accept': 'application/json', 'User-Agent': 'ProspectBot/1.0' }, signal: AbortSignal.timeout(ms) });
 }
 
 async function resolveCodeCommune(ville) {
@@ -348,8 +411,8 @@ async function resolveCodeCommune(ville) {
   const key = ville.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
   if (CODES[key]) return CODES[key];
   try {
-    const res = await fetchWithTimeout(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(ville)}&type=municipality&limit=1`, 6000);
-    const data = await res.json();
+    const r = await fetchWithTimeout(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(ville)}&type=municipality&limit=1`, 6000);
+    const data = await r.json();
     return data.features?.[0]?.properties?.citycode || null;
   } catch { return null; }
 }
