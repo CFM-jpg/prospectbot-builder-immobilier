@@ -2,7 +2,7 @@
 import { supabaseAdmin } from '../../../lib/supabase';
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@prospectbot.fr';
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@nestlead.fr';
 
 export default async function handler(req, res) {
   // Sécurité Vercel Cron
@@ -78,7 +78,7 @@ async function handleNewProspectWorkflow(workflow) {
       await sendEmail({
         to: conv.visitor_email,
         toName: conv.visitor_email.split('@')[0],
-        fromName: 'ProspectBot',
+        fromName: 'NestLead',
         fromEmail: BREVO_SENDER_EMAIL,
         subject: 'Merci pour votre message',
         body: `Bonjour,\n\nMerci d'avoir contacté notre service. Nous avons bien reçu votre message et nous vous répondrons dans les plus brefs délais.\n\nCordialement,\nL'équipe`,
@@ -88,10 +88,10 @@ async function handleNewProspectWorkflow(workflow) {
       await sendEmail({
         to: workflow.agent_email,
         toName: 'Agent',
-        fromName: 'ProspectBot',
+        fromName: 'NestLead',
         fromEmail: BREVO_SENDER_EMAIL,
         subject: `Nouveau prospect : ${conv.visitor_email}`,
-        body: `Bonjour,\n\nUn nouveau prospect a contacté votre chatbot.\n\nEmail : ${conv.visitor_email}\nDate : ${new Date(conv.created_at).toLocaleString('fr-FR')}\nStatut : ${conv.qualified ? 'Qualifié' : 'Non qualifié'}\n\nConnectez-vous à ProspectBot pour voir la conversation complète.\n\nCordialement,\nProspectBot`,
+        body: `Bonjour,\n\nUn nouveau prospect a contacté votre chatbot.\n\nEmail : ${conv.visitor_email}\nDate : ${new Date(conv.created_at).toLocaleString('fr-FR')}\nStatut : ${conv.qualified ? 'Qualifié' : 'Non qualifié'}\n\nConnectez-vous à NestLead pour voir la conversation complète.\n\nCordialement,\nNestLead`,
       });
 
       // Marquer comme traité
@@ -143,20 +143,20 @@ async function handleNewMatchWorkflow(workflow) {
       await sendEmail({
         to: acheteur.email,
         toName: acheteur.nom || acheteur.email,
-        fromName: 'ProspectBot Immobilier',
+        fromName: 'NestLead Immobilier',
         fromEmail: BREVO_SENDER_EMAIL,
         subject: `Nouveau bien correspondant à vos critères — ${bien.titre || bien.ville || 'Bien immobilier'}`,
-        body: `Bonjour ${acheteur.nom || ''},\n\nNous avons trouvé un bien qui correspond à vos critères de recherche.\n\n${bien.titre || 'Bien immobilier'}\nVille : ${bien.ville || 'N/A'}\nPrix : ${bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : 'N/A'}\nSurface : ${bien.surface ? bien.surface + ' m²' : 'N/A'}\nScore de correspondance : ${match.score}%\n\nConnectez-vous à votre espace pour voir tous les détails.\n\nCordialement,\nProspectBot`,
+        body: `Bonjour ${acheteur.nom || ''},\n\nNous avons trouvé un bien qui correspond à vos critères de recherche.\n\n${bien.titre || 'Bien immobilier'}\nVille : ${bien.ville || 'N/A'}\nPrix : ${bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : 'N/A'}\nSurface : ${bien.surface ? bien.surface + ' m²' : 'N/A'}\nScore de correspondance : ${match.score}%\n\nConnectez-vous à votre espace pour voir tous les détails.\n\nCordialement,\nNestLead`,
       });
 
       // Notification à l'agent
       await sendEmail({
         to: workflow.agent_email,
         toName: 'Agent',
-        fromName: 'ProspectBot',
+        fromName: 'NestLead',
         fromEmail: BREVO_SENDER_EMAIL,
         subject: `Match ${match.score}% — ${acheteur.nom || acheteur.email} / ${bien.titre || bien.ville}`,
-        body: `Bonjour,\n\nUn nouveau match a été détecté.\n\nAcheteur : ${acheteur.nom || acheteur.email}\nBien : ${bien.titre || bien.ville}\nScore : ${match.score}%\n\nL'acheteur a été notifié automatiquement.\n\nCordialement,\nProspectBot`,
+        body: `Bonjour,\n\nUn nouveau match a été détecté.\n\nAcheteur : ${acheteur.nom || acheteur.email}\nBien : ${bien.titre || bien.ville}\nScore : ${match.score}%\n\nL'acheteur a été notifié automatiquement.\n\nCordialement,\nNestLead`,
       });
 
       // Marquer comme notifié

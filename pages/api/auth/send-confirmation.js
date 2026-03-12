@@ -18,11 +18,11 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         sender: {
-          name: 'ProspectBot',
+          name: 'NestLead',
           email: process.env.BREVO_SENDER_EMAIL,
         },
         to: [{ email, name }],
-        subject: '✅ Confirmez votre adresse email — ProspectBot',
+        subject: '✅ Confirmez votre adresse email — NestLead',
         htmlContent: `
 <!DOCTYPE html>
 <html>
@@ -37,14 +37,14 @@ export default async function handler(req, res) {
         <table width="560" cellpadding="0" cellspacing="0" style="background:#111113;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden;max-width:560px;width:100%;">
           <tr>
             <td style="background:linear-gradient(135deg,#0f0f11,#1a1712);padding:36px 40px 28px;border-bottom:1px solid rgba(212,168,83,0.2);">
-              <p style="margin:0;font-size:22px;color:#d4a853;font-style:italic;letter-spacing:1px;">ProspectBot</p>
+              <p style="margin:0;font-size:22px;color:#d4a853;font-style:italic;letter-spacing:1px;">NestLead</p>
             </td>
           </tr>
           <tr>
             <td style="padding:36px 40px;">
               <h1 style="margin:0 0 8px 0;font-size:28px;font-weight:300;color:#f0f0f0;letter-spacing:-0.5px;">Bienvenue, ${name} 👋</h1>
               <p style="margin:0 0 28px 0;font-size:14px;color:rgba(255,255,255,0.4);line-height:1.6;">
-                Votre compte ProspectBot <strong style="color:rgba(255,255,255,0.65);">Plan ${planLabel}</strong> a bien été créé.<br/>
+                Votre compte NestLead <strong style="color:rgba(255,255,255,0.65);">Plan ${planLabel}</strong> a bien été créé.<br/>
                 Il vous reste une étape : confirmer votre adresse email.
               </p>
               <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px;">
@@ -65,11 +65,11 @@ export default async function handler(req, res) {
           <tr>
             <td style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.2);line-height:1.6;">
-                Vous recevez cet email car vous venez de créer un compte sur ProspectBot.<br/>
+                Vous recevez cet email car vous venez de créer un compte sur NestLead.<br/>
                 Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.<br/>
                 <a href="${process.env.NEXT_PUBLIC_APP_URL}/mentions-legales" style="color:rgba(212,168,83,0.5);text-decoration:none;">Mentions légales</a>
                 &nbsp;·&nbsp;
-                <a href="mailto:contact@prospectbot.fr" style="color:rgba(212,168,83,0.5);text-decoration:none;">Contact</a>
+                <a href="mailto:contact@nestlead.fr" style="color:rgba(212,168,83,0.5);text-decoration:none;">Contact</a>
               </p>
             </td>
           </tr>

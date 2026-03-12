@@ -87,7 +87,7 @@ export default function B2BLoginPage() {
   return (
     <>
       <Head>
-        <title>Connexion B2B — ProspectBot</title>
+        <title>Connexion B2B — NestLead</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`
@@ -185,7 +185,7 @@ export default function B2BLoginPage() {
 
           <div className="panel-brand">
             <div className="logo">
-              ProspectBot <span className="logo-badge">B2B</span>
+              NestLead <span className="logo-badge">B2B</span>
             </div>
           </div>
 
@@ -295,7 +295,7 @@ export default function B2BLoginPage() {
               </p>
               <div className="hint-box">
                 <strong>Identifiants par défaut</strong>
-                Email : <code>admin@prospectbot.fr</code><br />
+                Email : <code>admin@nestlead.fr</code><br />
                 Mot de passe : <code>admin123</code><br />
                 <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
                   Modifiez via <code>ADMIN_EMAIL</code> et <code>ADMIN_PASSWORD</code>

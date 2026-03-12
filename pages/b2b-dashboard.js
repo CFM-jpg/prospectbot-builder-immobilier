@@ -349,7 +349,7 @@ export default function B2BDashboard() {
   return (
     <>
       <Head>
-        <title>B2B Dashboard — ProspectBot</title>
+        <title>B2B Dashboard — NestLead</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`

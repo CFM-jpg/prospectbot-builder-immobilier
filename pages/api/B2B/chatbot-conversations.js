@@ -14,7 +14,7 @@ async function executeWorkflow(workflow, prospect) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'api-key': BREVO_API_KEY },
             body: JSON.stringify({
-              sender: { name: 'ProspectBot', email: process.env.BREVO_SENDER_EMAIL || 'noreply@prospectbot.fr' },
+              sender: { name: 'NestLead', email: process.env.BREVO_SENDER_EMAIL || 'noreply@nestlead.fr' },
               to: [{ email: prospect.email, name: prospect.name || 'Prospect' }],
               subject: action.subject || `Bienvenue ${prospect.name || ''} !`,
               htmlContent: action.content || `<p>Bonjour ${prospect.name || ''},</p><p>Merci pour votre intérêt. Un agent vous recontactera bientôt.</p>`,
@@ -30,7 +30,7 @@ async function executeWorkflow(workflow, prospect) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'api-key': BREVO_API_KEY },
             body: JSON.stringify({
-              sender: { name: 'ProspectBot', email: process.env.BREVO_SENDER_EMAIL || 'noreply@prospectbot.fr' },
+              sender: { name: 'NestLead', email: process.env.BREVO_SENDER_EMAIL || 'noreply@nestlead.fr' },
               to: [{ email: TEAM_EMAIL }],
               subject: `🔔 Nouveau prospect : ${prospect.email}`,
               htmlContent: `<h2>Nouveau prospect</h2><p><strong>Email :</strong> ${prospect.email}</p><p><strong>Qualification :</strong> ${prospect.qualificationReason || '—'}</p><p><strong>Workflow :</strong> ${workflow.name}</p>`,

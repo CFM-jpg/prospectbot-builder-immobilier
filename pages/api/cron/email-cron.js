@@ -90,7 +90,7 @@ export default async function handler(req, res) {
           },
           body: JSON.stringify({
             sender: {
-              name: emailJob.campaign.title || 'ProspectBot',
+              name: emailJob.campaign.title || 'NestLead',
               email: process.env.BREVO_SENDER_EMAIL || 'noreply@votreentreprise.com'
             },
             to: [{

@@ -422,7 +422,7 @@ export default function ChatbotPage({ chatbot }) {
           </button>
         </div>
 
-        <div className="footer">ProspectBot B2B</div>
+        <div className="footer">NestLead B2B</div>
       </div>
     </>
   );

@@ -177,7 +177,7 @@ function genererEmailHTML(acheteur, bien, match) {
           </div>
           
           <center>
-            <a href="${process.env.NEXT_PUBLIC_URL || 'https://prospectbot-builder-immobilier.vercel.app'}/bien/${bien.id}" class="cta">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://nestlead.fr'}/bien/${bien.id}" class="cta">
               Voir le bien en détail
             </a>
           </center>
@@ -191,7 +191,7 @@ function genererEmailHTML(acheteur, bien, match) {
         <div class="footer">
           <p>Vous recevez cet email car vous êtes inscrit sur notre plateforme de recherche immobilière.</p>
           <p style="margin-top: 10px;">
-            <a href="${process.env.NEXT_PUBLIC_URL || 'https://prospectbot-builder-immobilier.vercel.app'}/preferences/${acheteur.id}" style="color: #2563eb;">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://nestlead.fr'}/preferences/${acheteur.id}" style="color: #2563eb;">
               Gérer mes préférences
             </a>
           </p>
@@ -222,7 +222,7 @@ async function envoyerEmailBrevo({ to, toName, subject, htmlContent }) {
       },
       body: JSON.stringify({
         sender: {
-          name: 'ProspectBot Immobilier',
+          name: 'NestLead Immobilier',
           email: BREVO_SENDER_EMAIL
         },
         to: [{

@@ -58,8 +58,8 @@ export default async function handler(req, res) {
           },
           body: JSON.stringify({
             sender: { 
-              email: process.env.BREVO_SENDER_EMAIL || 'contact@prospectbot.com', 
-              name: 'ProspectBot' 
+              email: process.env.BREVO_SENDER_EMAIL || 'contact@nestlead.fr', 
+              name: 'NestLead' 
             },
             to: [{ email: prospect.email, name: `${prospect.first_name || ''} ${prospect.last_name || ''}`.trim() }],
             subject: subject,

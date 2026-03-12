@@ -106,7 +106,7 @@ function LiveDemoB2B() {
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
-        <span style={{ marginLeft: 12, fontSize: 12, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>ProspectBot B2B — Live Demo</span>
+        <span style={{ marginLeft: 12, fontSize: 12, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>NestLead B2B — Live Demo</span>
       </div>
 
       <div style={{ padding: '28px 32px' }}>
@@ -116,7 +116,7 @@ function LiveDemoB2B() {
               <svg width="36" height="36" fill="none" stroke="rgba(124,106,247,0.6)" strokeWidth="1.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
             </div>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, marginBottom: 8, fontFamily: 'DM Sans, sans-serif' }}>
-              Voyez ProspectBot B2B en action
+              Voyez NestLead B2B en action
             </p>
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginBottom: 28, fontFamily: 'DM Sans, sans-serif' }}>
               Simulation réelle : scraping → qualification → séquences email
@@ -337,8 +337,8 @@ export default function B2BLandingPage() {
   return (
     <>
       <Head>
-        <title>ProspectBot B2B — La prospection automatisée</title>
-        <meta name="description" content="ProspectBot B2B scrape les contacts, qualifie vos leads et envoie les séquences email automatiquement. Gagnez 5h par semaine." />
+        <title>NestLead B2B — La prospection automatisée</title>
+        <meta name="description" content="NestLead B2B scrape les contacts, qualifie vos leads et envoie les séquences email automatiquement. Gagnez 5h par semaine." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
 
       <style>{`
@@ -492,7 +492,7 @@ export default function B2BLandingPage() {
 
       {/* Nav */}
       <nav className={`nav ${navScrolled ? 'scrolled' : ''}`}>
-        <div className="nav-logo">ProspectBot</div>
+        <div className="nav-logo">NestLead</div>
         <div className="nav-links">
           <a href="#fonctionnalites" className="nav-link">Fonctionnalités</a>
           <a href="#demo" className="nav-link">Démo</a>
@@ -507,14 +507,14 @@ export default function B2BLandingPage() {
         <div style={{ position: 'relative', zIndex: 2 }}>
           <div className="hero-tag">
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3ecf8e', display: 'inline-block' }} />
-            500+ équipes sales utilisent ProspectBot B2B aujourd'hui
+            500+ équipes sales utilisent NestLead B2B aujourd'hui
           </div>
           <h1 className="hero-title">
             La prospection B2B<br />
             <em>enfin automatisée.</em>
           </h1>
           <p className="hero-sub">
-            ProspectBot scrape les contacts, qualifie vos leads via chatbot et déclenche les séquences email automatiquement. Vous gagnez 5h par semaine.
+            NestLead scrape les contacts, qualifie vos leads via chatbot et déclenche les séquences email automatiquement. Vous gagnez 5h par semaine.
           </p>
 
           <div className="hero-form">
@@ -595,7 +595,7 @@ export default function B2BLandingPage() {
             <h2 className="section-title">Tout ce dont une équipe sales<br /><em>a besoin, en un seul endroit.</em></h2>
           </div>
           <div data-reveal data-delay="2">
-            <p className="section-sub">Du scraping de contacts à l'automatisation des séquences email — ProspectBot couvre l'intégralité du workflow de prospection B2B.</p>
+            <p className="section-sub">Du scraping de contacts à l'automatisation des séquences email — NestLead couvre l'intégralité du workflow de prospection B2B.</p>
           </div>
 
           <div className="features-grid">
@@ -658,7 +658,7 @@ export default function B2BLandingPage() {
           <div className="steps-grid">
             {[
               { n: '1', title: 'Créez votre compte', desc: 'Inscription en 2 minutes, aucune carte de crédit requise.', delay: '1' },
-              { n: '2', title: 'Importez vos contacts', desc: 'Via le scraper ou votre CRM existant. ProspectBot segmente automatiquement.', delay: '2' },
+              { n: '2', title: 'Importez vos contacts', desc: 'Via le scraper ou votre CRM existant. NestLead segmente automatiquement.', delay: '2' },
               { n: '3', title: 'Lancez une campagne', desc: 'Choisissez un template, personnalisez le texte par IA, planifiez l\'envoi.', delay: '3' },
               { n: '4', title: 'Analysez & convertissez', desc: 'Suivez les ouvertures, les clics, les réponses. Les workflows font le reste.', delay: '4' },
             ].map((s, i) => (
@@ -682,7 +682,7 @@ export default function B2BLandingPage() {
                 <h2 className="section-title">Voyez-le tourner <em>en direct.</em></h2>
               </div>
               <div data-reveal data-delay="2">
-                <p className="section-sub">Cliquez sur "Lancer la démo" et observez ProspectBot scraper les contacts, les qualifier et déclencher les séquences email — le tout en quelques secondes.</p>
+                <p className="section-sub">Cliquez sur "Lancer la démo" et observez NestLead scraper les contacts, les qualifier et déclencher les séquences email — le tout en quelques secondes.</p>
               </div>
               <div data-reveal data-delay="3" style={{ marginTop: 32 }}>
                 {[
@@ -731,7 +731,7 @@ export default function B2BLandingPage() {
               {
                 icon: (<svg width="28" height="28" fill="none" stroke="rgba(62,207,142,0.8)" strokeWidth="1.3" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>),
                 title: 'Indépendants & freelances',
-                desc: 'Trouvez vos prochains clients sans passer vos journées à prospecter manuellement. ProspectBot travaille pendant que vous dormez.',
+                desc: 'Trouvez vos prochains clients sans passer vos journées à prospecter manuellement. NestLead travaille pendant que vous dormez.',
                 color: 'rgba(62,207,142,0.06)', border: 'rgba(62,207,142,0.2)',
                 cta: 'Commencer maintenant', profile: 'independant', delay: '3',
               },
@@ -790,7 +790,7 @@ export default function B2BLandingPage() {
         <div className="cta-bg" />
         <div style={{ position: 'relative', zIndex: 2 }}>
           <div data-reveal><h2 className="cta-title">Prêt à automatiser<br /><em>votre prospection B2B ?</em></h2></div>
-          <div data-reveal data-delay="1"><p className="cta-sub">Rejoignez les 500+ équipes qui font confiance à ProspectBot pour remplir leur pipeline de leads qualifiés.</p></div>
+          <div data-reveal data-delay="1"><p className="cta-sub">Rejoignez les 500+ équipes qui font confiance à NestLead pour remplir leur pipeline de leads qualifiés.</p></div>
           <div data-reveal data-delay="2" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => router.push('/b2b-login')}
               style={{ background: 'linear-gradient(135deg, #5a45d4, #7c6af7)', color: '#fff', border: 'none', borderRadius: 14, padding: '16px 36px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 60px rgba(124,106,247,0.25)', transition: 'transform 0.2s' }}>
@@ -809,13 +809,13 @@ export default function B2BLandingPage() {
 
       {/* ── FOOTER ── */}
       <footer className="footer">
-        <div className="footer-logo">ProspectBot</div>
+        <div className="footer-logo">NestLead</div>
         <div className="footer-links">
           <a href='/b2b-login' className="footer-link">Connexion</a>
           <a href="#" className="footer-link">Mentions légales</a>
           <a href="#" className="footer-link">Contact</a>
         </div>
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.15)' }}>© 2025 ProspectBot</span>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.15)' }}>© 2025 NestLead</span>
       </footer>
 
       {/* Floating CTA */}
@@ -828,7 +828,7 @@ export default function B2BLandingPage() {
 
 const TESTIMONIALS = [
   {
-    quote: "Avant ProspectBot B2B, je passais 4h par semaine à chercher des contacts manuellement. Maintenant mon pipeline se remplit tout seul. J'ai signé 3 nouveaux clients le premier mois.",
+    quote: "Avant NestLead B2B, je passais 4h par semaine à chercher des contacts manuellement. Maintenant mon pipeline se remplit tout seul. J'ai signé 3 nouveaux clients le premier mois.",
     name: 'Alexis R.',
     role: 'Fondateur, SaaS B2B, Paris',
     initials: 'A',
@@ -840,7 +840,7 @@ const TESTIMONIALS = [
     initials: 'C',
   },
   {
-    quote: "J'ai testé 4 outils de prospection avant ProspectBot. Aucun n'avait ce niveau d'automatisation. Le scraper + les workflows email, c'est une combinaison imbattable.",
+    quote: "J'ai testé 4 outils de prospection avant NestLead. Aucun n'avait ce niveau d'automatisation. Le scraper + les workflows email, c'est une combinaison imbattable.",
     name: 'Hugo D.',
     role: 'Consultant indépendant, Bordeaux',
     initials: 'H',

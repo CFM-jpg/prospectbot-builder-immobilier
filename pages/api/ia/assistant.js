@@ -1,5 +1,5 @@
 // pages/api/ia/assistant.js
-// IA unifiée ProspectBot — Claude comme cerveau central
+// IA unifiée NestLead — Claude comme cerveau central
 // Actions : chat | score_lead | suggestions_biens | rediger_annonce
 
 import { getSession } from '../../../lib/auth';
@@ -93,7 +93,7 @@ async function handleChat(req, res, agentEmail, { message, history = [], chatbot
 Message d'accueil : ${chatbotConfig.welcome_message}
 Tu représentes l'agence et tu dois qualifier les prospects, répondre à leurs questions et les orienter vers un rendez-vous.
 Sois professionnel, chaleureux et concis. Réponds toujours en français.`
-    : `Tu es l'assistant IA de ProspectBot, un outil de gestion immobilière.
+    : `Tu es l'assistant IA de NestLead, un outil de gestion immobilière.
 Tu as accès aux données réelles de l'agent :
 
 BIENS DISPONIBLES (${biens.length}) :

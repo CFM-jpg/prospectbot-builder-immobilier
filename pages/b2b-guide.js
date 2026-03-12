@@ -83,8 +83,8 @@ export default function B2BGuide() {
   return (
     <>
       <Head>
-        <title>Module B2B — Guide ProspectBot</title>
-        <meta name="description" content="Découvrez comment le Module B2B de ProspectBot vous aide à prospecter, qualifier et automatiser votre activité immobilière." />      </Head>
+        <title>Module B2B — Guide NestLead</title>
+        <meta name="description" content="Découvrez comment le Module B2B de NestLead vous aide à prospecter, qualifier et automatiser votre activité immobilière." />      </Head>
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -474,7 +474,7 @@ export default function B2BGuide() {
             Prospectez comme<br /><em>une grande agence</em>
           </h1>
           <p className="hero-desc">
-            Quatre outils intégrés pour trouver des contacts, les qualifier, les contacter en masse et automatiser votre suivi — sans quitter ProspectBot.
+            Quatre outils intégrés pour trouver des contacts, les qualifier, les contacter en masse et automatiser votre suivi — sans quitter NestLead.
           </p>
           <div className="hero-actions">
             <Link href="/upgrade" className="btn-primary">Démarrer avec Agence — 169€/mois</Link>
@@ -571,7 +571,7 @@ export default function B2BGuide() {
       </div>
 
       <footer>
-        <div className="footer-text">ProspectBot — Module B2B</div>
+        <div className="footer-text">NestLead — Module B2B</div>
       </footer>
     </>
   );
