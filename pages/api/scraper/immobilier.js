@@ -216,7 +216,7 @@ function resoudreVille(villeInput, codePostal = null) {
     volumeAnnuel: 5000, rentaBrute: 5.5, rentaNette: 4.4,
     evolution1an: -1.5, evolution3ans: 8.0, evolution5ans: 25.0,
     budgetMedian: 210000, apportMoyen: 15, surfaceMoyenne: 62, piecesMoyennes: 3.0,
-    source: "national",
+    source: "defaut",
   };
 }
 
@@ -409,8 +409,16 @@ export default async function handler(req, res) {
 
   // 2. Résoudre code postal pour DVF
   let cp = codePostal;
+  const geo = await fetchCodeInsee(ville);
+
+  // Validation : si la ville n'est pas dans notre base ET que geo.api ne la trouve pas → ville invalide
+  if (!ref || ref.source === 'defaut') {
+    if (!geo.codeInsee) {
+      return res.status(404).json({ error: `Ville "${ville}" introuvable. Vérifiez l'orthographe.` });
+    }
+  }
+
   if (!cp) {
-    const geo = await fetchCodeInsee(ville);
     cp = geo.codePostal;
   }
 
