@@ -348,6 +348,15 @@ async function resolveCodeCommune(ville) {
     // Sinon chercher si le nom de la ville est contenu dans une commune fusionnée
     const partial = data.find(c => c.nom.toLowerCase().includes(normalized));
     if (partial) return partial.code;
+
+    // Validation : rejeter les noms inventés (ex: "azerty")
+    // Le résultat doit partager au moins les 3 premiers caractères avec la saisie
+    const firstNom = data[0].nom.toLowerCase();
+    const isRelevant = firstNom.includes(normalized) ||
+      normalized.includes(firstNom) ||
+      (normalized.length >= 3 && firstNom.startsWith(normalized.substring(0, 3)));
+    if (!isRelevant) return null;
+
     return data[0].code;
   } catch {
     return null;
@@ -371,6 +380,9 @@ export default async function handler(req, res) {
   try {
     // 1. Code commune + données marché
     const codeCommune = await resolveCodeCommune(ville);
+    if (!codeCommune) {
+      return res.status(404).json({ error: `Ville "${ville}" introuvable. Vérifiez l'orthographe.` });
+    }
     const prixData = getPrixMarche(ville, codeCommune);
     console.log(`[Vendeurs] ${ville} → code commune: ${codeCommune}`);
 
