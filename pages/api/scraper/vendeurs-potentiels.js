@@ -84,31 +84,49 @@ function getPrixMarche(ville, codeCommune) {
 
 function calculerScore(item, prixRef) {
   let score = 0;
+
+  // ── Données de base (max 20 pts) ──
   if (item.adresse) score += 5;
-  if (item.id) score += 10;
-  if (item.surface > 0) score += 8;
+  if (item.id) score += 5;
+  if (item.surface > 0) score += 5;
   if (item.pieces > 0) score += 5;
-  if (prixRef && item.prix && item.surface) {
-    const prixM2 = item.prix / item.surface;
-    const pv = ((prixM2 - prixRef) / prixRef) * 100;
-    score += pv >= 30 ? 30 : pv >= 15 ? 22 : pv >= 0 ? 12 : 5;
-  }
+
+  // ── Ancienneté de la transaction (max 35 pts) ──
+  // Plus c'est ancien, plus le propriétaire est susceptible de revendre
   if (item.date) {
     const mois = (Date.now() - new Date(item.date).getTime()) / (1000 * 60 * 60 * 24 * 30);
-    score += mois <= 6 ? 15 : mois <= 18 ? 10 : mois <= 36 ? 5 : 0;
+    if (mois >= 60) score += 35;       // 5 ans+ → très fort signal
+    else if (mois >= 36) score += 25;  // 3-5 ans → fort
+    else if (mois >= 18) score += 15;  // 18 mois–3 ans → moyen
+    else if (mois >= 6) score += 8;    // 6–18 mois → faible
+    else score += 3;                   // récent → peu probable de revendre
   }
-  // Bonus profil
-  if (item.source === 'sci') score += 20; // SCI = fort potentiel de vente
-  if (item.source === 'rpls') score += 15; // Bailleur identifié
-  if (item.multi_proprietaire) score += 10;
+
+  // ── Plus-value potentielle (max 30 pts) ──
+  // Si le bien a pris de la valeur depuis l'achat → motivation à vendre
+  if (prixRef && item.prix && item.surface) {
+    const prixM2 = item.prix / item.surface;
+    const pv = ((prixRef - prixM2) / prixM2) * 100; // gain potentiel si vend maintenant
+    if (pv >= 40) score += 30;
+    else if (pv >= 20) score += 22;
+    else if (pv >= 5) score += 14;
+    else if (pv >= 0) score += 7;
+    else score += 3; // bien acheté au-dessus du marché actuel
+  }
+
+  // ── Bonus profil vendeur (max 20 pts) ──
+  if (item.source === 'sci') score += 20;        // SCI = fort potentiel de cession
+  if (item.source === 'rpls') score += 15;       // Bailleur social identifié
+  if (item.multi_proprietaire) score += 12;      // Multi-propriétaire = plus mobile
+
   return Math.min(score, 100);
 }
 
 function scoreLabel(score) {
-  if (score >= 85) return 'Vendeur chaud';
-  if (score >= 70) return 'Vendeur motivé';
-  if (score >= 50) return 'Prospect tiède';
-  if (score >= 30) return 'Prospect froid';
+  if (score >= 70) return 'Vendeur chaud';
+  if (score >= 50) return 'Vendeur motivé';
+  if (score >= 35) return 'Prospect tiède';
+  if (score >= 20) return 'Prospect froid';
   return 'À qualifier';
 }
 
