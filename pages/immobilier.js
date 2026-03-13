@@ -884,6 +884,34 @@ function ImmobilierDashboard() {
   const [vendeursError, setVendeursError] = useState(null);
   const [vendeursFilter, setVendeursFilter] = useState('all');
   const [vendeurProspecte, setVendeurProspecte] = useState({});
+  const [vendeurProspectLoading, setVendeurProspectLoading] = useState({});
+
+  const handleProspecter = async (vendeur) => {
+    const id = vendeur.id;
+    if (vendeurProspecte[id] || vendeurProspectLoading[id]) return;
+    setVendeurProspectLoading(p => ({ ...p, [id]: true }));
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const r = await fetch('/api/immobilier/prospecter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ vendeur: { ...vendeur, ville: vendeursForm.ville } }),
+      });
+      if (r.ok) {
+        setVendeurProspecte(p => ({ ...p, [id]: true }));
+      } else {
+        const err = await r.json();
+        alert(err.error || 'Erreur lors de la prospection');
+      }
+    } catch (e) {
+      alert('Erreur réseau');
+    } finally {
+      setVendeurProspectLoading(p => ({ ...p, [id]: false }));
+    }
+  };
 
   const [emailForm, setEmailForm] = useState({ subject: '', message: '', senderName: '', senderEmail: '' });
   const [emailStatus, setEmailStatus] = useState(null);
@@ -2061,11 +2089,12 @@ function ImmobilierDashboard() {
                             {/* Actions */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 130, alignItems: 'flex-end' }}>
                               <button
-                                onClick={() => setVendeurProspecte(p => ({ ...p, [vendeur.id]: !p[vendeur.id] }))}
+                                onClick={() => handleProspecter(vendeur)}
                                 className={prospecte ? 'btn btn-ghost' : 'btn btn-primary'}
                                 style={{ fontSize: 12, padding: '7px 14px', width: '100%' }}
+                                disabled={!!prospecte || !!vendeurProspectLoading[vendeur.id]}
                               >
-                                {prospecte ? '✓ Prospecté' : 'Prospecter'}
+                                {vendeurProspectLoading[vendeur.id] ? '...' : prospecte ? '✓ Prospecté' : 'Prospecter'}
                               </button>
                               <a
                                 href={`https://www.google.com/maps/search/${encodeURIComponent(vendeur.adresse + ', ' + vendeur.ville)}`}
