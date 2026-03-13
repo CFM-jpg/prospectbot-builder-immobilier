@@ -31,6 +31,6 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     success: true,
-    agent: { email: agent.email, name: agent.name, role: agent.role, plan: agent.plan },
+    agent: { id: agent.id, email: agent.email, name: agent.name, role: agent.role, plan: agent.plan },
   });
 }
