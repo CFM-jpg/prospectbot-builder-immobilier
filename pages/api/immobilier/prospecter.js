@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     const { error: insertError } = await supabase
       .from('vendeurs_prospectes')
       .upsert({
-        user_id: user.id,
+        user_id: user.email,
         vendeur_id: String(vendeur.id),
         adresse: vendeur.adresse || null,
         ville: vendeur.ville || null,
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     // ── 2. Créer dans prospects (CRM) ─────────────────────────────────────────
     const adresseFull = [vendeur.adresse, vendeur.ville].filter(Boolean).join(', ');
     await supabase.from('prospects').upsert({
-      user_id: user.id,
+      user_id: user.email,
       nom: adresseFull || `Vendeur ${vendeur.source?.toUpperCase() || 'DVF'}`,
       type: 'vendeur',
       statut: 'a_contacter',
