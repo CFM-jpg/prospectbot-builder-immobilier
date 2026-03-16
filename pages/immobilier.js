@@ -858,7 +858,7 @@ function SidebarPlanBlock({ plan }) {
 
 // ─── ProspectsTab Component ────────────────────────────────────────────────────
 
-function ProspectsTab({ plan, user }) {
+function ProspectsTab({ plan, user, setActiveTab }) {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -914,7 +914,7 @@ function ProspectsTab({ plan, user }) {
 
   const lancerCampagne = async (prospect) => {
     if (plan !== 'agence') return;
-    window.location.href = `/immobilier?tab=b2b&prospect=${prospect.id}`;
+    setActiveTab('b2b');
   };
 
   const filtered = filter === 'all' ? prospects : prospects.filter(p => p.statut === filter);
@@ -2025,7 +2025,7 @@ function ImmobilierDashboard() {
 
           {/* ── Prospects CRM ── */}
           {activeTab === 'prospects' && (
-            <ProspectsTab plan={plan} user={agent} />
+            <ProspectsTab plan={plan} user={agent} setActiveTab={setActiveTab} />
           )}
 
           {/* ── Annonces ── */}
