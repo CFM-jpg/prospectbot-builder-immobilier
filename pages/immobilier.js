@@ -859,10 +859,10 @@ function SidebarPlanBlock({ plan }) {
 // ─── ProspectsTab Component ────────────────────────────────────────────────────
 
 function ProspectsTab({ plan, user }) {
-  const [prospects, setProspects] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [filter, setFilter] = React.useState('all');
-  const [updatingId, setUpdatingId] = React.useState(null);
+  const [prospects, setProspects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [updatingId, setUpdatingId] = useState(null);
 
   const STATUTS = [
     { id: 'all', label: 'Tous' },
@@ -879,7 +879,7 @@ function ProspectsTab({ plan, user }) {
     signe:       { bg: 'rgba(34,197,94,0.12)',  color: '#22c55e', label: 'Signé' },
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchProspects();
   }, []);
 
