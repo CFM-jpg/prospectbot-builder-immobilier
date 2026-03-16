@@ -24,8 +24,8 @@ const PROPERTY_TYPES = [
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Vue d\'ensemble' },
-  { id: 'scraper', label: 'Marché' },
   { id: 'vendeurs', label: 'Vendeurs potentiels', badge: 'NEW' },
+  { id: 'prospects', label: 'Prospects', badge: 'NEW' },
   { id: 'biens', label: 'Données marché' },
   { id: 'acheteurs', label: 'Acheteurs' },
   { id: 'matches', label: 'Correspondances' },
@@ -49,7 +49,6 @@ const CHECKLIST_ITEMS = [
   { id: 'supabase', label: 'Supabase connecté (NEXT_PUBLIC_SUPABASE_URL)' },
   { id: 'brevo', label: 'Clé API Brevo configurée pour les emails' },
   { id: 'acheteur', label: 'Au moins 1 acheteur ajouté dans le système' },
-  { id: 'scraper', label: 'Première analyse de marché lancée' },
   { id: 'match', label: 'Matching calculé au moins une fois' },
 ];
 
@@ -857,6 +856,198 @@ function SidebarPlanBlock({ plan }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+// ─── ProspectsTab Component ────────────────────────────────────────────────────
+
+function ProspectsTab({ plan, user }) {
+  const [prospects, setProspects] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [filter, setFilter] = React.useState('all');
+  const [updatingId, setUpdatingId] = React.useState(null);
+
+  const STATUTS = [
+    { id: 'all', label: 'Tous' },
+    { id: 'a_contacter', label: 'À contacter' },
+    { id: 'contacte', label: 'Contacté' },
+    { id: 'negociation', label: 'Négociation' },
+    { id: 'signe', label: 'Signé' },
+  ];
+
+  const STATUT_COLORS = {
+    a_contacter: { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', label: 'À contacter' },
+    contacte:    { bg: 'rgba(234,179,8,0.12)',  color: '#eab308', label: 'Contacté' },
+    negociation: { bg: 'rgba(59,130,246,0.12)', color: '#3b82f6', label: 'Négociation' },
+    signe:       { bg: 'rgba(34,197,94,0.12)',  color: '#22c55e', label: 'Signé' },
+  };
+
+  React.useEffect(() => {
+    fetchProspects();
+  }, []);
+
+  const fetchProspects = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/immobilier/mes-prospects');
+      if (res.ok) {
+        const data = await res.json();
+        setProspects(data.prospects || []);
+      }
+    } catch (e) {
+      console.error('Erreur chargement prospects:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateStatut = async (id, newStatut) => {
+    setUpdatingId(id);
+    try {
+      await fetch('/api/immobilier/mes-prospects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, statut: newStatut }),
+      });
+      setProspects(p => p.map(v => v.id === id ? { ...v, statut: newStatut } : v));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const lancerCampagne = async (prospect) => {
+    if (plan !== 'agence') return;
+    window.location.href = `/immobilier?tab=b2b&prospect=${prospect.id}`;
+  };
+
+  const filtered = filter === 'all' ? prospects : prospects.filter(p => p.statut === filter);
+
+  // Stats
+  const stats = {
+    total: prospects.length,
+    a_contacter: prospects.filter(p => p.statut === 'a_contacter').length,
+    contacte: prospects.filter(p => p.statut === 'contacte').length,
+    negociation: prospects.filter(p => p.statut === 'negociation').length,
+    signe: prospects.filter(p => p.statut === 'signe').length,
+    scoreMoyen: prospects.length ? Math.round(prospects.reduce((s, p) => s + (p.score || 0), 0) / prospects.length) : 0,
+  };
+
+  return (
+    <>
+      <div className="page-header">
+        <h2 className="page-title">Prospects</h2>
+        <p className="page-subtitle">Vendeurs prospectés — pipeline CRM et suivi des contacts</p>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: 'Total', value: stats.total, color: 'var(--text)' },
+          { label: 'À contacter', value: stats.a_contacter, color: '#ef4444' },
+          { label: 'Contactés', value: stats.contacte, color: '#eab308' },
+          { label: 'Négociation', value: stats.negociation, color: '#3b82f6' },
+          { label: 'Signés', value: stats.signe, color: '#22c55e' },
+          { label: 'Score moyen', value: `${stats.scoreMoyen}/100`, color: 'var(--accent)' },
+        ].map(s => (
+          <div key={s.label} className="stat-card" style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filtres statut */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {STATUTS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => setFilter(s.id)}
+            style={{
+              padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontWeight: 500,
+              background: filter === s.id ? 'var(--accent)' : 'rgba(255,255,255,0.05)',
+              color: filter === s.id ? '#000' : 'var(--text-muted)',
+              border: `1px solid ${filter === s.id ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}`,
+            }}
+          >
+            {s.label} {s.id !== 'all' && `(${stats[s.id] || 0})`}
+          </button>
+        ))}
+        <button onClick={fetchProspects} style={{ marginLeft: 'auto', padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          ↻ Rafraîchir
+        </button>
+      </div>
+
+      {/* Liste */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Chargement…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+          <div>{filter === 'all' ? 'Aucun prospect encore — prospectez des vendeurs depuis l\'onglet Vendeurs potentiels' : `Aucun prospect avec le statut "${STATUTS.find(s=>s.id===filter)?.label}"`}</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {filtered.map(p => {
+            const statutInfo = STATUT_COLORS[p.statut] || STATUT_COLORS.a_contacter;
+            return (
+              <div key={p.id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                {/* Score */}
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '2px solid rgba(212,168,83,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{p.score || '—'}</span>
+                </div>
+
+                {/* Infos */}
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{p.adresse || 'Adresse inconnue'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {[p.ville, p.type, p.surface ? `${p.surface} m²` : null, p.prix ? `${Number(p.prix).toLocaleString('fr-FR')} €` : null].filter(Boolean).join(' · ')}
+                  </div>
+                  {p.notes && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, opacity: 0.7 }}>{p.notes}</div>}
+                </div>
+
+                {/* Statut selector */}
+                <select
+                  value={p.statut || 'a_contacter'}
+                  onChange={e => updateStatut(p.id, e.target.value)}
+                  disabled={updatingId === p.id}
+                  style={{
+                    padding: '6px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+                    background: statutInfo.bg, color: statutInfo.color,
+                    border: `1px solid ${statutInfo.color}40`, fontWeight: 600,
+                  }}
+                >
+                  {STATUTS.filter(s => s.id !== 'all').map(s => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  {p.latitude && p.longitude && (
+                    <a href={`https://www.google.com/maps?q=${p.latitude},${p.longitude}`} target="_blank" rel="noopener noreferrer"
+                      style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.1)', textDecoration: 'none' }}>
+                      Maps ↗
+                    </a>
+                  )}
+                  {plan === 'agence' ? (
+                    <button onClick={() => lancerCampagne(p)}
+                      style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', background: 'rgba(212,168,83,0.15)', color: 'var(--accent)', border: '1px solid rgba(212,168,83,0.3)', fontWeight: 600 }}>
+                      📧 Campagne B2B
+                    </button>
+                  ) : (
+                    <div style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'not-allowed' }}
+                      title="Disponible avec le plan Agence">
+                      🔒 Campagne B2B
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+
 function ImmobilierDashboard() {
   const { agent, logout, plan, isPro, isAgence } = useAuth();
   const router = useRouter();
@@ -1576,307 +1767,6 @@ function ImmobilierDashboard() {
             </>
           )}
 
-          {/* ── Analyse de marché ── */}
-          {activeTab === 'scraper' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Analyse de marché</h2>
-                <p className="page-subtitle">Prix au m², évolution, profil acheteurs, rentabilité, conseils — données officielles INSEE & DVF</p>
-              </div>
-
-              {/* Formulaire */}
-              {(!scrapingProgress || scrapingProgress.status === 'error') && (
-                <div className="card" style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px auto', gap: 12, alignItems: 'flex-end' }}>
-                    <div>
-                      <label>Ville ou commune</label>
-                      <input
-                        type="text"
-                        value={scraperForm.location}
-                        onChange={e => setScraperForm({ ...scraperForm, location: e.target.value })}
-                        onKeyDown={e => e.key === 'Enter' && handleScrape()}
-                        placeholder="Toulouse, Lyon, Blagnac…"
-                      />
-                    </div>
-                    <div>
-                      <label>Type de bien</label>
-                      <select value={scraperForm.propertyType} onChange={e => setScraperForm({ ...scraperForm, propertyType: e.target.value })}>
-                        <option value="appartement">Appartement</option>
-                        <option value="maison">Maison</option>
-                      </select>
-                    </div>
-                    <button className="btn btn-primary" onClick={handleScrape} disabled={loading || !scraperForm.location.trim()} style={{ marginBottom: 0 }}>
-                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Analyse…</> : 'Analyser'}
-                    </button>
-                  </div>
-                  {/* Villes rapides */}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '26px' }}>Accès rapide :</span>
-                    {['Toulouse','Blagnac','Tournefeuille','Lyon','Bordeaux','Paris','Nantes'].map(v => (
-                      <button key={v} onClick={() => setScraperForm(f => ({ ...f, location: v }))}
-                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20,
-                          background: scraperForm.location === v ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${scraperForm.location === v ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.09)'}`,
-                          color: scraperForm.location === v ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer' }}>
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-                  {scrapingProgress?.status === 'error' && (
-                    <div className="alert alert-error" style={{ marginTop: 14, marginBottom: 0 }}>{scrapingProgress.message}</div>
-                  )}
-                </div>
-              )}
-
-              {/* Loading */}
-              {scrapingProgress?.status === 'running' && (
-                <div className="progress-box progress-running">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span className="spinner" />
-                    <span className="progress-title" style={{ color: 'var(--blue)' }}>{scrapingProgress.message}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Résultats */}
-              {marcheData && scrapingProgress?.status === 'done' && (
-                <div>
-                  {/* Header résultat */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                        <h3 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: 0 }}>{marcheData.ville}</h3>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{marcheData.departement} · {marcheData.region}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span className="badge badge-gold">{marcheData.type === 'appartement' ? 'Appartements' : 'Maisons'}</span>
-                        <span className={`badge ${marcheData.qualiteDonnees === 'premium' ? 'badge-green' : 'badge-blue'}`}>
-                          {marcheData.qualiteDonnees === 'premium' ? 'DVF live' : 'Référence INSEE 2024'}
-                        </span>
-                        {marcheData.fromCache && <span className="badge badge-neutral">Cache 12h</span>}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 38, color: 'var(--accent)', lineHeight: 1 }}>
-                        {fmtPrix(marcheData.prix?.prixM2Moyen)}<span style={{ fontSize: 16, color: 'var(--text-muted)', fontFamily: 'DM Sans, sans-serif' }}>/m²</span>
-                      </div>
-                      <div style={{ fontSize: 13, color: coulEvol(marcheData.prix?.evolution1an), marginTop: 4 }}>
-                        {fmtPct(marcheData.prix?.evolution1an)} sur 12 mois
-                      </div>
-                      <button className="btn btn-ghost" style={{ marginTop: 10, fontSize: 12, padding: '6px 14px' }} onClick={resetScraper}>Nouvelle analyse</button>
-                    </div>
-                  </div>
-
-                  {/* Onglets résultats */}
-                  <div style={{ display: 'flex', gap: 2, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
-                    {[
-                      { id: 'prix', label: 'Prix & évolution' },
-                      { id: 'marche', label: 'Marché' },
-                      { id: 'acheteurs', label: 'Acheteurs' },
-                      { id: 'rentabilite', label: 'Rentabilité' },
-                      { id: 'territoire', label: 'Territoire' },
-                      { id: 'conseils', label: 'Conseils agent' },
-                    ].map(o => (
-                      <button key={o.id} onClick={() => setMarcheOnglet(o.id)} style={{
-                        padding: '8px 16px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer',
-                        fontFamily: 'DM Sans, sans-serif', fontWeight: marcheOnglet === o.id ? 600 : 400,
-                        color: marcheOnglet === o.id ? 'var(--accent)' : 'var(--text-muted)',
-                        borderBottom: marcheOnglet === o.id ? '2px solid var(--accent)' : '2px solid transparent',
-                        marginBottom: -1,
-                      }}>{o.label}</button>
-                    ))}
-                  </div>
-
-                  {/* ── PRIX ── */}
-                  {marcheOnglet === 'prix' && (
-                    <div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
-                        {[
-                          { l: 'Prix moyen m²', v: fmtPrix(marcheData.prix?.prixM2Moyen), s: 'Toutes surfaces' },
-                          { l: 'Prix médian m²', v: fmtPrix(marcheData.prix?.prixM2Median), s: marcheData.prix?.prixM2Median ? 'DVF notaires' : 'Non disponible' },
-                          { l: '12 mois', v: fmtPct(marcheData.prix?.evolution1an), c: coulEvol(marcheData.prix?.evolution1an) },
-                          { l: '3 ans', v: fmtPct(marcheData.prix?.evolution3ans), c: coulEvol(marcheData.prix?.evolution3ans) },
-                          { l: '5 ans', v: fmtPct(marcheData.prix?.evolution5ans), c: coulEvol(marcheData.prix?.evolution5ans) },
-                          ...(marcheData.prix?.prixM2Min ? [{ l: 'Prix plancher', v: fmtPrix(marcheData.prix.prixM2Min) + '/m²', s: 'Entrée marché' }] : []),
-                          ...(marcheData.prix?.prixM2Max ? [{ l: 'Prix plafond', v: fmtPrix(marcheData.prix.prixM2Max) + '/m²', s: 'Haut marché' }] : []),
-                        ].map((item, i) => (
-                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
-                            <div style={{ fontSize: 20, fontWeight: 700, color: item.c || 'var(--text)' }}>{item.v || '–'}</div>
-                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="card" style={{ padding: '16px 20px' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Répartition du marché local</div>
-                        {(marcheData.prix?.tranchesLocales ?? marcheData.prix?.tranchesMarche)?.map((tr, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                            <div style={{ width: 200, fontSize: 12, color: 'var(--text-dim)' }}>{tr.label}<span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>({tr.type})</span></div>
-                            <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3, overflow: 'hidden' }}>
-                              <div style={{ width: `${tr.part}%`, height: '100%', background: 'var(--accent)', borderRadius: 3 }} />
-                            </div>
-                            <div style={{ width: 34, fontSize: 12, fontWeight: 600, color: 'var(--accent)', textAlign: 'right' }}>{tr.part}%</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── MARCHÉ ── */}
-                  {marcheOnglet === 'marche' && (
-                    <div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
-                        {[
-                          { l: 'Tension marché', v: marcheData.marche?.tensionMarche, c: { fort: 'var(--green)', modere: 'var(--accent)', faible: 'var(--red)' }[marcheData.marche?.tensionMarche], s: `Score ${marcheData.marche?.tensionScore}` },
-                          { l: 'Délai de vente', v: `${marcheData.marche?.delaiVenteMoyenJours} jours`, s: 'Mise en vente → compromis' },
-                          { l: 'Taux de négociation', v: `${marcheData.marche?.tauxNegociationPct}%`, s: 'Prix affiché vs vendu' },
-                          ...(marcheData.marche?.volumeTransactionsAnnuel ? [{ l: 'Transactions / an', v: marcheData.marche.volumeTransactionsAnnuel.toLocaleString('fr-FR'), s: 'Volume local' }] : []),
-                          { l: 'Saisonnalité', v: marcheData.marche?.saisonnalite, s: `Indice ${marcheData.marche?.indiceSaisonnalite}` },
-                        ].map((item, i) => (
-                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: item.c || 'var(--text)', textTransform: item.c ? 'capitalize' : 'none' }}>{item.v || '–'}</div>
-                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="card" style={{ padding: '16px 20px', marginBottom: 12 }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Indicateurs prospection</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-                          {[
-                            { l: 'Biens moyens / agent', v: marcheData.prospection?.biensMoyensParAgent },
-                            { l: 'Commission moy. / vente', v: marcheData.prospection?.commissionMoyenneVente },
-                            { l: 'Vendeurs pressés', v: marcheData.prospection?.partVendeursPresses },
-                            { l: 'Période actuelle', v: marcheData.prospection?.meilleureMoment },
-                          ].map((item, i) => (
-                            <div key={i} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8 }}>
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{item.l}</div>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-dim)', lineHeight: 1.4 }}>{item.v || '–'}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      {marcheData.marche?.tensionMarche === 'fort' && (
-                        <div className="alert alert-success">Marché tendu — les biens bien estimés partent rapidement. Urgence sur les mandats.</div>
-                      )}
-                      {marcheData.marche?.tensionMarche === 'faible' && (
-                        <div className="alert alert-warning">Marché détendu — délai de vente allongé. Insistez sur le juste prix dès la mise en vente.</div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ── ACHETEURS ── */}
-                  {marcheOnglet === 'acheteurs' && (
-                    <div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
-                        {[
-                          { l: 'Budget médian', v: fmtPrix(marcheData.profilAcheteurs?.budget_median), c: 'var(--accent)', s: 'Capacité emprunt estimée' },
-                          { l: 'Apport moyen', v: fmtPrix(marcheData.profilAcheteurs?.apport_moyen), s: '~12% du budget' },
-                          { l: 'Surface recherchée', v: marcheData.profilAcheteurs?.surface_recherchee },
-                          { l: 'Nb pièces fréquent', v: marcheData.profilAcheteurs?.nb_pieces_freq },
-                          { l: 'Profil dominant', v: marcheData.profilAcheteurs?.profil_dominant },
-                          { l: 'Taux propriétaires', v: marcheData.profilAcheteurs?.tauxProprietaires },
-                          { l: 'Revenu médian foyer', v: marcheData.profilAcheteurs?.revenuMedianFoyer },
-                        ].filter(i => i.v).map((item, i) => (
-                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
-                            <div style={{ fontSize: item.l === 'Profil dominant' || item.l === 'Période actuelle' ? 13 : 18, fontWeight: 700, color: item.c || 'var(--text)', lineHeight: 1.3 }}>{item.v}</div>
-                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="card" style={{ padding: '16px 20px' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12 }}>Arguments de vente</div>
-                        {marcheData.prospection?.argumentsPrix?.map((arg, i) => (
-                          <div key={i} style={{ padding: '12px 14px', background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.12)', borderRadius: 8, fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: 8 }}>{arg}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── RENTABILITÉ ── */}
-                  {marcheOnglet === 'rentabilite' && (
-                    <div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
-                        {[
-                          { l: 'Rentabilité brute', v: marcheData.rentabilite?.rentabiliteBrutePct != null ? `${marcheData.rentabilite.rentabiliteBrutePct}%` : marcheData.rentabilite?.rentaBrute != null ? `${marcheData.rentabilite.rentaBrute}%` : '–', c: (marcheData.rentabilite?.rentabiliteBrutePct ?? marcheData.rentabilite?.rentaBrute) > 5 ? 'var(--green)' : (marcheData.rentabilite?.rentabiliteBrutePct ?? marcheData.rentabilite?.rentaBrute) > 3.5 ? 'var(--accent)' : 'var(--red)', s: 'Loyers / prix achat' },
-                          { l: 'Rentabilité nette', v: marcheData.rentabilite?.rentabiliteNettePct != null ? `${marcheData.rentabilite.rentabiliteNettePct}%` : marcheData.rentabilite?.rentaNette != null ? `${marcheData.rentabilite.rentaNette}%` : '–', s: 'Après charges & fiscalité' },
-                          { l: 'Loyer m² estimé', v: marcheData.rentabilite?.loyerM2EstimeMensuel ? `${marcheData.rentabilite.loyerM2EstimeMensuel}€/m²/mois` : '–', s: 'Marché locatif local' },
-                          { l: 'Note investissement', v: marcheData.rentabilite?.noteInvestissement ?? marcheData.rentabilite?.noteInvest, c: { Excellent: 'var(--green)', Bon: '#a3e635', Correct: 'var(--accent)', Faible: 'var(--red)' }[marcheData.rentabilite?.noteInvestissement ?? marcheData.rentabilite?.noteInvest] },
-                        ].map((item, i) => (
-                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
-                            <div style={{ fontSize: 18, fontWeight: 700, color: item.c || 'var(--text)' }}>{item.v || '–'}</div>
-                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="alert alert-warning" style={{ fontSize: 12 }}>
-                        <strong>Simulation indicative</strong> — Pour un {marcheData.type} de 65m² à {marcheData.ville} : prix estimé {fmtPrix((marcheData.prix?.prixM2Moyen || 0) * 65)}, loyer mensuel ~{Math.round((marcheData.rentabilite?.loyerM2EstimeMensuel || 0) * 65).toLocaleString('fr-FR')}€. Données à affiner selon le bien.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── TERRITOIRE ── */}
-                  {marcheOnglet === 'territoire' && (
-                    <div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
-                        {[
-                          marcheData.territoire?.population && { l: 'Population', v: marcheData.territoire.population.toLocaleString('fr-FR'), s: 'habitants' },
-                          marcheData.territoire?.surface && { l: 'Surface', v: marcheData.territoire.surface },
-                          marcheData.territoire?.tauxVacanceLogements && { l: 'Logements vacants', v: marcheData.territoire.tauxVacanceLogements },
-                          marcheData.territoire?.permisConstuireAccordes2023 && { l: 'Permis construire 2023', v: marcheData.territoire.permisConstuireAccordes2023.toLocaleString('fr-FR'), s: 'Offre neuve future' },
-                          marcheData.territoire?.dynamiqueOffre && { l: 'Dynamique offre', v: marcheData.territoire.dynamiqueOffre },
-                        ].filter(Boolean).map((item, i) => (
-                          <div key={i} className="card" style={{ padding: '14px 16px' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>{item.l}</div>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', lineHeight: 1.4 }}>{item.v}</div>
-                            {item.s && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{item.s}</div>}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="card" style={{ padding: '16px 20px' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Sources des données</div>
-                        {marcheData.sourcesDonnees?.map((src, i) => (
-                          <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)', padding: '7px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, marginBottom: 6, border: '1px solid rgba(255,255,255,0.05)' }}>{src}</div>
-                        ))}
-                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8 }}>
-                          Analyse : {new Date(marcheData.dateAnalyse).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── CONSEILS AGENT ── */}
-                  {marcheOnglet === 'conseils' && (
-                    <div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {marcheData.conseilsAgent?.map((conseil, i) => (
-                          <div key={i} style={{
-                            padding: '16px 18px',
-                            background: conseil.priorite === 'haute' ? 'rgba(212,168,83,0.06)' : conseil.priorite === 'info' ? 'rgba(91,141,238,0.05)' : 'rgba(255,255,255,0.02)',
-                            border: `1px solid ${conseil.priorite === 'haute' ? 'rgba(212,168,83,0.25)' : conseil.priorite === 'info' ? 'rgba(91,141,238,0.15)' : 'rgba(255,255,255,0.07)'}`,
-                            borderRadius: 10,
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: conseil.priorite === 'haute' ? 'var(--accent)' : conseil.priorite === 'info' ? 'var(--blue)' : 'var(--text-dim)' }}>
-                                {conseil.titre}
-                              </span>
-                              {conseil.priorite === 'haute' && (
-                                <span style={{ fontSize: 10, padding: '1px 7px', background: 'rgba(212,168,83,0.15)', borderRadius: 10, color: 'var(--accent)' }}>PRIORITAIRE</span>
-                              )}
-                            </div>
-                            <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.65, margin: 0 }}>{conseil.conseil}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
           {/* ── Vendeurs potentiels ── */}
           {activeTab === 'vendeurs' && (
             <>
@@ -2132,6 +2022,13 @@ function ImmobilierDashboard() {
               )}
             </>
           )}
+
+          {/* ── Prospects CRM ── */}
+          {activeTab === 'prospects' && (
+            <ProspectsTab plan={plan} user={agent} />
+          )}
+
+          {/* ── Annonces ── */}
 
           {/* ── Annonces ── */}
           {activeTab === 'biens' && (
