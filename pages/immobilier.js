@@ -1632,6 +1632,37 @@ function ImmobilierDashboard() {
                 <span style={{ fontSize: 9, background: 'rgba(212,168,83,0.12)', border: '1px solid rgba(212,168,83,0.25)', color: '#d4a853', borderRadius: 4, padding: '2px 5px', fontWeight: 700, letterSpacing: '0.3px', flexShrink: 0 }}>🔒</span>
               )}
             </button>
+            <div className="nav-divider" />
+            <div style={{ padding: '4px 0 6px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Analyse marché
+            </div>
+            <Link href="/liquidite" style={{ textDecoration: 'none' }}>
+              <button className="nav-item" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="nav-dot" />
+                  Score liquidité
+                </span>
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(62,207,142,0.1)', color: '#3ecf8e', fontWeight: 700, letterSpacing: '0.5px' }}>NEW</span>
+              </button>
+            </Link>
+            <Link href="/analyse-portefeuille" style={{ textDecoration: 'none' }}>
+              <button className="nav-item" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="nav-dot" />
+                  Mon portefeuille
+                </span>
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(62,207,142,0.1)', color: '#3ecf8e', fontWeight: 700, letterSpacing: '0.5px' }}>NEW</span>
+              </button>
+            </Link>
+            <Link href="/rapport-pdf" style={{ textDecoration: 'none' }}>
+              <button className="nav-item" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="nav-dot" />
+                  Rapport PDF
+                </span>
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(62,207,142,0.1)', color: '#3ecf8e', fontWeight: 700, letterSpacing: '0.5px' }}>NEW</span>
+              </button>
+            </Link>
           </nav>
           {agent && (
             <div className="sidebar-footer">
