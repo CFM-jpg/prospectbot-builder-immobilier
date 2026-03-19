@@ -1,2748 +1,548 @@
+// pages/immobilier.js
+// Dashboard principal ProspectBot
+// Onglets : Vue d'ensemble · B2B · Assistant IA
+// Les pages dédiées gèrent : Biens, Acheteurs, Matches, Vendeurs, Liquidité, Portefeuille, Rapport PDF
+
 import dynamic from 'next/dynamic';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import { useAuth } from '../lib/useAuth';
-import { canAccess } from '../lib/planConfig';
 
-// ─── Configuration ────────────────────────────────────────────────────────────
-
-const SITES = [
-  { id: 'bienici', label: "Bien'ici", sublabel: 'Données de marché', apiRoute: '/api/scraper/immobilier', active: true },
-  { id: 'seloger', label: 'SeLoger', sublabel: 'Données de marché', apiRoute: '/api/scraper/immobilier', active: true },
-  { id: 'leboncoin', label: 'DVF Notaires', sublabel: 'Transactions officielles', apiRoute: '/api/scraper/immobilier', active: true },
+const NAV_LINKS = [
+  ['Dashboard', '/immobilier'],
+  ['Biens', '/biens'],
+  ['Acheteurs', '/acheteurs'],
+  ['Matches', '/matches'],
+  ['Vendeurs', '/vendeurs-potentiels'],
+  ['Liquidité', '/liquidite'],
+  ['Portefeuille', '/analyse-portefeuille'],
+  ['Rapport PDF', '/rapport-pdf'],
 ];
 
-const PROPERTY_TYPES = [
-  { value: 'all', label: 'Tous' },
-  { value: 'maison', label: 'Maison' },
-  { value: 'appartement', label: 'Appartement' },
-  { value: 'terrain', label: 'Terrain' },
-  { value: 'commercial', label: 'Local commercial' },
+const SHORTCUTS = [
+  { href: '/biens',                icon: '🏠', label: 'Biens & mandats',       desc: 'Gérez vos annonces',          color: '#d4a853' },
+  { href: '/acheteurs',            icon: '👤', label: 'Acheteurs',              desc: 'Portefeuille clients',         color: '#3b82f6' },
+  { href: '/matches',              icon: '⚡', label: 'Matches',                desc: 'Correspondances auto',         color: '#8b5cf6' },
+  { href: '/vendeurs-potentiels',  icon: '📍', label: 'Vendeurs potentiels',    desc: 'Prospection DVF',              color: '#16a34a' },
+  { href: '/liquidite',            icon: '📊', label: 'Score liquidité',        desc: 'Dynamique de marché',          color: '#f97316' },
+  { href: '/analyse-portefeuille', icon: '🧠', label: 'Analyse portefeuille',   desc: 'IA + tendances DVF',           color: '#ec4899' },
+  { href: '/rapport-pdf',          icon: '📄', label: 'Rapport PDF',            desc: 'Document brandé prospect',    color: '#14b8a6' },
+  { href: '/upgrade',              icon: '✦',  label: 'Changer de plan',        desc: 'Pro · Agence',                color: '#d4a853' },
 ];
 
-const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Vue d\'ensemble' },
-  { id: 'vendeurs', label: 'Vendeurs potentiels', badge: 'NEW' },
-  { id: 'prospects', label: 'Prospects', badge: 'NEW' },
-  { id: 'biens', label: 'Données marché' },
-  { id: 'acheteurs', label: 'Acheteurs' },
-  { id: 'matches', label: 'Correspondances' },
-  { id: 'email', label: 'Emails' },
-  { id: 'publication', label: 'Publier une annonce' },
-];
-
-const TYPES_BIEN = ['Appartement', 'Maison', 'Villa', 'Studio', 'Loft', 'Terrain', 'Local commercial', 'Tous'];
-
-const ONBOARDING_STEPS = [
-  { id: 'bienvenue', icon: '🏠', title: null, desc: 'Votre assistant immobilier automatisé. En quelques minutes, découvrez comment NestLead trouve, trie et notifie vos acheteurs automatiquement.', highlight: null },
-  { id: 'biens', icon: '🏗️', title: 'Données de marché', desc: 'NestLead collecte les transactions immobilières officielles (DVF) pour analyser les prix du marché. Utilisez ces données pour conseiller vos clients avec des chiffres réels.', highlight: 'Onglet "Données marché" dans la sidebar' },
-  { id: 'acheteurs', icon: '👤', title: 'Gérez vos acheteurs', desc: 'Ajoutez vos clients avec leurs critères de recherche : budget, localisation, surface, type de bien. Plus les critères sont précis, meilleurs sont les matchs.', highlight: 'Onglet "Acheteurs" dans la sidebar' },
-  { id: 'matching', icon: '⚡', title: 'Le matching automatique', desc: 'Chaque bien est comparé à chaque acheteur. Un score de 0 à 100% est calculé selon le budget, la surface, la localisation et les critères spécifiques.', highlight: 'Onglet "Correspondances"' },
-  { id: 'emails', icon: '✉️', title: 'Alertes email automatiques', desc: 'Quand un bien correspond à plus de 60% aux critères d\'un acheteur, un email lui est envoyé automatiquement via Brevo. Vous pouvez aussi envoyer manuellement.', highlight: 'Onglet "Emails"' },
-  { id: 'publication', icon: '📢', title: 'Publiez vos annonces', desc: 'Créez une annonce en quelques minutes et diffusez-la sur LeBonCoin, SeLoger, BienIci et PAP.fr. Le texte est généré automatiquement par IA.', highlight: 'Onglet "Publier une annonce"' },
-  { id: 'checklist', icon: '✅', title: 'Checklist de démarrage', desc: 'Avant de commencer, vérifiez que tout est bien configuré.', highlight: null },
-];
-
-const CHECKLIST_ITEMS = [
-  { id: 'supabase', label: 'Supabase connecté (NEXT_PUBLIC_SUPABASE_URL)' },
-  { id: 'brevo', label: 'Clé API Brevo configurée pour les emails' },
-  { id: 'acheteur', label: 'Au moins 1 acheteur ajouté dans le système' },
-  { id: 'match', label: 'Matching calculé au moins une fois' },
-];
-
-// ─── Publication — constantes ─────────────────────────────────────────────────
-
-const PLATEFORMES_PUBLICATION = [
-  { id: 'leboncoin', nom: 'LeBonCoin', logo: '🟠', description: 'API Pro (clé requise) · Lien direct sinon' },
-  { id: 'seloger',   nom: 'SeLoger',   logo: '🔵', description: 'Flux partenaire (clé requise) · Lien direct sinon' },
-  { id: 'bienici',   nom: 'BienIci',   logo: '🟢', description: 'Groupe SeLoger · même clé API' },
-  { id: 'pap',       nom: 'PAP.fr',    logo: '🔴', description: 'Lien pré-rempli (pas d\'API)' },
-  { id: 'logic_immo',nom: 'Logic-Immo',logo: '🟡', description: 'API partenaire (clé requise)' },
-];
-
-const TYPE_BIENS_PUB = ['Appartement', 'Maison', 'Studio', 'Loft', 'Villa', 'Terrain', 'Commerce', 'Bureau'];
-const DPE_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-const EQUIPEMENTS_LIST = [
-  'Parking', 'Garage', 'Cave', 'Balcon', 'Terrasse', 'Jardin',
-  'Piscine', 'Ascenseur', 'Digicode', 'Gardien', 'Interphone',
-  'Double vitrage', 'Parquet', 'Cuisine équipée', 'Fibre optique',
-];
-
-const STATUS_CONFIG = {
-  publie:        { label: 'Publié',          color: '#3ecf8e', bg: 'rgba(62,207,142,0.08)',  border: 'rgba(62,207,142,0.3)'  },
-  lien_direct:   { label: 'Lien direct',     color: '#d4a853', bg: 'rgba(212,168,83,0.08)',  border: 'rgba(212,168,83,0.3)'  },
-  non_configure: { label: 'Non configuré',   color: '#6b6b78', bg: 'rgba(107,107,120,0.08)', border: 'rgba(107,107,120,0.3)' },
-  erreur:        { label: 'Erreur',          color: '#f04444', bg: 'rgba(240,68,68,0.08)',   border: 'rgba(240,68,68,0.3)'   },
-};
-
-// ─── Onboarding Agent ─────────────────────────────────────────────────────────
-
-function OnboardingAgent({ agentName, onComplete }) {
-  const [step, setStep] = useState(0);
-  const [animating, setAnimating] = useState(false);
-  const [checklist, setChecklist] = useState({ supabase: false, brevo: false, acheteur: false, scraper: false, match: false });
-
-  useEffect(() => {
-    try {
-      if (typeof window === 'undefined') return;
-      const saved = JSON.parse(localStorage.getItem('pb_checklist') || '{}');
-      if (Object.keys(saved).length) setChecklist(c => ({ ...c, ...saved }));
-    } catch {}
-  }, []);
-
-  const goNext = () => {
-    if (animating) return;
-    setAnimating(true);
-    setTimeout(() => { setStep(s => Math.min(s + 1, ONBOARDING_STEPS.length - 1)); setAnimating(false); }, 180);
-  };
-
-  const goPrev = () => {
-    if (animating || step === 0) return;
-    setAnimating(true);
-    setTimeout(() => { setStep(s => Math.max(s - 1, 0)); setAnimating(false); }, 180);
-  };
-
-  const toggleCheck = (key) => {
-    const updated = { ...checklist, [key]: !checklist[key] };
-    setChecklist(updated);
-    try { if (typeof window !== 'undefined') localStorage.setItem('pb_checklist', JSON.stringify(updated)); } catch {}
-  };
-
-  const cur = ONBOARDING_STEPS[step];
-  const isLast = step === ONBOARDING_STEPS.length - 1;
-  const checkDone = Object.values(checklist).filter(Boolean).length;
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 500, margin: 20, overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
-        <div style={{ height: 3, background: '#1f1f24' }}>
-          <div style={{ height: '100%', background: 'linear-gradient(90deg, #8b6914, #d4a853)', width: `${((step + 1) / ONBOARDING_STEPS.length) * 100}%`, transition: 'width 0.4s ease' }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '20px 32px 0' }}>
-          {ONBOARDING_STEPS.map((s, i) => (
-            <div key={s.id} onClick={() => i < step && setStep(i)} style={{ width: 7, height: 7, borderRadius: '50%', background: i === step ? '#d4a853' : i < step ? 'rgba(212,168,83,0.5)' : '#2a2a30', transform: i === step ? 'scale(1.4)' : 'scale(1)', transition: 'all 0.3s', cursor: i < step ? 'pointer' : 'default' }} />
-          ))}
-        </div>
-        <div style={{ padding: '24px 36px 12px', textAlign: 'center', opacity: animating ? 0 : 1, transition: 'opacity 0.18s' }}>
-          <div style={{ fontSize: 46, marginBottom: 18 }}>{cur.icon}</div>
-          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, color: '#e8e8e8', fontWeight: 400, margin: '0 0 12px 0' }}>
-            {step === 0 ? `Bonjour, ${agentName} 👋` : cur.title}
-          </h2>
-          <p style={{ fontSize: 14, color: '#6b6b78', lineHeight: 1.65, margin: '0 0 18px 0' }}>{cur.desc}</p>
-          {cur.highlight && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.25)', borderRadius: 8, padding: '7px 14px', color: '#d4a853', fontSize: 13, marginBottom: 8 }}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              {cur.highlight}
-            </div>
-          )}
-          {cur.id === 'checklist' && (
-            <div style={{ textAlign: 'left', marginTop: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ color: '#6b6b78', fontSize: 12 }}>Progression</span>
-                <span style={{ color: '#d4a853', fontSize: 12, fontWeight: 600 }}>{checkDone}/{CHECKLIST_ITEMS.length}</span>
-              </div>
-              <div style={{ height: 4, background: '#1f1f24', borderRadius: 2, marginBottom: 12, overflow: 'hidden' }}>
-                <div style={{ height: '100%', background: '#3ecf8e', borderRadius: 2, width: `${(checkDone / CHECKLIST_ITEMS.length) * 100}%`, transition: 'width 0.4s' }} />
-              </div>
-              {CHECKLIST_ITEMS.map(item => (
-                <div key={item.id} onClick={() => toggleCheck(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 10, border: `1px solid ${checklist[item.id] ? 'rgba(62,207,142,0.35)' : 'rgba(255,255,255,0.07)'}`, background: checklist[item.id] ? 'rgba(62,207,142,0.07)' : '#1f1f24', cursor: 'pointer', marginBottom: 7, transition: 'all 0.2s' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${checklist[item.id] ? '#3ecf8e' : '#4b5563'}`, background: checklist[item.id] ? '#3ecf8e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
-                    {checklist[item.id] && <svg width="9" height="9" fill="none" stroke="#0f0f11" strokeWidth="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
-                  </div>
-                  <span style={{ fontSize: 13, color: checklist[item.id] ? '#6b6b78' : '#d1d5db', textDecoration: checklist[item.id] ? 'line-through' : 'none' }}>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 36px 26px', gap: 12 }}>
-          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Précédent</button>
-          <button onClick={onComplete} style={{ background: 'none', border: 'none', color: '#4b5563', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'underline' }}>Passer</button>
-          {isLast
-            ? <button onClick={onComplete} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Commencer →</button>
-            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Suivant →</button>
-          }
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Onboarding Acheteur ──────────────────────────────────────────────────────
-
-const ACHETEUR_STEPS = [
-  { id: 'identite', title: 'Qui est votre client ?', sub: 'Informations de contact' },
-  { id: 'budget', title: 'Quel est son budget ?', sub: 'Fourchette de prix' },
-  { id: 'bien', title: 'Quel type de bien ?', sub: 'Nature et surface' },
-  { id: 'localisation', title: 'Où cherche-t-il ?', sub: 'Zone géographique' },
-  { id: 'options', title: 'Des critères spécifiques ?', sub: 'Options et équipements' },
-  { id: 'recap', title: 'Récapitulatif', sub: 'Vérifiez avant d\'enregistrer' },
-];
-
-function OnboardingAcheteur({ onComplete, onClose }) {
-  const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [form, setForm] = useState({
-    nom: '', prenom: '', email: '', telephone: '',
-    budget_min: '', budget_max: '',
-    type_bien: 'Tous', surface_min: '', surface_max: '', pieces_min: '', chambres_min: '',
-    ville: '', departement: '', code_postal: '',
-    jardin: false, terrasse: false, parking: false, cave: false, piscine: false,
-    notes: '',
-  });
-
-  const set = (key, val) => { setForm(f => ({ ...f, [key]: val })); setErrors(e => ({ ...e, [key]: null })); };
-
-  const validateStep = () => {
-    const e = {};
-    if (step === 0) {
-      if (!form.nom.trim()) e.nom = 'Nom requis';
-      if (!form.email.trim()) e.email = 'Email requis';
-      else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email invalide';
-    }
-    if (step === 1 && !form.budget_max) e.budget_max = 'Budget maximum requis';
-    if (step === 3 && !form.ville.trim() && !form.departement.trim() && !form.code_postal.trim()) e.ville = 'Au moins un critère de localisation requis';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const goNext = () => { if (validateStep()) setStep(s => Math.min(s + 1, ACHETEUR_STEPS.length - 1)); };
-  const goPrev = () => setStep(s => Math.max(s - 1, 0));
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const payload = {
-        nom: `${form.nom} ${form.prenom}`.trim(),
-        email: form.email,
-        telephone: form.telephone,
-        budget_min: form.budget_min ? parseInt(form.budget_min) : null,
-        budget_max: form.budget_max ? parseInt(form.budget_max) : null,
-        type_bien: form.type_bien === 'Tous' ? null : form.type_bien,
-        surface_min: form.surface_min ? parseInt(form.surface_min) : null,
-        surface_max: form.surface_max ? parseInt(form.surface_max) : null,
-        pieces_min: form.pieces_min ? parseInt(form.pieces_min) : null,
-        chambres_min: form.chambres_min ? parseInt(form.chambres_min) : null,
-        villes: form.ville ? [form.ville] : [],
-        departement: form.departement,
-        code_postal: form.code_postal,
-        jardin: form.jardin, terrasse: form.terrasse, parking: form.parking, cave: form.cave, piscine: form.piscine,
-        notes: form.notes,
-        actif: true,
-      };
-      const res = await fetch('/api/immobilier/acheteurs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        onComplete && onComplete(data.data);
-        if (data.data?.id) router.push(`/acheteurs/${data.data.id}`);
-      } else {
-        alert('Erreur : ' + (data.error || 'Erreur inconnue'));
-      }
-    } catch (err) {
-      alert('Erreur réseau');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const fmt = (n) => n ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n) : '—';
-  const cur = ACHETEUR_STEPS[step];
-  const isLast = step === ACHETEUR_STEPS.length - 1;
-
-  const inputStyle = (err) => ({ width: '100%', background: '#1f1f24', border: `1px solid ${err ? '#f04444' : 'rgba(255,255,255,0.07)'}`, borderRadius: 8, padding: '10px 13px', fontSize: 13.5, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', outline: 'none', boxSizing: 'border-box' });
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 540, margin: 20, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '26px 30px 16px' }}>
-          <div>
-            <p style={{ fontSize: 11, color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Étape {step + 1} / {ACHETEUR_STEPS.length} — {cur.sub}</p>
-            <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22, color: '#e8e8e8', fontWeight: 400, margin: 0 }}>{cur.title}</h2>
-          </div>
-          <button onClick={onClose} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: 8, cursor: 'pointer', color: '#a0a0ae', display: 'flex' }}>
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: 4, padding: '0 30px 18px' }}>
-          {ACHETEUR_STEPS.map((s, i) => (
-            <div key={s.id} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? '#d4a853' : '#2a2a30', opacity: i === step ? 1 : i < step ? 0.6 : 0.3, transition: 'all 0.3s' }} />
-          ))}
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 30px' }}>
-          {step === 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Nom *</label>
-                <input style={inputStyle(errors.nom)} placeholder="Dupont" value={form.nom} onChange={e => set('nom', e.target.value)} />
-                {errors.nom && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.nom}</p>}
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Prénom</label>
-                <input style={inputStyle()} placeholder="Jean" value={form.prenom} onChange={e => set('prenom', e.target.value)} />
-              </div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Email *</label>
-                <input style={inputStyle(errors.email)} type="email" placeholder="jean.dupont@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
-                {errors.email && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.email}</p>}
-              </div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Téléphone</label>
-                <input style={inputStyle()} type="tel" placeholder="06 12 34 56 78" value={form.telephone} onChange={e => set('telephone', e.target.value)} />
-              </div>
-            </div>
-          )}
-          {step === 1 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Budget min (€)</label>
-                <input style={inputStyle()} type="number" placeholder="100 000" value={form.budget_min} onChange={e => set('budget_min', e.target.value)} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Budget max (€) *</label>
-                <input style={inputStyle(errors.budget_max)} type="number" placeholder="350 000" value={form.budget_max} onChange={e => set('budget_max', e.target.value)} />
-                {errors.budget_max && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.budget_max}</p>}
-              </div>
-            </div>
-          )}
-          {step === 2 && (
-            <div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Type de bien</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {TYPES_BIEN.map(t => (
-                    <button key={t} onClick={() => set('type_bien', t)} style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${form.type_bien === t ? '#d4a853' : 'rgba(255,255,255,0.07)'}`, background: form.type_bien === t ? 'rgba(212,168,83,0.12)' : '#1f1f24', color: form.type_bien === t ? '#d4a853' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>{t}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Surface min (m²)</label>
-                  <input style={inputStyle()} type="number" placeholder="40" value={form.surface_min} onChange={e => set('surface_min', e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Surface max (m²)</label>
-                  <input style={inputStyle()} type="number" placeholder="120" value={form.surface_max} onChange={e => set('surface_max', e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Pièces min</label>
-                  <input style={inputStyle()} type="number" placeholder="2" value={form.pieces_min} onChange={e => set('pieces_min', e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Chambres min</label>
-                  <input style={inputStyle()} type="number" placeholder="1" value={form.chambres_min} onChange={e => set('chambres_min', e.target.value)} />
-                </div>
-              </div>
-            </div>
-          )}
-          {step === 3 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Ville</label>
-                <input style={inputStyle(errors.ville)} placeholder="Paris, Lyon, Bordeaux..." value={form.ville} onChange={e => set('ville', e.target.value)} />
-                {errors.ville && <p style={{ color: '#f04444', fontSize: 11, marginTop: 4 }}>{errors.ville}</p>}
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Département</label>
-                <input style={inputStyle()} placeholder="75, 69, 33..." value={form.departement} onChange={e => set('departement', e.target.value)} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Code postal</label>
-                <input style={inputStyle()} placeholder="75001" value={form.code_postal} onChange={e => set('code_postal', e.target.value)} />
-              </div>
-              <p style={{ gridColumn: '1/-1', fontSize: 12, color: '#4b5563', fontStyle: 'italic' }}>Remplissez au moins un champ. Plus c'est précis, meilleurs seront les matchs.</p>
-            </div>
-          )}
-          {step === 4 && (
-            <div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Équipements souhaités</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {[{ k: 'jardin', l: ' Jardin' }, { k: 'terrasse', l: ' Terrasse' }, { k: 'parking', l: ' Parking' }, { k: 'cave', l: ' Cave' }, { k: 'piscine', l: ' Piscine' }].map(opt => (
-                    <button key={opt.k} onClick={() => set(opt.k, !form[opt.k])} style={{ padding: '9px 16px', borderRadius: 9, border: `1px solid ${form[opt.k] ? '#3ecf8e' : 'rgba(255,255,255,0.07)'}`, background: form[opt.k] ? 'rgba(62,207,142,0.1)' : '#1f1f24', color: form[opt.k] ? '#3ecf8e' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>{opt.l}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>Notes internes</label>
-                <textarea style={{ ...inputStyle(), height: 90, resize: 'vertical', paddingTop: 10, lineHeight: 1.6 }} placeholder="Préférences particulières, situation personnelle..." value={form.notes} onChange={e => set('notes', e.target.value)} />
-              </div>
-            </div>
-          )}
-          {step === 5 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {[
-                { l: 'Nom', v: `${form.nom} ${form.prenom}`.trim() || '—' },
-                { l: 'Email', v: form.email || '—' },
-                { l: 'Téléphone', v: form.telephone || '—' },
-                { l: 'Budget', v: `${form.budget_min ? fmt(form.budget_min) + ' — ' : ''}${fmt(form.budget_max)}`, gold: true },
-                { l: 'Type de bien', v: form.type_bien },
-                { l: 'Surface', v: form.surface_min || form.surface_max ? `${form.surface_min || '?'} — ${form.surface_max || '?'} m²` : '—' },
-                { l: 'Pièces min', v: form.pieces_min || '—' },
-                { l: 'Localisation', v: [form.ville, form.departement, form.code_postal].filter(Boolean).join(', ') || '—' },
-                { l: 'Équipements', v: ['jardin', 'terrasse', 'parking', 'cave', 'piscine'].filter(k => form[k]).join(', ') || 'Aucun' },
-              ].map((item, i) => (
-                <div key={i} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, padding: '11px 14px' }}>
-                  <div style={{ fontSize: 11, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{item.l}</div>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, color: item.gold ? '#d4a853' : '#e8e8e8' }}>{item.v}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '18px 30px 26px', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: 16 }}>
-          <button onClick={goPrev} style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '10px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: step === 0 ? 0 : 1, pointerEvents: step === 0 ? 'none' : 'all' }}>← Retour</button>
-          {isLast
-            ? <button onClick={handleSave} disabled={saving} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: saving ? 0.7 : 1 }}>{saving ? 'Enregistrement...' : 'Enregistrer ✓'}</button>
-            : <button onClick={goNext} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Continuer →</button>
-          }
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Publication Modal ────────────────────────────────────────────────────────
-
-const PUB_ETAPES = ['Bien', 'Détails', 'Photos', 'Texte IA', 'Plateformes'];
-
-function PublicationModal({ onClose, onSuccess }) {
-  const [etape, setEtape] = useState(0);
+// ─── Composant Assistant IA ───────────────────────────────────────────────────
+function AssistantIA({ agentEmail }) {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Bonjour ! Je suis votre assistant ProspectBot. Je connais vos biens, acheteurs et matches en temps réel. Comment puis-je vous aider ?' }
+  ]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [texteGenere, setTexteGenere] = useState(null);
-  const [resultats, setResultats] = useState(null);
-  const [plateformesSelectionnees, setPlateformesSelectionnees] = useState(['leboncoin', 'seloger', 'bienici', 'pap']);
-  const [bien, setBien] = useState({
-    type: 'Appartement', transaction: 'vente',
-    surface: '', pieces: '', chambres: '', prix: '',
-    ville: '', codePostal: '', etage: '', ascenseur: false,
-    charges: '', depot: '', dpe: 'C', ges: 'C',
-    equipements: [], photos: [], descriptionLibre: '',
-  });
+  const bottomRef = useRef(null);
 
-  const upd = (k, v) => setBien(p => ({ ...p, [k]: v }));
-  const toggleEq = (eq) => setBien(p => ({ ...p, equipements: p.equipements.includes(eq) ? p.equipements.filter(e => e !== eq) : [...p.equipements, eq] }));
-  const togglePl = (id) => setPlateformesSelectionnees(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  const handlePhotos = (e) => {
-    const urls = Array.from(e.target.files).map(f => URL.createObjectURL(f));
-    upd('photos', [...bien.photos, ...urls]);
-  };
-
-  const genererTexte = async () => {
+  const send = async () => {
+    const msg = input.trim();
+    if (!msg || loading) return;
+    setInput('');
+    const newMessages = [...messages, { role: 'user', content: msg }];
+    setMessages(newMessages);
     setLoading(true);
     try {
-      const res = await fetch('/api/immobilier/publier', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generer', bien }),
+      const res = await fetch('/api/ia/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'chat', message: msg, history: newMessages.slice(1, -1) }),
       });
       const data = await res.json();
-      if (data.texte) { setTexteGenere(data.texte); setEtape(3); }
+      setMessages(m => [...m, { role: 'assistant', content: data.reply || 'Désolé, je ne peux pas répondre.' }]);
     } catch {
-      setTexteGenere({
-        titre: `${bien.type} ${bien.surface}m² - ${bien.ville}`,
-        description: `${bien.type} de ${bien.surface}m² à ${bien.ville}. ${bien.pieces} pièces dont ${bien.chambres} chambres. DPE ${bien.dpe}. ${bien.descriptionLibre}`,
-        pointsForts: [`${bien.surface}m²`, `${bien.pieces} pièces`, `DPE ${bien.dpe}`, bien.ville],
-        descriptionCourte: `${bien.type} ${bien.surface}m² ${bien.pieces}p - ${bien.ville}`,
-      });
-      setEtape(3);
+      setMessages(m => [...m, { role: 'assistant', content: 'Erreur de connexion.' }]);
     } finally { setLoading(false); }
   };
 
-  const publier = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/immobilier/publier', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'publier', bien: { ...bien, texteGenere }, plateformes: plateformesSelectionnees }),
-      });
-      const data = await res.json();
-      if (data.resultats) { setResultats(data.resultats); }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  };
-
-  const iStyle = { width: '100%', background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 13px', fontSize: 13.5, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', outline: 'none', boxSizing: 'border-box' };
-  const taStyle = { ...iStyle, resize: 'vertical', minHeight: 90, lineHeight: 1.6, paddingTop: 10 };
-  const toggleStyle = (active) => ({ padding: '8px 14px', borderRadius: 8, border: `1px solid ${active ? '#d4a853' : 'rgba(255,255,255,0.07)'}`, background: active ? 'rgba(212,168,83,0.1)' : '#1f1f24', color: active ? '#d4a853' : '#a0a0ae', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' });
-  const lbl = { display: 'block', fontSize: 12, color: '#6b6b78', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 };
-
-  const canProceed = () => {
-    if (etape === 0) return bien.surface && bien.pieces && bien.prix && bien.ville && bien.codePostal;
-    if (etape === 3) return !!texteGenere;
-    return true;
-  };
-
-  const handleNext = () => {
-    if (etape === 2) { genererTexte(); return; }
-    if (etape === 4 && !resultats) { publier(); return; }
-    if (etape === 4 && resultats) { onSuccess?.(); onClose(); return; }
-    setEtape(e => e + 1);
-  };
-
-  const nextLabel = () => {
-    if (etape === 2) return loading ? ' Génération...' : ' Générer le texte';
-    if (etape === 4 && !resultats) return loading ? 'Publication...' : ` Publier sur ${plateformesSelectionnees.length} site${plateformesSelectionnees.length > 1 ? 's' : ''}`;
-    if (etape === 4 && resultats) return 'Terminer ✓';
-    return 'Continuer →';
-  };
-
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: 20 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#17171a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, width: '100%', maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}>
-
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22, color: '#e8e8e8', fontWeight: 400, margin: 0 }}>Publier une annonce</h2>
-          <button onClick={onClose} style={{ background: '#1f1f24', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: 8, cursor: 'pointer', color: '#a0a0ae', display: 'flex' }}>
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-
-        {/* Steps */}
-        <div style={{ display: 'flex', gap: 4, padding: '14px 28px' }}>
-          {PUB_ETAPES.map((s, i) => (
-            <div key={s} style={{ flex: 1, textAlign: 'center', padding: '7px 4px', borderRadius: 8, fontSize: 12, fontFamily: 'DM Sans, sans-serif', fontWeight: i === etape ? 600 : 400, color: i < etape ? '#d4a853' : i === etape ? '#e8e8e8' : '#4b5563', background: i === etape ? '#1f1f24' : 'transparent', border: `1px solid ${i === etape ? 'rgba(212,168,83,0.3)' : i < etape ? 'rgba(212,168,83,0.15)' : 'transparent'}`, transition: 'all 0.3s' }}>
-              {i < etape ? '✓ ' : ''}{s}
+    <div style={{ display: 'flex', flexDirection: 'column', height: 520, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14 }}>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+              maxWidth: '80%', padding: '10px 14px', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+              background: m.role === 'user' ? 'linear-gradient(135deg, #8b6914, #d4a853)' : 'rgba(255,255,255,0.05)',
+              border: m.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.07)',
+              fontSize: 13.5, color: m.role === 'user' ? '#0a0a0a' : 'rgba(255,255,255,0.8)',
+              lineHeight: 1.6, fontWeight: m.role === 'user' ? 500 : 300,
+            }}>
+              {m.content}
             </div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{ padding: '10px 16px', borderRadius: '14px 14px 14px 4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <span style={{ display: 'inline-flex', gap: 4 }}>
+                {[0, 1, 2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#d4a853', opacity: 0.6, animation: `bounce 1s ${i * 0.15}s infinite` }} />)}
+              </span>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Suggestions rapides */}
+      {messages.length === 1 && (
+        <div style={{ padding: '0 16px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['Résume mon portefeuille', 'Quels sont mes meilleurs matches ?', 'Conseille-moi sur la prospection'].map(s => (
+            <button key={s} onClick={() => { setInput(s); }}
+              style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 20, border: '1px solid rgba(212,168,83,0.25)', background: 'rgba(212,168,83,0.06)', color: 'rgba(212,168,83,0.8)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+              {s}
+            </button>
           ))}
         </div>
+      )}
 
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 28px 20px' }}>
-
-          {/* Étape 0 — Bien */}
-          {etape === 0 && (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-                <div>
-                  <label style={lbl}>Transaction</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {['vente', 'location'].map(t => <button key={t} style={toggleStyle(bien.transaction === t)} onClick={() => upd('transaction', t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
-                  </div>
-                </div>
-                <div>
-                  <label style={lbl}>Type de bien</label>
-                  <select style={iStyle} value={bien.type} onChange={e => upd('type', e.target.value)}>
-                    {TYPE_BIENS_PUB.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
-                <div><label style={lbl}>Surface (m²)</label><input style={iStyle} type="number" placeholder="75" value={bien.surface} onChange={e => upd('surface', e.target.value)} /></div>
-                <div><label style={lbl}>Pièces</label><input style={iStyle} type="number" placeholder="3" value={bien.pieces} onChange={e => upd('pieces', e.target.value)} /></div>
-                <div><label style={lbl}>Chambres</label><input style={iStyle} type="number" placeholder="2" value={bien.chambres} onChange={e => upd('chambres', e.target.value)} /></div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-                <div><label style={lbl}>Prix (€){bien.transaction === 'location' ? '/mois' : ''}</label><input style={iStyle} type="number" placeholder={bien.transaction === 'location' ? '1200' : '250000'} value={bien.prix} onChange={e => upd('prix', e.target.value)} /></div>
-                <div><label style={lbl}>Ville</label><input style={iStyle} type="text" placeholder="Paris" value={bien.ville} onChange={e => upd('ville', e.target.value)} /></div>
-              </div>
-              <div><label style={lbl}>Code postal</label><input style={{ ...iStyle, maxWidth: 160 }} type="text" placeholder="75001" value={bien.codePostal} onChange={e => upd('codePostal', e.target.value)} /></div>
-            </div>
-          )}
-
-          {/* Étape 1 — Détails */}
-          {etape === 1 && (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
-                <div><label style={lbl}>Étage</label><input style={iStyle} type="number" placeholder="2" value={bien.etage} onChange={e => upd('etage', e.target.value)} /></div>
-                <div><label style={lbl}>DPE</label><select style={iStyle} value={bien.dpe} onChange={e => upd('dpe', e.target.value)}>{DPE_OPTIONS.map(d => <option key={d}>{d}</option>)}</select></div>
-                <div><label style={lbl}>GES</label><select style={iStyle} value={bien.ges} onChange={e => upd('ges', e.target.value)}>{DPE_OPTIONS.map(d => <option key={d}>{d}</option>)}</select></div>
-              </div>
-              {bien.transaction === 'location' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-                  <div><label style={lbl}>Charges (€/mois)</label><input style={iStyle} type="number" placeholder="80" value={bien.charges} onChange={e => upd('charges', e.target.value)} /></div>
-                  <div><label style={lbl}>Dépôt de garantie (€)</label><input style={iStyle} type="number" placeholder="2400" value={bien.depot} onChange={e => upd('depot', e.target.value)} /></div>
-                </div>
-              )}
-              <div style={{ marginBottom: 16 }}>
-                <label style={lbl}>Ascenseur</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {[true, false].map(v => <button key={String(v)} style={toggleStyle(bien.ascenseur === v)} onClick={() => upd('ascenseur', v)}>{v ? 'Oui' : 'Non'}</button>)}
-                </div>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={lbl}>Équipements</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                  {EQUIPEMENTS_LIST.map(eq => <button key={eq} style={toggleStyle(bien.equipements.includes(eq))} onClick={() => toggleEq(eq)}>{eq}</button>)}
-                </div>
-              </div>
-              <div><label style={lbl}>Description libre (optionnel)</label><textarea style={taStyle} placeholder="Ajoutez des détails pour enrichir l'annonce..." value={bien.descriptionLibre} onChange={e => upd('descriptionLibre', e.target.value)} /></div>
-            </div>
-          )}
-
-          {/* Étape 2 — Photos */}
-          {etape === 2 && (
-            <div>
-              <div style={{ border: '2px dashed rgba(255,255,255,0.1)', borderRadius: 12, padding: 32, textAlign: 'center', cursor: 'pointer', background: '#0f0f11', marginBottom: 16 }} onClick={() => document.getElementById('pub-photo-input').click()}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>📷</div>
-                <p style={{ color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', fontSize: 14, margin: 0 }}>Cliquez pour ajouter des photos</p>
-                <p style={{ color: '#4b5563', fontFamily: 'DM Sans, sans-serif', fontSize: 12, marginTop: 4 }}>JPG, PNG · Max 10 photos</p>
-                <input id="pub-photo-input" type="file" accept="image/*" multiple hidden onChange={handlePhotos} />
-              </div>
-              {(bien.photos || []).length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                  {(bien.photos || []).map((p, i) => (
-                    <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'hidden' }}>
-                      <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <button onClick={() => upd('photos', bien.photos.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', width: 22, height: 22, borderRadius: '50%', cursor: 'pointer', fontSize: 12 }}>×</button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ color: '#4b5563', fontFamily: 'DM Sans, sans-serif', fontSize: 13, textAlign: 'center' }}>Vous pouvez passer cette étape et ajouter les photos directement sur chaque site.</p>
-              )}
-            </div>
-          )}
-
-          {/* Étape 3 — Texte IA */}
-          {etape === 3 && (
-            <div>
-              {!texteGenere ? (
-                <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                  <div style={{ fontSize: 40, marginBottom: 16 }}></div>
-                  <p style={{ color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>Générez automatiquement un texte d'annonce optimisé.</p>
-                  <button style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }} onClick={genererTexte} disabled={loading}>
-                    {loading ? 'Génération...' : ' Générer'}
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div><label style={lbl}>Titre</label><input style={iStyle} value={texteGenere.titre} onChange={e => setTexteGenere(p => ({ ...p, titre: e.target.value }))} /></div>
-                  <div><label style={lbl}>Description complète</label><textarea style={{ ...taStyle, minHeight: 130 }} value={texteGenere.description} onChange={e => setTexteGenere(p => ({ ...p, description: e.target.value }))} /></div>
-                  <div><label style={lbl}>Description courte (LeBonCoin)</label><textarea style={{ ...taStyle, minHeight: 60 }} value={texteGenere.descriptionCourte} onChange={e => setTexteGenere(p => ({ ...p, descriptionCourte: e.target.value }))} /></div>
-                  <div>
-                    <label style={lbl}>Points forts</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {texteGenere.pointsForts?.map((p, i) => <span key={i} style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', color: '#d4a853', padding: '4px 12px', borderRadius: 20, fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>{p}</span>)}
-                    </div>
-                  </div>
-                  <button style={{ background: '#1f1f24', color: '#6b6b78', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', alignSelf: 'flex-start' }} onClick={genererTexte} disabled={loading}> Régénérer</button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Étape 4 — Plateformes + résultats */}
-          {etape === 4 && (
-            <div>
-              {!resultats ? (
-                <>
-                  <p style={{ fontSize: 13, color: '#6b6b78', fontFamily: 'DM Sans, sans-serif', marginBottom: 16 }}>Sélectionnez les plateformes de diffusion :</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                    {PLATEFORMES_PUBLICATION.map(pl => (
-                      <div key={pl.id} onClick={() => togglePl(pl.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 12, cursor: 'pointer', background: plateformesSelectionnees.includes(pl.id) ? '#1f1f24' : '#17171a', border: `1px solid ${plateformesSelectionnees.includes(pl.id) ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.07)'}`, transition: 'all 0.2s' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ fontSize: 20 }}>{pl.logo}</span>
-                          <div>
-                            <p style={{ margin: 0, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 14 }}>{pl.nom}</p>
-                            <p style={{ margin: 0, color: '#4b5563', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>{pl.description}</p>
-                          </div>
-                        </div>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${plateformesSelectionnees.includes(pl.id) ? '#d4a853' : '#2a2a30'}`, background: plateformesSelectionnees.includes(pl.id) ? '#d4a853' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', flexShrink: 0 }}>
-                          {plateformesSelectionnees.includes(pl.id) && <span style={{ color: '#0f0f11', fontSize: 11, fontWeight: 'bold' }}>✓</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: '#d4a853', marginBottom: 16 }}>Résultats de publication</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {Object.entries(resultats).map(([id, data]) => {
-                      const pl = PLATEFORMES_PUBLICATION.find(p => p.id === id);
-                      const cfg = STATUS_CONFIG[data.status] || STATUS_CONFIG.erreur;
-                      return (
-                        <div key={id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 12, background: '#1f1f24', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <span style={{ fontSize: 20 }}>{pl?.logo}</span>
-                            <div>
-                              <p style={{ margin: 0, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 14 }}>{pl?.nom}</p>
-                              <p style={{ margin: 0, color: '#4b5563', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>{data.message || cfg.label}</p>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
-                            {data.url && <a href={data.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, background: '#2a2a30', color: '#d4a853', border: '1px solid rgba(255,255,255,0.07)', textDecoration: 'none' }}>{data.status === 'publie' ? 'Voir →' : 'Publier →'}</a>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '18px 28px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          {etape > 0 && !resultats
-            ? <button style={{ background: '#1f1f24', color: '#a0a0ae', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '10px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }} onClick={() => setEtape(e => e - 1)}>← Retour</button>
-            : <div />
-          }
-          <button style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', color: '#0f0f11', border: 'none', borderRadius: 9, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: canProceed() ? 1 : 0.45 }}
-            onClick={handleNext} disabled={!canProceed() || loading}>
-            {nextLabel()}
-          </button>
-        </div>
+      {/* Input */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 8 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+          placeholder="Posez une question sur vos biens, acheteurs, marché…"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8, padding: '10px 14px', fontSize: 13.5, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif' }}
+        />
+        <button onClick={send} disabled={loading || !input.trim()}
+          style={{ padding: '10px 18px', background: input.trim() ? 'linear-gradient(135deg, #8b6914, #d4a853)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: input.trim() ? '#0a0a0a' : 'rgba(255,255,255,0.2)', cursor: input.trim() ? 'pointer' : 'not-allowed', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>
+          Envoyer
+        </button>
       </div>
     </div>
   );
 }
 
-// ─── Publication Dashboard (onglet) ──────────────────────────────────────────
+// ─── Composant B2B ────────────────────────────────────────────────────────────
+function B2BPanel() {
+  const [subTab, setSubTab] = useState('chatbot');
+  const [chatbots, setChatbots] = useState([]);
+  const [convs, setConvs] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
+  const [loadingChatbot, setLoadingChatbot] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', welcomeMessage: '', color: '#d4a853' });
+  const [saving, setSaving] = useState(false);
+  const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect' });
+  const [wfCreating, setWfCreating] = useState(false);
+  const [showWfForm, setShowWfForm] = useState(false);
 
-function PublicationDashboard() {
+  useEffect(() => {
+    if (subTab === 'chatbot') fetchChatbots();
+    if (subTab === 'conversations') fetchConvs();
+    if (subTab === 'workflows') fetchWorkflows();
+  }, [subTab]);
+
+  const fetchChatbots = async () => {
+    setLoadingChatbot(true);
+    const res = await fetch('/api/B2B/chatbot');
+    const data = await res.json();
+    setChatbots(data.chatbots || []);
+    setLoadingChatbot(false);
+  };
+
+  const fetchConvs = async () => {
+    const res = await fetch('/api/B2B/chatbot-conversations');
+    const data = await res.json();
+    setConvs(data.conversations || []);
+  };
+
+  const fetchWorkflows = async () => {
+    const res = await fetch('/api/B2B/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'list' }) });
+    const data = await res.json();
+    setWorkflows(data.workflows || []);
+  };
+
+  const createChatbot = async () => {
+    if (!form.name || !form.welcomeMessage) return;
+    setSaving(true);
+    await fetch('/api/B2B/chatbot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, questions: ['Quel est votre projet ?'] }) });
+    setSaving(false); setShowForm(false);
+    fetchChatbots();
+  };
+
+  const deleteChatbot = async (id) => {
+    if (!confirm('Supprimer ce chatbot ?')) return;
+    await fetch('/api/B2B/chatbot', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    fetchChatbots();
+  };
+
+  const createWorkflow = async () => {
+    if (!workflowForm.name) return;
+    setWfCreating(true);
+    await fetch('/api/B2B/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', ...workflowForm }) });
+    setWfCreating(false); setShowWfForm(false);
+    fetchWorkflows();
+  };
+
+  const toggleWorkflow = async (id, active) => {
+    await fetch('/api/B2B/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle', workflow_id: id, active: !active }) });
+    fetchWorkflows();
+  };
+
+  const deleteWorkflow = async (id) => {
+    await fetch('/api/B2B/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', workflow_id: id }) });
+    fetchWorkflows();
+  };
+
+  const SUB_TABS = [['chatbot', 'Chatbots'], ['conversations', 'Conversations'], ['workflows', 'Workflows']];
+
   return (
     <div>
-      <div style={{ marginBottom: 32 }}>
-        <h2 className="page-title">Publication d'annonces</h2>
-        <p className="page-subtitle">Diffusez vos annonces sur LeBonCoin, SeLoger et BienIci</p>
-      </div>
-
-      {/* Bannière principale */}
-      <div style={{ background: 'rgba(212,168,83,0.05)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 16, padding: '40px 32px', textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
-          <svg width="24" height="24" fill="none" stroke="#d4a853" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-        </div>
-        <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, fontWeight: 400, color: '#e8e8e8', margin: '0 0 12px' }}>Disponible prochainement</h3>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.75, maxWidth: 480, margin: '0 auto 0' }}>
-          La publication automatique sur LeBonCoin, SeLoger et BienIci est en cours d'intégration via un partenaire agréé. Cette fonctionnalité sera activée dès que l'accord partenaire sera finalisé.
-        </p>
-      </div>
-
-      {/* Ce qui arrive */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
-        {[
-          { plateforme: 'LeBonCoin', detail: 'Publication via compte Pro — accès flux XML en cours de négociation.' },
-          { plateforme: 'SeLoger', detail: 'Diffusion via partenaire agréé groupe SeLoger — accord partenaire en cours.' },
-          { plateforme: "BienIci", detail: 'Inclus dans l\'accord SeLoger — même partenaire, même activation.' },
-        ].map(item => (
-          <div key={item.plateforme} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 18px' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 8 }}>{item.plateforme}</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>{item.detail}</div>
-            <div style={{ marginTop: 12, display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: 'rgba(107,107,120,0.12)', border: '1px solid rgba(107,107,120,0.25)', fontSize: 11, color: '#6b6b78', fontWeight: 600 }}>En cours</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Ce que vous pouvez faire maintenant */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 22px' }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', margin: '0 0 14px' }}>En attendant, la génération IA du texte reste disponible</p>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, margin: 0 }}>
-          Dès l'activation, vos annonces seront rédigées automatiquement par IA à partir des données du bien, puis publiées en un clic sur les 3 plateformes simultanément. Vous serez notifié par email dès que la fonctionnalité est disponible.
-        </p>
-      </div>
-
-    </div>
-  );
-}
-
-// ─── UpgradeGate ──────────────────────────────────────────────────────────────
-
-const PLAN_LABELS = { gratuit: 'Gratuit', pro: 'Pro', agence: 'Agence' };
-
-function UpgradeGate({ planRequired, plan, featureLabel }) {
-  const requiredLabel = PLAN_LABELS[planRequired] || planRequired;
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      minHeight: 340, padding: 40, textAlign: 'center', gap: 20,
-    }}>
-      <div style={{
-        width: 56, height: 56, borderRadius: '50%',
-        background: 'rgba(201,169,110,0.08)', border: '1px solid rgba(201,169,110,0.2)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c9a96e" strokeWidth="1.5">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-      </div>
-      <div>
-        <p style={{ color: 'var(--text)', fontSize: 16, fontWeight: 500, margin: '0 0 8px' }}>
-          {featureLabel}
-        </p>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-          Cette fonctionnalité est réservée au plan <strong style={{ color: '#c9a96e' }}>{requiredLabel}</strong>.
-          {' '}Votre plan actuel : <strong style={{ color: 'var(--text-dim)' }}>{PLAN_LABELS[plan] || plan}</strong>.
-        </p>
-      </div>
-      <a
-        href="/#tarifs"
-        style={{
-          display: 'inline-block', padding: '10px 24px',
-          background: 'linear-gradient(135deg, #c9a96e, #a07840)',
-          color: '#fff', borderRadius: 8, fontSize: 13,
-          fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.04em',
-          textDecoration: 'none', fontWeight: 600,
-        }}
-      >
-        Voir les offres
-      </a>
-    </div>
-  );
-}
-
-
-// ─── Sidebar Plan Block ───────────────────────────────────────────────────────
-
-function SidebarPlanBlock({ plan }) {
-  const [loading, setLoading] = useState(false);
-
-  const PLAN_CFG = {
-    gratuit: { label: 'Gratuit', color: '#6b6b78', bg: 'rgba(107,107,120,0.1)', border: 'rgba(107,107,120,0.25)' },
-    pro:     { label: 'Pro',     color: '#3ecf8e', bg: 'rgba(62,207,142,0.1)',  border: 'rgba(62,207,142,0.25)'  },
-    agence:  { label: 'Agence',  color: '#d4a853', bg: 'rgba(212,168,83,0.1)',  border: 'rgba(212,168,83,0.25)'  },
-  };
-  const cfg = PLAN_CFG[plan] || PLAN_CFG.gratuit;
-
-  const handleManage = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/billing/portal', { method: 'POST' });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-      else alert(data.error || 'Erreur. Réessaie.');
-    } catch { alert('Erreur réseau.'); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '4px 10px', borderRadius: 20, marginBottom: 8,
-        background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color,
-        fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
-      }}>
-        <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
-        {cfg.label}
-      </div>
-      {plan === 'gratuit' ? (
-        <a href="/upgrade" style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '8px 12px', background: 'linear-gradient(135deg, #8b6914, #d4a853)',
-          color: '#0a0a0a', borderRadius: 8, fontSize: 11.5, fontWeight: 700,
-          textDecoration: 'none', fontFamily: 'DM Sans, sans-serif', marginBottom: 4,
-        }}>
-          ⚡ Passer Pro — 59€/mois
-        </a>
-      ) : (
-        <button onClick={handleManage} disabled={loading} style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)',
-          borderRadius: 8, fontSize: 11.5, fontWeight: 600,
-          cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans, sans-serif',
-          marginBottom: 4,
-        }}>
-          {loading ? '...' : '⚙ Gérer mon abonnement'}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-
-// ─── ProspectsTab Component ────────────────────────────────────────────────────
-
-function ProspectsTab({ plan, user, setActiveTab }) {
-  const [prospects, setProspects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [updatingId, setUpdatingId] = useState(null);
-
-  const STATUTS = [
-    { id: 'all', label: 'Tous' },
-    { id: 'a_contacter', label: 'À contacter' },
-    { id: 'contacte', label: 'Contacté' },
-    { id: 'negociation', label: 'Négociation' },
-    { id: 'signe', label: 'Signé' },
-  ];
-
-  const STATUT_COLORS = {
-    a_contacter: { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', label: 'À contacter' },
-    contacte:    { bg: 'rgba(234,179,8,0.12)',  color: '#eab308', label: 'Contacté' },
-    negociation: { bg: 'rgba(59,130,246,0.12)', color: '#3b82f6', label: 'Négociation' },
-    signe:       { bg: 'rgba(34,197,94,0.12)',  color: '#22c55e', label: 'Signé' },
-  };
-
-  useEffect(() => {
-    fetchProspects();
-  }, []);
-
-  const fetchProspects = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/immobilier/mes-prospects');
-      if (res.ok) {
-        const data = await res.json();
-        setProspects(data.prospects || []);
-      }
-    } catch (e) {
-      console.error('Erreur chargement prospects:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateStatut = async (id, newStatut) => {
-    setUpdatingId(id);
-    try {
-      await fetch('/api/immobilier/mes-prospects', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, statut: newStatut }),
-      });
-      setProspects(p => p.map(v => v.id === id ? { ...v, statut: newStatut } : v));
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const lancerCampagne = async (prospect) => {
-    if (plan !== 'agence') return;
-    setActiveTab('b2b');
-  };
-
-  const filtered = filter === 'all' ? prospects : prospects.filter(p => p.statut === filter);
-
-  // Stats
-  const stats = {
-    total: prospects.length,
-    a_contacter: prospects.filter(p => p.statut === 'a_contacter').length,
-    contacte: prospects.filter(p => p.statut === 'contacte').length,
-    negociation: prospects.filter(p => p.statut === 'negociation').length,
-    signe: prospects.filter(p => p.statut === 'signe').length,
-    scoreMoyen: prospects.length ? Math.round(prospects.reduce((s, p) => s + (p.score || 0), 0) / prospects.length) : 0,
-  };
-
-  return (
-    <>
-      <div className="page-header">
-        <h2 className="page-title">Prospects</h2>
-        <p className="page-subtitle">Vendeurs prospectés — pipeline CRM et suivi des contacts</p>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
-        {[
-          { label: 'Total', value: stats.total, color: 'var(--text)' },
-          { label: 'À contacter', value: stats.a_contacter, color: '#ef4444' },
-          { label: 'Contactés', value: stats.contacte, color: '#eab308' },
-          { label: 'Négociation', value: stats.negociation, color: '#3b82f6' },
-          { label: 'Signés', value: stats.signe, color: '#22c55e' },
-          { label: 'Score moyen', value: `${stats.scoreMoyen}/100`, color: 'var(--accent)' },
-        ].map(s => (
-          <div key={s.label} className="stat-card" style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filtres statut */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {STATUTS.map(s => (
-          <button
-            key={s.id}
-            onClick={() => setFilter(s.id)}
-            style={{
-              padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontWeight: 500,
-              background: filter === s.id ? 'var(--accent)' : 'rgba(255,255,255,0.05)',
-              color: filter === s.id ? '#000' : 'var(--text-muted)',
-              border: `1px solid ${filter === s.id ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}`,
-            }}
-          >
-            {s.label} {s.id !== 'all' && `(${stats[s.id] || 0})`}
+      {/* Sous-onglets */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: 4, width: 'fit-content' }}>
+        {SUB_TABS.map(([id, label]) => (
+          <button key={id} onClick={() => setSubTab(id)}
+            style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: subTab === id ? 'rgba(212,168,83,0.12)' : 'transparent', color: subTab === id ? '#d4a853' : 'rgba(255,255,255,0.35)', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>
+            {label}
           </button>
         ))}
-        <button onClick={fetchProspects} style={{ marginLeft: 'auto', padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          ↻ Rafraîchir
-        </button>
       </div>
 
-      {/* Liste */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Chargement…</div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-          <div>{filter === 'all' ? 'Aucun prospect encore — prospectez des vendeurs depuis l\'onglet Vendeurs potentiels' : `Aucun prospect avec le statut "${STATUTS.find(s=>s.id===filter)?.label}"`}</div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map(p => {
-            const statutInfo = STATUT_COLORS[p.statut] || STATUT_COLORS.a_contacter;
-            return (
-              <div key={p.id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                {/* Score */}
-                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '2px solid rgba(212,168,83,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{p.score || '—'}</span>
+      {/* Chatbots */}
+      {subTab === 'chatbot' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 500, color: '#e8e8e8' }}>Mes chatbots</h3>
+            <button onClick={() => setShowForm(s => !s)}
+              style={{ padding: '8px 16px', background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 7, fontSize: 12.5, color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+              {showForm ? '✕ Annuler' : '+ Nouveau chatbot'}
+            </button>
+          </div>
+
+          {showForm && (
+            <div style={{ background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.15)', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+              {[['name', 'Nom du chatbot'], ['welcomeMessage', 'Message d\'accueil']].map(([key, label]) => (
+                <div key={key} style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', display: 'block', marginBottom: 5 }}>{label}</label>
+                  <input value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '9px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif' }} />
                 </div>
+              ))}
+              <button onClick={createChatbot} disabled={saving}
+                style={{ padding: '9px 18px', background: 'linear-gradient(135deg,#8b6914,#d4a853)', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                {saving ? 'Création…' : 'Créer →'}
+              </button>
+            </div>
+          )}
 
-                {/* Infos */}
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{p.adresse || 'Adresse inconnue'}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {[p.ville, p.type, p.surface ? `${p.surface} m²` : null, p.prix ? `${Number(p.prix).toLocaleString('fr-FR')} €` : null].filter(Boolean).join(' · ')}
-                  </div>
-                  {p.notes && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, opacity: 0.7 }}>{p.notes}</div>}
-                </div>
-
-                {/* Statut selector */}
-                <select
-                  value={p.statut || 'a_contacter'}
-                  onChange={e => updateStatut(p.id, e.target.value)}
-                  disabled={updatingId === p.id}
-                  style={{
-                    padding: '6px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
-                    background: statutInfo.bg, color: statutInfo.color,
-                    border: `1px solid ${statutInfo.color}40`, fontWeight: 600,
-                  }}
-                >
-                  {STATUTS.filter(s => s.id !== 'all').map(s => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  {p.latitude && p.longitude && (
-                    <a href={`https://www.google.com/maps?q=${p.latitude},${p.longitude}`} target="_blank" rel="noopener noreferrer"
-                      style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.1)', textDecoration: 'none' }}>
-                      Maps ↗
-                    </a>
-                  )}
-                  {plan === 'agence' ? (
-                    <button onClick={() => lancerCampagne(p)}
-                      style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', background: 'rgba(212,168,83,0.15)', color: 'var(--accent)', border: '1px solid rgba(212,168,83,0.3)', fontWeight: 600 }}>
-                      📧 Campagne B2B
-                    </button>
-                  ) : (
-                    <div style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'not-allowed' }}
-                      title="Disponible avec le plan Agence">
-                      🔒 Campagne B2B
+          {loadingChatbot ? (
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>Chargement…</p>
+          ) : chatbots.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 }}>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', marginBottom: 12 }}>Aucun chatbot. Créez-en un pour qualifier vos prospects automatiquement.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {chatbots.map(bot => (
+                <div key={bot.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${bot.color || '#d4a853'}18`, border: `1.5px solid ${bot.color || '#d4a853'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{bot.avatar || '🤖'}</div>
+                    <div>
+                      <div style={{ fontSize: 14, color: '#e8e8e8' }}>{bot.name}</div>
+                      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{bot.welcome_message?.slice(0, 60)}…</div>
                     </div>
-                  )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.25)', color: '#16a34a' }}>Actif</span>
+                    <button onClick={() => deleteChatbot(bot.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14' }}>✕</button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          )}
         </div>
       )}
-    </>
+
+      {/* Conversations */}
+      {subTab === 'conversations' && (
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 500, color: '#e8e8e8', marginBottom: 16 }}>Conversations récentes</h3>
+          {convs.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 }}>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>Aucune conversation pour l'instant.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {convs.map(conv => (
+                <div key={conv.id} style={{ padding: '13px 18px', background: conv.qualified ? 'rgba(22,163,74,0.03)' : 'rgba(255,255,255,0.02)', border: `1px solid ${conv.qualified ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13.5, color: '#e8e8e8' }}>{conv.visitor_email || 'Anonyme'}</span>
+                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: conv.qualified ? 'rgba(22,163,74,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${conv.qualified ? 'rgba(22,163,74,0.2)' : 'rgba(255,255,255,0.07)'}`, color: conv.qualified ? '#16a34a' : 'rgba(255,255,255,0.3)' }}>
+                      {conv.qualified ? '✓ Qualifié' : 'Non qualifié'}
+                    </span>
+                  </div>
+                  {conv.qualification_reason && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{conv.qualification_reason}</div>}
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>{new Date(conv.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Workflows */}
+      {subTab === 'workflows' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 500, color: '#e8e8e8' }}>Mes workflows</h3>
+              <button onClick={() => setShowWfForm(s => !s)}
+                style={{ padding: '8px 16px', background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 7, fontSize: 12.5, color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                {showWfForm ? '✕ Annuler' : '+ Nouveau'}
+              </button>
+            </div>
+            {showWfForm && (
+              <div style={{ background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.15)', borderRadius: 10, padding: '16px', marginBottom: 12 }}>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', display: 'block', marginBottom: 5 }}>Nom</label>
+                  <input value={workflowForm.name} onChange={e => setWorkflowForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Accueil nouveau prospect"
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '8px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif' }} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', display: 'block', marginBottom: 5 }}>Déclencheur</label>
+                  <select value={workflowForm.trigger} onChange={e => setWorkflowForm(f => ({ ...f, trigger: e.target.value }))}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '8px 12px', fontSize: 13, color: '#e8e8e8', fontFamily: 'DM Sans, sans-serif' }}>
+                    <option value="new_prospect">Nouveau prospect (chatbot)</option>
+                    <option value="new_match">Nouveau match immobilier</option>
+                  </select>
+                </div>
+                <button onClick={createWorkflow} disabled={wfCreating}
+                  style={{ padding: '8px 16px', background: 'linear-gradient(135deg,#8b6914,#d4a853)', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                  {wfCreating ? 'Création…' : 'Créer →'}
+                </button>
+              </div>
+            )}
+            {workflows.length === 0 ? (
+              <div style={{ padding: '32px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>Aucun workflow actif.</p>
+              </div>
+            ) : workflows.map(wf => (
+              <div key={wf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: wf.active ? 'rgba(22,163,74,0.03)' : 'rgba(255,255,255,0.02)', border: `1px solid ${wf.active ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 10, marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13.5, color: '#e8e8e8' }}>{wf.name}</div>
+                  <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{wf.trigger === 'new_prospect' ? 'Nouveau prospect' : 'Nouveau match'}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button onClick={() => toggleWorkflow(wf.id, wf.active)}
+                    style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: wf.active ? 'rgba(22,163,74,0.1)' : 'rgba(255,255,255,0.05)', color: wf.active ? '#16a34a' : 'rgba(255,255,255,0.3)', border: `1px solid ${wf.active ? 'rgba(22,163,74,0.2)' : 'rgba(255,255,255,0.07)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                    {wf.active ? '● Actif' : '○ Inactif'}
+                  </button>
+                  <button onClick={() => deleteWorkflow(wf.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Explication */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '20px' }}>
+            <h4 style={{ fontSize: 14, fontWeight: 500, color: '#e8e8e8', marginBottom: 16 }}>Comment ça marche ?</h4>
+            {[['1', 'Un prospect contacte votre chatbot', 'Il laisse son email en discutant avec votre bot.'],
+              ['2', 'Le workflow se déclenche', 'NestLead détecte le contact et exécute les actions.'],
+              ['3', 'Email automatique envoyé', 'Le prospect reçoit un email, votre équipe est notifiée.'],
+              ['4', 'Vous intervenez au bon moment', 'Vous rappelez un prospect déjà informé et engagé.'],
+            ].map(([n, t, d]) => (
+              <div key={n} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#d4a853', flexShrink: 0 }}>{n}</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: '#e8e8e8', marginBottom: 2 }}>{t}</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>{d}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
-
+// ─── Dashboard principal ──────────────────────────────────────────────────────
 function ImmobilierDashboard() {
-  const { agent, logout, plan, isPro, isAgence } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('dashboard');
-
-  // Helper : peut accéder à une feature ?
-  const can = (feature) => canAccess(feature, plan, agent?.role);
-  const [biens, setBiens] = useState([]);
-  const [acheteurs, setAcheteurs] = useState([]);
-  const [matches, setMatches] = useState([]);
+  const { agent, plan } = useAuth();
+  const [tab, setTab] = useState('overview');
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedProspects, setSelectedProspects] = useState([]);
-  const [biensFilter, setBiensFilter] = useState({ type: 'all', search: '' });
-
-  const [scraperForm, setScraperForm] = useState({ location: '', propertyType: 'appartement' });
-  const [scrapingProgress, setScrapingProgress] = useState(null);
-  const [marcheData, setMarcheData] = useState(null);
-  const [marcheOnglet, setMarcheOnglet] = useState('prix');
-
-  // ── Vendeurs potentiels ──
-  const [vendeursForm, setVendeursForm] = useState({ ville: '', type: 'all', surfaceMin: 0, scoreMin: 0 });
-  const [vendeursLoading, setVendeursLoading] = useState(false);
-  const [vendeursData, setVendeursData] = useState(null);
-  const [vendeursError, setVendeursError] = useState(null);
-  const [vendeursFilter, setVendeursFilter] = useState('all');
-  const [vendeurProspecte, setVendeurProspecte] = useState({});
-  const [vendeurProspectLoading, setVendeurProspectLoading] = useState({});
-
-  const handleProspecter = async (vendeur) => {
-    const id = vendeur.id;
-    if (vendeurProspecte[id] || vendeurProspectLoading[id]) return;
-    setVendeurProspectLoading(p => ({ ...p, [id]: true }));
-    try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const r = await fetch('/api/immobilier/prospecter', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ vendeur: { ...vendeur, ville: vendeursForm.ville } }),
-      });
-      if (r.ok) {
-        setVendeurProspecte(p => ({ ...p, [id]: true }));
-      } else {
-        const err = await r.json();
-        alert(err.error || 'Erreur lors de la prospection');
-      }
-    } catch (e) {
-      alert('Erreur réseau');
-    } finally {
-      setVendeurProspectLoading(p => ({ ...p, [id]: false }));
-    }
-  };
-
-  const [emailForm, setEmailForm] = useState({ subject: '', message: '', senderName: '', senderEmail: '' });
-  const [emailStatus, setEmailStatus] = useState(null);
-
-  const [showOnboardingAgent, setShowOnboardingAgent] = useState(false);
-  const [showOnboardingAcheteur, setShowOnboardingAcheteur] = useState(false);
-  // ── B2B States ──
-  const [b2bSubTab, setB2bSubTab] = useState('dashboard');
-  const [b2bScraperUrl, setB2bScraperUrl] = useState('');
-  const [b2bScraperLoading, setB2bScraperLoading] = useState(false);
-  const [b2bScraperResult, setB2bScraperResult] = useState(null);
-  const [b2bScraperError, setB2bScraperError] = useState('');
-  const [b2bSelectedEmails, setB2bSelectedEmails] = useState([]);
-  const [b2bEmailForm, setB2bEmailForm] = useState({ senderName: '', senderEmail: '', subject: '', template: '' });
-  const [b2bEmailLoading, setB2bEmailLoading] = useState(false);
-  const [b2bEmailStatus, setB2bEmailStatus] = useState(null);
-  const [chatbots, setChatbots] = useState([]);
-  const [chatbotForm, setChatbotForm] = useState({ name: '', welcomeMessage: 'Bonjour ! Je suis votre assistant immobilier. Comment puis-je vous aider ?', color: '#d4a853', avatar: '🤖', questions: ['Quel est votre projet immobilier ?', 'Quel est votre budget ?', 'Dans quelle ville recherchez-vous ?'] });
-  const [chatbotCreating, setChatbotCreating] = useState(false);
-  const [chatbotCopied, setChatbotCopied] = useState(null);
-  const [chatbotShowForm, setChatbotShowForm] = useState(false);
-  const [conversations, setConversations] = useState([]);
-  const [workflows, setWorkflows] = useState([]);
-  const [workflowsLoading, setWorkflowsLoading] = useState(false);
-  const [workflowForm, setWorkflowForm] = useState({ name: '', trigger: 'new_prospect' });
-  const [workflowCreating, setWorkflowCreating] = useState(false);
-  const [workflowShowForm, setWorkflowShowForm] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [origin, setOrigin] = useState('');
+  const [alertes, setAlertes] = useState([]);
 
   useEffect(() => {
-    setMounted(true);
-    setOrigin(window.location.origin);
-    loadAll();
-    try {
-      const done = localStorage.getItem('pb_onboarding_done');
-      if (!done) setTimeout(() => setShowOnboardingAgent(true), 400);
-    } catch {}
+    fetch('/api/immobilier/stats')
+      .then(r => r.json())
+      .then(d => d.success && setStats(d.data))
+      .catch(() => {});
+
+    // Charger les alertes portefeuille si disponibles
+    fetch('/api/immobilier/analyse-portefeuille')
+      .then(r => r.json())
+      .then(d => d.alertes?.length && setAlertes(d.alertes))
+      .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'b2b' && plan === 'agence') {
-      loadChatbots();
-      loadConversations();
-      loadWorkflows();
-    }
-  }, [activeTab, plan]);
-
-  const handleOnboardingAgentComplete = () => {
-    setShowOnboardingAgent(false);
-    try { localStorage.setItem('pb_onboarding_done', '1'); } catch {}
-  };
-
-  const handleOnboardingAcheteurComplete = () => {
-    setShowOnboardingAcheteur(false);
-    loadAll();
-  };
-
-  const loadAll = async () => {
-    try {
-      const [biensRes, acheteursRes, matchesRes, statsRes] = await Promise.all([
-        fetch('/api/immobilier/biens'),
-        fetch('/api/immobilier/acheteurs'),
-        fetch('/api/immobilier/matches'),
-        fetch('/api/immobilier/stats'),
-      ]);
-      if (biensRes.ok) { const d = await biensRes.json(); setBiens(d.data || []); }
-      if (acheteursRes.ok) { const d = await acheteursRes.json(); setAcheteurs(d.data || []); }
-      if (matchesRes.ok) { const d = await matchesRes.json(); setMatches(d.data || []); }
-      if (statsRes.ok) { const d = await statsRes.json(); setStats(d.data || null); }
-    } catch (err) { console.error(err); }
-  };
-
-  const handleScrape = async () => {
-    if (!scraperForm.location.trim()) return;
-    setLoading(true);
-    setScrapingProgress({ status: 'running', message: `Analyse du marché de ${scraperForm.location}…` });
-    setMarcheData(null);
-    try {
-      const res = await fetch('/api/scraper/immobilier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ville: scraperForm.location.trim(),
-          type: scraperForm.propertyType === 'all' ? 'appartement' : scraperForm.propertyType,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMarcheData(data);
-        setMarcheOnglet('prix');
-        setScrapingProgress({ status: 'done' });
-      } else {
-        setScrapingProgress({ status: 'error', message: data.error || 'Erreur inconnue' });
-      }
-    } catch (err) {
-      setScrapingProgress({ status: 'error', message: err.message });
-    } finally { setLoading(false); }
-  };
-
-  const resetScraper = () => {
-    setScrapingProgress(null);
-    setMarcheData(null);
-    setScraperForm({ location: '', propertyType: 'appartement' });
-  };
-
-  const handleVendeurs = async () => {
-    if (!vendeursForm.ville.trim()) return;
-    setVendeursLoading(true);
-    setVendeursError(null);
-    setVendeursData(null);
-    try {
-      const res = await fetch('/api/scraper/vendeurs-potentiels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ville: vendeursForm.ville.trim(),
-          type: vendeursForm.type,
-          surfaceMin: parseInt(vendeursForm.surfaceMin) || 0,
-          scoreMin: parseInt(vendeursForm.scoreMin) || 0,
-          limit: 60,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setVendeursData(data);
-      } else {
-        setVendeursError(data.error || 'Erreur inconnue');
-      }
-    } catch (err) {
-      setVendeursError(err.message);
-    } finally {
-      setVendeursLoading(false);
-    }
-  };
-
-  const fmtPrix = (v) => v ? Math.round(v).toLocaleString('fr-FR') + '€' : '–';
-  const fmtPct = (v) => { if (v === null || v === undefined) return '–'; return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
-  const coulEvol = (v) => !v ? '#888' : v > 0 ? '#3ecf8e' : v < -2 ? '#f04444' : '#d4a853';
-
-  const handleSendEmail = async (e) => {
-    e.preventDefault();
-    if (selectedProspects.length === 0) return;
-    setLoading(true);
-    setEmailStatus(null);
-    try {
-      const res = await fetch('/api/B2B/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipients: selectedProspects.map(email => ({ email })), subject: emailForm.subject, template: emailForm.message, senderName: emailForm.senderName, senderEmail: emailForm.senderEmail }),
-      });
-      const data = await res.json();
-      setEmailStatus(res.ok ? { success: true, sent: data.sent } : { success: false, error: data.error });
-    } catch (err) {
-      setEmailStatus({ success: false, error: err.message });
-    } finally { setLoading(false); }
-  };
-
-  const handleMatchAuto = async () => {
-    setLoading(true);
-    try {
-      await fetch('/api/immobilier/match-auto', { method: 'POST' });
-      loadAll();
-    } finally { setLoading(false); }
-  };
-
-  const toggleProspect = (email) => {
-    setSelectedProspects(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
-  };
-
-
-  // ── B2B Handlers ──
-  const handleB2BScrape = async () => {
-    if (!b2bScraperUrl.trim()) return;
-    setB2bScraperLoading(true);
-    setB2bScraperError('');
-    setB2bScraperResult(null);
-    setB2bSelectedEmails([]);
-    try {
-      const res = await fetch('/api/B2B/scraper', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: b2bScraperUrl }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setB2bScraperResult(data);
-        setB2bSelectedEmails(data.emails || []);
-      } else {
-        setB2bScraperError(data.error || 'Erreur lors du scraping');
-      }
-    } catch (err) {
-      setB2bScraperError(err.message);
-    } finally {
-      setB2bScraperLoading(false);
-    }
-  };
-
-  const handleB2BSendEmail = async () => {
-    if (b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template) return;
-    setB2bEmailLoading(true);
-    setB2bEmailStatus(null);
-    try {
-      const res = await fetch('/api/B2B/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderName: b2bEmailForm.senderName || 'NestLead',
-          senderEmail: b2bEmailForm.senderEmail || 'noreply@nestlead.fr',
-          subject: b2bEmailForm.subject,
-          template: b2bEmailForm.template,
-          recipients: b2bSelectedEmails.map(email => ({ email, name: 'Prospect' })),
-        }),
-      });
-      const data = await res.json();
-      setB2bEmailStatus(res.ok ? { success: true, sent: data.sent, total: data.total } : { success: false, error: data.error });
-    } catch (err) {
-      setB2bEmailStatus({ success: false, error: err.message });
-    } finally {
-      setB2bEmailLoading(false);
-    }
-  };
-
-  const loadChatbots = async () => {
-    try {
-      const res = await fetch('/api/B2B/chatbot');
-      const data = await res.json();
-      if (data.success) setChatbots(data.chatbots || []);
-    } catch {}
-  };
-
-  const loadConversations = async () => {
-    try {
-      const res = await fetch('/api/B2B/chatbot-conversations');
-      const data = await res.json();
-      if (data.success) setConversations(data.conversations || []);
-    } catch {}
-  };
-
-  const handleCreateChatbot = async () => {
-    if (!chatbotForm.name || !chatbotForm.welcomeMessage) return;
-    setChatbotCreating(true);
-    try {
-      const res = await fetch('/api/B2B/chatbot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(chatbotForm),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setChatbots(prev => [data.chatbot, ...prev]);
-        setChatbotShowForm(false);
-        setChatbotForm({ name: '', welcomeMessage: 'Bonjour ! Je suis votre assistant immobilier. Comment puis-je vous aider ?', color: '#d4a853', avatar: '🤖', questions: ['Quel est votre projet immobilier ?', 'Quel est votre budget ?', 'Dans quelle ville recherchez-vous ?'] });
-      }
-    } catch {}
-    finally { setChatbotCreating(false); }
-  };
-
-  const handleDeleteChatbot = async (id) => {
-    try {
-      await fetch('/api/B2B/chatbot', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-      setChatbots(prev => prev.filter(c => c.id !== id));
-    } catch {}
-  };
-
-  const loadWorkflows = async () => {
-    setWorkflowsLoading(true);
-    try {
-      const res = await fetch('/api/B2B/workflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list' }),
-      });
-      const data = await res.json();
-      if (data.success) setWorkflows(data.workflows || []);
-    } catch {}
-    finally { setWorkflowsLoading(false); }
-  };
-
-  const handleCreateWorkflow = async () => {
-    if (!workflowForm.name) return;
-    setWorkflowCreating(true);
-    try {
-      const actions = [
-        { type: 'send_email', subject: 'Merci pour votre intérêt', content: '<p>Bonjour,</p><p>Merci de nous avoir contactés. Un agent vous recontactera rapidement.</p>' },
-        { type: 'notify_team' }
-      ];
-      const res = await fetch('/api/B2B/workflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', name: workflowForm.name, trigger: workflowForm.trigger, actions }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setWorkflows(prev => [data.workflow, ...prev]);
-        setWorkflowShowForm(false);
-        setWorkflowForm({ name: '', trigger: 'new_prospect' });
-      }
-    } catch {}
-    finally { setWorkflowCreating(false); }
-  };
-
-  const handleToggleWorkflow = async (id, active) => {
-    try {
-      await fetch('/api/B2B/workflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle', workflow_id: id, active: !active }),
-      });
-      setWorkflows(prev => prev.map(w => w.id === id ? { ...w, active: !active } : w));
-    } catch {}
-  };
-
-  const handleDeleteWorkflow = async (id) => {
-    try {
-      await fetch('/api/B2B/workflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', workflow_id: id }),
-      });
-      setWorkflows(prev => prev.filter(w => w.id !== id));
-    } catch {}
-  };
-
-  const filteredBiens = biens.filter(b => {
-    const matchType = biensFilter.type === 'all' || b.type === biensFilter.type;
-    const matchSearch = !biensFilter.search || b.titre?.toLowerCase().includes(biensFilter.search.toLowerCase()) || b.ville?.toLowerCase().includes(biensFilter.search.toLowerCase());
-    return matchType && matchSearch;
-  });
-
-  if (!mounted) return null;
+  const TABS = [
+    { id: 'overview', label: 'Vue d\'ensemble' },
+    { id: 'b2b', label: 'B2B & Automation' },
+    { id: 'ia', label: 'Assistant IA' },
+  ];
 
   return (
     <>
       <Head>
-        <title>Immo Dashboard</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />      </Head>
+        <title>Dashboard — ProspectBot</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+      </Head>
 
       <style>{`
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
-        body { font-family: 'DM Sans', sans-serif; background: #080809; color: #e8e8e8; min-height: 100vh; overflow-x: hidden; }
-        body::before {
-          content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-          opacity: 0.4;
-        }
-        :root {
-          --bg: #080809; --surface: #111113; --surface2: #17171a;
-          --border: rgba(255,255,255,0.07); --border-hover: rgba(255,255,255,0.14);
-          --text: #e8e8e8; --text-muted: #6b6b78; --text-dim: #a0a0ae;
-          --accent: #d4a853; --accent-dim: rgba(212,168,83,0.10); --accent-border: rgba(212,168,83,0.3);
-          --green: #3ecf8e; --green-dim: rgba(62,207,142,0.1);
-          --red: #f04444; --red-dim: rgba(240,68,68,0.1);
-          --blue: #5b8dee; --blue-dim: rgba(91,141,238,0.1);
-        }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(212,168,83,0.2); border-radius: 2px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(212,168,83,0.35); }
-        .layout { display: flex; min-height: 100vh; }
-        .sidebar { width: 220px; flex-shrink: 0; background: rgba(255,255,255,0.02); border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-        .sidebar-logo { padding: 28px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .sidebar-logo h1 { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--accent); letter-spacing: 0.5px; font-style: italic; }
-        .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 3px; letter-spacing: 1px; text-transform: uppercase; }
-        .sidebar-nav { padding: 16px 12px; flex: 1; }
-        .sidebar-footer { padding: 14px 12px; border-top: 1px solid rgba(255,255,255,0.06); }
-        .agent-info { padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; margin-bottom: 8px; }
-        .agent-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .agent-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-        .logout-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-muted); background: none; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left; }
-        .logout-btn:hover { color: #f04444; border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.05); }
-        .help-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 12px; font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: color 0.15s; text-align: left; margin-bottom: 6px; }
-        .help-btn:hover { color: var(--accent); }
-        .nav-item { display: flex; align-items: center; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 400; color: rgba(255,255,255,0.45); transition: all 0.15s; margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left; letter-spacing: 0.2px; }
-        .nav-item:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.04); }
-        .nav-item.active { color: var(--accent); background: var(--accent-dim); font-weight: 500; }
-        .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: 10px; opacity: 0.5; }
-        .nav-item.active .nav-dot { opacity: 1; }
-        .nav-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 8px 0; }
-        .main { flex: 1; overflow-y: auto; padding: 40px 48px; max-width: 1100px; }
-        .page-header { margin-bottom: 36px; }
-        .page-title { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 300; color: var(--text); letter-spacing: -0.5px; }
-        .page-subtitle { font-size: 13.5px; color: var(--text-muted); margin-top: 6px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 36px; }
-        .stat-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 22px 20px; cursor: pointer; transition: border-color 0.2s, transform 0.2s; }
-        .stat-card:hover { border-color: rgba(212,168,83,0.25); transform: translateY(-2px); }
-        .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); font-weight: 500; }
-        .stat-value { font-size: 36px; font-family: 'Cormorant Garamond', serif; color: var(--accent); margin-top: 8px; letter-spacing: -1px; font-weight: 500; }
-        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-        .card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 28px; margin-bottom: 20px; transition: border-color 0.2s; }
-        .card:hover { border-color: rgba(255,255,255,0.1); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .card-title { font-size: 14px; font-weight: 500; color: var(--text); letter-spacing: 0.2px; }
-        .card-link { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
-        .card-link:hover { opacity: 0.8; }
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
-        .list-item:last-child { border-bottom: none; }
-        .list-item-main { font-size: 13.5px; color: var(--text); font-weight: 500; }
-        .list-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-        .list-item-right { text-align: right; font-size: 13px; color: var(--text); font-weight: 500; }
-        .list-item-right small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.2px; }
-        .badge-blue { background: var(--blue-dim); color: var(--blue); }
-        .badge-green { background: var(--green-dim); color: var(--green); }
-        .badge-gold { background: var(--accent-dim); color: var(--accent); }
-        .badge-neutral { background: var(--surface2); color: var(--text-muted); }
-        .score-bar { height: 3px; background: var(--surface2); border-radius: 2px; margin-top: 6px; }
-        .score-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.4s; }
-        label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
-        input[type="text"], input[type="email"], input[type="number"], input[type="tel"], select, textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
-        input:focus, select:focus, textarea:focus { border-color: var(--accent-border); background: rgba(212,168,83,0.03); }
-        input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.2); }
-        select option { background: #111113; }
-        textarea { resize: vertical; line-height: 1.6; }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .form-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-        .form-group { margin-bottom: 16px; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 10px; font-size: 13.5px; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s; }
-        .btn-primary { background: linear-gradient(135deg, #8b6914, #d4a853); color: #0a0a0a; box-shadow: 0 4px 20px rgba(212,168,83,0.2); }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(212,168,83,0.35); }
-        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
-        .btn-secondary { background: rgba(255,255,255,0.04); color: var(--text-dim); border: 1px solid rgba(255,255,255,0.09); }
-        .btn-secondary:hover { border-color: rgba(255,255,255,0.14); color: var(--text); }
-        .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.09); }
-        .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.14); }
-        .btn-full { width: 100%; }
-        .site-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .site-card { padding: 18px 16px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); cursor: pointer; transition: all 0.15s; text-align: left; }
-        .site-card:hover { border-color: rgba(255,255,255,0.14); }
-        .site-card.selected { border-color: var(--accent-border); background: var(--accent-dim); }
-        .site-name { font-size: 14px; font-weight: 600; color: var(--text); }
-        .site-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-        .site-check { display: inline-block; margin-top: 10px; font-size: 11px; color: var(--accent); font-weight: 500; }
-        .step-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); font-weight: 600; margin-bottom: 14px; }
-        .step-block { margin-bottom: 28px; }
-        .progress-box { padding: 20px 22px; border-radius: 12px; border: 1px solid; margin-bottom: 24px; }
-        .progress-running { border-color: rgba(91,141,238,0.3); background: rgba(91,141,238,0.08); }
-        .progress-done { border-color: rgba(62,207,142,0.3); background: rgba(62,207,142,0.08); }
-        .progress-error { border-color: rgba(240,68,68,0.3); background: rgba(240,68,68,0.08); }
-        .progress-title { font-size: 14px; font-weight: 600; }
-        .progress-sub { font-size: 13px; color: var(--text-dim); margin-top: 5px; }
-        .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .bien-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 20px; margin-bottom: 12px; transition: border-color 0.2s, transform 0.2s; cursor: pointer; }
-        .bien-card:hover { border-color: rgba(212,168,83,0.3); transform: translateY(-2px); }
-        .bien-top { display: flex; justify-content: space-between; align-items: flex-start; }
-        .bien-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
-        .bien-meta { font-size: 12.5px; color: var(--text-muted); }
-        .bien-price { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--accent); text-align: right; font-weight: 500; }
-        .bien-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-        .match-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; transition: border-color 0.2s; }
-        .match-card:hover { border-color: rgba(212,168,83,0.25); }
-        .match-top { display: flex; justify-content: space-between; align-items: center; }
-        .match-score { font-family: 'Cormorant Garamond', serif; font-size: 26px; color: var(--accent); font-weight: 500; }
-        .acheteur-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; transition: border-color 0.2s, transform 0.2s; cursor: pointer; }
-        .acheteur-card:hover { border-color: rgba(212,168,83,0.3); transform: translateY(-2px); }
-        .prospect-row { display: flex; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
-        .prospect-row:hover { border-color: rgba(255,255,255,0.14); }
-        .prospect-row.selected { border-color: var(--accent-border); background: var(--accent-dim); }
-        .prospect-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid rgba(255,255,255,0.15); margin-right: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-        .prospect-check.checked { background: var(--accent); border-color: var(--accent); }
-        .prospect-check.checked::after { content: ''; width: 8px; height: 5px; border-left: 2px solid #0f0f11; border-bottom: 2px solid #0f0f11; transform: rotate(-45deg) translate(1px, -1px); }
-        .alert { padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 20px; border: 1px solid; }
-        .alert-success { background: rgba(62,207,142,0.08); border-color: rgba(62,207,142,0.3); color: var(--green); }
-        .alert-error { background: rgba(240,68,68,0.08); border-color: rgba(240,68,68,0.3); color: var(--red); }
-        .alert-warning { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
-        .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 13.5px; }
-        .empty strong { display: block; font-size: 15px; color: var(--text-dim); margin-bottom: 8px; }
-        .filter-row { display: flex; gap: 12px; margin-bottom: 20px; }
-        .filter-row input { flex: 1; }
-        .filter-row select { width: 160px; }
-        .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 24px 0; }
-        label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 7px; }
-        input[type="text"], input[type="email"], input[type="number"], input[type="tel"], select, textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 10px 13px; font-size: 13.5px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
-        input:focus, select:focus, textarea:focus { border-color: var(--accent-border); background: rgba(212,168,83,0.03); }
-        input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.2); }
-        select option { background: #111113; }
-        textarea { resize: vertical; line-height: 1.6; }
-        @media (max-width: 900px) {
-          .sidebar { display: none; }
-          .main { padding: 24px 20px; }
-          .stats-grid { grid-template-columns: repeat(2, 1fr); }
-          .two-col { grid-template-columns: 1fr; }
-          .form-grid { grid-template-columns: 1fr; }
-          .form-grid-4 { grid-template-columns: 1fr 1fr; }
-          .site-grid { grid-template-columns: 1fr; }
-        }
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'DM Sans',sans-serif;background:#080809;color:#e8e8e8;min-height:100vh}
+        body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");opacity:0.4}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        input,textarea,select{font-family:'DM Sans',sans-serif}
+        input:focus,textarea:focus,select:focus{outline:none}
+        input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.2)}
+        .shortcut:hover{background:rgba(255,255,255,0.05)!important;transform:translateY(-2px)}
+        .shortcut{transition:all 0.2s!important}
+        a{text-decoration:none}
       `}</style>
 
-      <div className="layout">
-        {/* Sidebar */}
-        <aside className="sidebar">
-          <div className="sidebar-logo">
-            <h1>Immo Pro</h1>
-            <p>Tableau de bord</p>
-          </div>
-          <nav className="sidebar-nav">
-            {NAV_ITEMS.filter(i => i.id !== 'publication').map(item => (
-              <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
-                <span className="nav-dot" />
-                {item.label}
-                {item.badge && (
-                  <span style={{ marginLeft: 'auto', fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(212,168,83,0.2)', color: 'var(--accent)', fontWeight: 700, letterSpacing: '0.5px' }}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
+      {/* Nav */}
+      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', background: 'rgba(8,8,9,0.9)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 18, color: '#d4a853', fontStyle: 'italic', letterSpacing: 1 }}>ProspectBot</span>
+          <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            {NAV_LINKS.map(([label, href]) => (
+              <a key={href} href={href} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, color: href === '/immobilier' ? '#d4a853' : 'rgba(255,255,255,0.35)', background: href === '/immobilier' ? 'rgba(212,168,83,0.08)' : 'transparent' }}>{label}</a>
             ))}
-            <div className="nav-divider" />
-            <button className={`nav-item ${activeTab === 'publication' ? 'active' : ''}`} onClick={() => setActiveTab('publication')}>
-              <span className="nav-dot" />
-               Publier une annonce
-            </button>
-            <div className="nav-divider" />
-            <button
-              className={`nav-item ${activeTab === 'b2b' ? 'active' : ''}`}
-              onClick={() => setActiveTab('b2b')}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="nav-dot" />
-                Module B2B
-              </span>
-              {plan !== 'agence' && (
-                <span style={{ fontSize: 9, background: 'rgba(212,168,83,0.12)', border: '1px solid rgba(212,168,83,0.25)', color: '#d4a853', borderRadius: 4, padding: '2px 5px', fontWeight: 700, letterSpacing: '0.3px', flexShrink: 0 }}>🔒</span>
-              )}
-            </button>
-            <div className="nav-divider" />
-            <div style={{ padding: '4px 0 6px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              Analyse marché
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {plan && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.2)', color: '#d4a853' }}>{plan}</span>}
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>{agent?.name}</span>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '88px 28px 60px', position: 'relative', zIndex: 1, animation: 'fadeUp 0.45s both' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 42, fontWeight: 300, color: '#f0f0f0', letterSpacing: '-0.5px', marginBottom: 6 }}>
+            Bonjour, <em style={{ fontStyle: 'italic', background: 'linear-gradient(135deg,#8b6914,#d4a853)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{agent?.name || 'Agent'}</em>
+          </h1>
+          <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.3)', fontWeight: 300 }}>
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+
+        {/* Alertes portefeuille */}
+        {alertes.length > 0 && (
+          <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 12, padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 16 }}>⚠</span>
+              <span style={{ fontSize: 13, color: '#ef4444' }}>{alertes.length} mandat{alertes.length > 1 ? 's' : ''} dans un marché en baisse — action recommandée</span>
             </div>
-            <Link href="/liquidite" style={{ textDecoration: 'none' }}>
-              <button className="nav-item" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="nav-dot" />
-                  Score liquidité
-                </span>
-                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(62,207,142,0.1)', color: '#3ecf8e', fontWeight: 700, letterSpacing: '0.5px' }}>NEW</span>
-              </button>
-            </Link>
-            <Link href="/analyse-portefeuille" style={{ textDecoration: 'none' }}>
-              <button className="nav-item" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="nav-dot" />
-                  Mon portefeuille
-                </span>
-                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(62,207,142,0.1)', color: '#3ecf8e', fontWeight: 700, letterSpacing: '0.5px' }}>NEW</span>
-              </button>
-            </Link>
-            <Link href="/rapport-pdf" style={{ textDecoration: 'none' }}>
-              <button className="nav-item" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="nav-dot" />
-                  Rapport PDF
-                </span>
-                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(62,207,142,0.1)', color: '#3ecf8e', fontWeight: 700, letterSpacing: '0.5px' }}>NEW</span>
-              </button>
-            </Link>
-          </nav>
-          {agent && (
-            <div className="sidebar-footer">
-              <div className="agent-info">
-                <div className="agent-name">{agent.name}</div>
-                <div className="agent-role">{agent.role === 'admin' ? 'Administrateur' : 'Agent'}</div>
+            <a href="/analyse-portefeuille" style={{ fontSize: 12.5, padding: '6px 14px', borderRadius: 7, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}>Voir →</a>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 28, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: 4, width: 'fit-content' }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: tab === t.id ? 'rgba(212,168,83,0.12)' : 'transparent', color: tab === t.id ? '#d4a853' : 'rgba(255,255,255,0.35)', fontSize: 13.5, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Vue d'ensemble ── */}
+        {tab === 'overview' && (
+          <div style={{ animation: 'fadeUp 0.3s both' }}>
+
+            {/* KPIs */}
+            {stats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 28 }}>
+                {[
+                  ['Biens actifs', stats.totalBiens, '#d4a853', '/biens'],
+                  ['Acheteurs', stats.totalAcheteurs, '#3b82f6', '/acheteurs'],
+                  ['Matches', stats.totalMatches, '#8b5cf6', '/matches'],
+                  ['Nouveaux cette semaine', stats.nouveauxMatches, '#16a34a', '/matches'],
+                ].map(([label, val, color, href]) => (
+                  <a key={label} href={href} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '18px', textAlign: 'center', textDecoration: 'none', transition: 'border-color 0.2s', display: 'block' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = `${color}40`}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'}>
+                    <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, color, fontWeight: 500 }}>{val ?? '—'}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>{label}</div>
+                  </a>
+                ))}
               </div>
-              <div style={{ marginBottom: 8 }}>
-                <div style={{
-                  display: 'inline-block',
-                  padding: '3px 10px',
-                  borderRadius: 20,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  marginBottom: 8,
-                  background: plan === 'agence' ? 'rgba(201,169,110,0.15)' : plan === 'pro' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)',
-                  color: plan === 'agence' ? '#c9a96e' : plan === 'pro' ? '#3ecf8e' : '#6b6b78',
-                  border: `1px solid ${plan === 'agence' ? 'rgba(201,169,110,0.3)' : plan === 'pro' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
-                }}>
-                  {plan === 'agence' ? 'Agence' : plan === 'pro' ? 'Pro' : 'Gratuit'}
-                </div>
-                {(plan === 'pro' || plan === 'agence') ? (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const res = await fetch('/api/billing/portal', { method: 'POST' });
-                        const data = await res.json();
-                        if (data.url) window.location.href = data.url;
-                        else alert('Erreur portail : ' + (data.error || 'inconnu'));
-                      } catch { alert('Erreur réseau'); }
-                    }}
-                    style={{ display: 'block', width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 10px', fontSize: 12, color: '#a0a0ae', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textAlign: 'center', marginBottom: 6 }}
-                  >
-                    ⚙ Gérer mon abonnement
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => router.push('/upgrade')}
-                    style={{ display: 'block', width: '100%', background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 8, padding: '7px 10px', fontSize: 12, color: '#0f0f11', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, textAlign: 'center', marginBottom: 6 }}
-                  >
-                    ⚡ Passer Pro — 59€/mois
-                  </button>
-                )}
+            )}
+
+            {/* Stats prix */}
+            {stats && (stats.prixMoyen > 0 || stats.budgetMoyen > 0) && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 28 }}>
+                {[
+                  ['Prix moyen des biens', stats.prixMoyen ? `${Math.round(stats.prixMoyen / 1000)}k€` : '—', '#d4a853'],
+                  ['Budget moyen acheteurs', stats.budgetMoyen ? `${Math.round(stats.budgetMoyen / 1000)}k€` : '—', '#3b82f6'],
+                  ['Taux de matching', `${stats.tauxMatching ?? 0}%`, '#16a34a'],
+                ].map(([label, val, color]) => (
+                  <div key={label} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 18px' }}>
+                    <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, color, fontWeight: 500, marginBottom: 4 }}>{val}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{label}</div>
+                  </div>
+                ))}
               </div>
-              <button className="help-btn" onClick={() => setShowOnboardingAgent(true)}>
-                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                Revoir le tutoriel
-              </button>
-              <button className="logout-btn" onClick={logout}>
-                <span>←</span> Déconnexion
-              </button>
+            )}
+
+            {/* Raccourcis */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 14 }}>Accès rapide</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+                {SHORTCUTS.map(s => (
+                  <a key={s.href} href={s.href} className="shortcut"
+                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
+                    <div style={{ fontSize: 22 }}>{s.icon}</div>
+                    <div style={{ fontSize: 13.5, color: '#e8e8e8', fontWeight: 500 }}>{s.label}</div>
+                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)' }}>{s.desc}</div>
+                    <div style={{ height: 2, borderRadius: 1, background: s.color, opacity: 0.4, marginTop: 4 }} />
+                  </a>
+                ))}
+              </div>
             </div>
-          )}
-        </aside>
+          </div>
+        )}
 
-        {/* Main */}
-        <main className="main">
+        {/* ── B2B ── */}
+        {tab === 'b2b' && (
+          <div style={{ animation: 'fadeUp 0.3s both' }}>
+            <B2BPanel />
+          </div>
+        )}
 
-          {/* ── Dashboard ── */}
-          {activeTab === 'dashboard' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Vue d'ensemble</h2>
-                <p className="page-subtitle">Activité du portefeuille en temps réel</p>
-              </div>
-              <div className="stats-grid">
-                <div className="stat-card" onClick={() => setActiveTab('biens')}>
-                  <div className="stat-label">Annonces</div>
-                  <div className="stat-value">{stats?.totalBiens ?? biens.length}</div>
-                  <div className="stat-sub">biens dans la base</div>
-                </div>
-                <div className="stat-card" onClick={() => setActiveTab('acheteurs')}>
-                  <div className="stat-label">Acheteurs</div>
-                  <div className="stat-value">{stats?.totalAcheteurs ?? acheteurs.length}</div>
-                  <div className="stat-sub">profils actifs</div>
-                </div>
-                <div className="stat-card" onClick={() => setActiveTab('matches')}>
-                  <div className="stat-label">Correspondances</div>
-                  <div className="stat-value">{stats?.totalMatches ?? matches.length}</div>
-                  <div className="stat-sub">matchs trouvés</div>
-                </div>
-                <div className="stat-card" onClick={() => setActiveTab('publication')}>
-                  <div className="stat-label">Prix moyen</div>
-                  <div className="stat-value">{stats?.prixMoyen ? (stats.prixMoyen / 1000).toFixed(0) + 'k' : '—'}</div>
-                  <div className="stat-sub">euros de transactions analysées</div>
-                </div>
-              </div>
-              <div className="two-col">
-                <div className="card">
-                  <div className="card-header">
-                    <span className="card-title">Dernières annonces</span>
-                    <button className="card-link" onClick={() => setActiveTab('biens')}>Voir tout</button>
-                  </div>
-                  {biens.length === 0
-                    ? <div className="empty"><strong>Aucune annonce</strong>Lancez un scraping pour commencer</div>
-                    : biens.slice(0, 5).map((bien, i) => (
-                      <div key={i} className="list-item" style={{ cursor: 'pointer' }} onClick={() => router.push(`/biens/${bien.id}`)}>
-                        <div>
-                          <div className="list-item-main">{bien.titre?.slice(0, 40) || 'Sans titre'}</div>
-                          <div className="list-item-sub">{bien.ville} · {bien.type}</div>
-                        </div>
-                        <div className="list-item-right">
-                          {bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : 'NC'}
-                          <small>{new Date(bien.created_at).toLocaleDateString('fr-FR')}</small>
-                        </div>
-                      </div>
-                    ))
-                  }
-                </div>
-                <div className="card">
-                  <div className="card-header">
-                    <span className="card-title">Meilleures correspondances</span>
-                    <button className="card-link" onClick={() => setActiveTab('matches')}>Voir tout</button>
-                  </div>
-                  {matches.length === 0
-                    ? <div className="empty"><strong>Aucun match</strong>Ajoutez des acheteurs et lancez le matching</div>
-                    : matches.slice(0, 5).map((m, i) => (
-                      <div key={i} className="list-item">
-                        <div>
-                          <div className="list-item-main">{m.acheteur_nom || 'Acheteur'}</div>
-                          <div className="list-item-sub">{m.bien_adresse || m.bien_reference}</div>
-                        </div>
-                        <div className="list-item-right">
-                          <span className="badge badge-gold">{m.score}%</span>
-                        </div>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            </>
-          )}
+        {/* ── Assistant IA ── */}
+        {tab === 'ia' && (
+          <div style={{ animation: 'fadeUp 0.3s both' }}>
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 28, fontWeight: 300, color: '#f0f0f0', marginBottom: 6 }}>
+                Assistant <em style={{ fontStyle: 'italic', background: 'linear-gradient(135deg,#8b6914,#d4a853)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>IA</em>
+              </h2>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', fontWeight: 300 }}>Connecté à vos données en temps réel — biens, acheteurs, matches et marché.</p>
+            </div>
+            <AssistantIA agentEmail={agent?.email} />
+          </div>
+        )}
 
-          {/* ── Vendeurs potentiels ── */}
-          {activeTab === 'vendeurs' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Vendeurs potentiels</h2>
-                <p className="page-subtitle">Identifiez les propriétaires susceptibles de vendre — ancienneté, plus-value estimée, score de motivation</p>
-              </div>
-
-              {/* Formulaire */}
-              {!vendeursData && (
-                <div className="card" style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px', gap: 12, marginBottom: 16 }}>
-                    <div>
-                      <label>Ville ou commune</label>
-                      <input
-                        type="text"
-                        value={vendeursForm.ville}
-                        onChange={e => setVendeursForm(f => ({ ...f, ville: e.target.value }))}
-                        onKeyDown={e => e.key === 'Enter' && handleVendeurs()}
-                        placeholder="Toulouse, Blagnac, Tournefeuille…"
-                      />
-                    </div>
-                    <div>
-                      <label>Type de bien</label>
-                      <select value={vendeursForm.type} onChange={e => setVendeursForm(f => ({ ...f, type: e.target.value }))}>
-                        <option value="all">Tous</option>
-                        <option value="appartement">Appartement</option>
-                        <option value="maison">Maison</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label>Score minimum</label>
-                      <select value={vendeursForm.scoreMin} onChange={e => setVendeursForm(f => ({ ...f, scoreMin: e.target.value }))}>
-                        <option value={0}>Tous les scores</option>
-                        <option value={20}>20+ (filtré léger)</option>
-                        <option value={40}>40+ (motivés)</option>
-                        <option value={60}>60+ (très motivés)</option>
-                        <option value={75}>75+ (prioritaires)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Filtre surface */}
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={{ fontSize: 11 }}>Surface minimum</label>
-                    <select value={vendeursForm.surfaceMin} onChange={e => setVendeursForm(f => ({ ...f, surfaceMin: e.target.value }))}>
-                      <option value={0}>Toutes surfaces</option>
-                      <option value={50}>50m² et +</option>
-                      <option value={80}>80m² et +</option>
-                      <option value={100}>100m² et +</option>
-                    </select>
-                  </div>
-
-                  {/* Villes rapides */}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '26px' }}>Accès rapide :</span>
-                    {['Toulouse', 'Blagnac', 'Tournefeuille', 'Colomiers', 'Lyon', 'Bordeaux', 'Nantes'].map(v => (
-                      <button key={v} onClick={() => setVendeursForm(f => ({ ...f, ville: v }))}
-                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20,
-                          background: vendeursForm.ville === v ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${vendeursForm.ville === v ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.09)'}`,
-                          color: vendeursForm.ville === v ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer' }}>
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-
-                  {vendeursError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{vendeursError}</div>}
-
-                  <button className="btn btn-primary" onClick={handleVendeurs} disabled={vendeursLoading || !vendeursForm.ville.trim()} style={{ width: '100%' }}>
-                    {vendeursLoading
-                      ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Analyse des transactions DVF en cours…</>
-                      : 'Identifier les vendeurs potentiels'}
-                  </button>
-                </div>
-              )}
-
-              {/* Résultats */}
-              {vendeursData && (
-                <div>
-                  {/* Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-                    <div>
-                      <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' }}>
-                        {vendeursData.stats?.total ?? vendeursData.vendeurs?.length ?? 0} vendeurs potentiels · {vendeursData.ville}
-                      </h3>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span className="badge badge-gold">{vendeursData.stats?.forts ?? 0} score fort</span>
-                        <span className="badge badge-blue">{vendeursData.stats?.moyens ?? 0} score moyen</span>
-                        <span className="badge badge-neutral">{vendeursData.stats?.faibles ?? 0} score faible</span>
-                        {vendeursData.fromCache && <span className="badge badge-neutral">Cache 6h</span>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => { setVendeursData(null); setVendeursError(null); }}>Nouvelle recherche</button>
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
-                    {[
-                      vendeursData.stats?.scoreMoyen != null && { l: 'Score moyen', v: vendeursData.stats.scoreMoyen + '/100', c: 'var(--accent)' },
-                      vendeursData.stats?.plusValueMoyennePct != null && { l: 'Plus-value moy.', v: '+' + vendeursData.stats.plusValueMoyennePct + '%', c: 'var(--green)' },
-                      vendeursData.stats?.ancienneteMoyenne != null && { l: 'Ancienneté moy.', v: vendeursData.stats.ancienneteMoyenne + ' ans' },
-                      vendeursData.stats?.prixM2Actuel && { l: 'Prix m² actuel', v: vendeursData.stats.prixM2Actuel.toLocaleString('fr-FR') + '€/m²' },
-                    ].filter(Boolean).map((item, i) => (
-                      <div key={i} className="card" style={{ padding: '12px 14px' }}>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{item.l}</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: item.c || 'var(--text)' }}>{item.v}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Filtre niveau */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                    {['all', 'Fort', 'Moyen', 'Faible'].map(f => (
-                      <button key={f} onClick={() => setVendeursFilter(f)} style={{
-                        padding: '5px 14px', fontSize: 12, borderRadius: 20, cursor: 'pointer',
-                        background: vendeursFilter === f ? 'rgba(212,168,83,0.15)' : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${vendeursFilter === f ? 'rgba(212,168,83,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                        color: vendeursFilter === f ? 'var(--accent)' : 'var(--text-muted)',
-                      }}>
-                        {f === 'all' ? 'Tous' : f}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Liste vendeurs */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {(vendeursData.vendeurs || [])
-                      .filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter)
-                      .map((vendeur, i) => {
-                        const prospecte = vendeurProspecte[vendeur.id];
-                        const scoreColor = vendeur.scoreMotivation >= 70 ? 'var(--green)' : vendeur.scoreMotivation >= 50 ? 'var(--accent)' : 'var(--text-muted)';
-                        return (
-                          <div key={i} style={{
-                            padding: '16px 18px',
-                            background: prospecte ? 'rgba(62,207,142,0.03)' : 'var(--card-bg)',
-                            border: `1px solid ${prospecte ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`,
-                            borderRadius: 10,
-                            display: 'grid',
-                            gridTemplateColumns: '1fr auto',
-                            gap: 16,
-                            alignItems: 'start',
-                          }}>
-                            {/* Infos bien */}
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-                                {/* Score */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '3px 10px' }}>
-                                  <span style={{ fontSize: 15, fontWeight: 700, color: scoreColor }}>{vendeur.scoreMotivation}</span>
-                                  <span style={{ fontSize: 10, color: 'var(--text-muted)'}}>/100</span>
-                                  <span style={{ fontSize: 11, color: scoreColor, marginLeft: 2 }}>{vendeur.niveauMotivation}</span>
-                                </div>
-                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                                  {vendeur.adresse}{vendeur.codePostal ? ` — ${vendeur.codePostal}` : ''}
-                                </span>
-                                {vendeur.nomProprietaire && (
-                                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                    {vendeur.nomProprietaire}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Caractéristiques */}
-                              <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                                  {vendeur.type === 'appartement' ? 'Appart.' : 'Maison'} {vendeur.surface}m²
-                                  {vendeur.pieces ? ` · ${vendeur.pieces}p` : ''}
-                                </span>
-                                {vendeur.densiteRue > 1 && (
-                                  <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
-                                    {vendeur.densiteRue} ventes récentes dans la rue
-                                  </span>
-                                )}
-                                {vendeur.prixM2Actuel && (
-                                  <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                                    Marché : {vendeur.prixM2Actuel.toLocaleString('fr-FR')}€/m²
-                                  </span>
-                                )}
-                                {vendeur.valeurEstimee && (
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>
-                                    Valeur estimée : {vendeur.valeurEstimee.toLocaleString('fr-FR')}€
-                                    {vendeur.plusValuePct !== null ? ` (+${vendeur.plusValuePct}% vs achat estimé)` : ''}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Raisons */}
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: vendeur.argumentProsSpection?.length ? 8 : 0 }}>
-                                {(vendeur.raisons || []).map((r, ri) => (
-                                  <span key={ri} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: 'var(--text-muted)' }}>
-                                    {r}
-                                  </span>
-                                ))}
-                              </div>
-                              {/* Argumentaire de prospection */}
-                              {vendeur.argumentProsSpection?.length > 0 && (
-                                <div style={{ marginTop: 4 }}>
-                                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Script de prospection</div>
-                                  {(vendeur.argumentProsSpection || []).map((arg, ai) => (
-                                    <div key={ai} style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', padding: '6px 10px', background: 'rgba(212,168,83,0.04)', border: '1px solid rgba(212,168,83,0.1)', borderRadius: 6, marginBottom: 4, lineHeight: 1.5 }}>
-                                      {arg}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Actions */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 130, alignItems: 'flex-end' }}>
-                              <button
-                                onClick={() => handleProspecter(vendeur)}
-                                className={prospecte ? 'btn btn-ghost' : 'btn btn-primary'}
-                                style={{ fontSize: 12, padding: '7px 14px', width: '100%' }}
-                                disabled={!!prospecte || !!vendeurProspectLoading[vendeur.id]}
-                              >
-                                {vendeurProspectLoading[vendeur.id] ? '...' : prospecte ? '✓ Prospecté' : 'Prospecter'}
-                              </button>
-                              <a
-                                href={`https://www.google.com/maps/search/${encodeURIComponent(vendeur.adresse + ', ' + vendeur.ville)}`}
-                                target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none', textAlign: 'center', width: '100%', padding: '4px 0' }}
-                              >
-                                Voir sur Maps ↗
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })
-                    }
-                    {(vendeursData.vendeurs || []).filter(v => vendeursFilter === 'all' || v.niveauMotivation === vendeursFilter).length === 0 && (
-                      <div className="empty">Aucun vendeur correspondant à ce filtre</div>
-                    )}
-                  </div>
-
-                  {/* Sources + méthodologie */}
-                  <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Sources des données</div>
-                    {vendeursData.sourcesDonnees?.map((s, i) => (
-                      <div key={i} style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginBottom: 2 }}>{s}</div>
-                    ))}
-                    {vendeursData.methodologie && (
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8, lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
-                        <strong style={{ color: 'rgba(255,255,255,0.3)' }}>Méthodologie :</strong> {vendeursData.methodologie}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', marginTop: 6 }}>
-                      Analyse : {new Date(vendeursData.dateAnalyse).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── Prospects CRM ── */}
-          {activeTab === 'prospects' && (
-            <ProspectsTab plan={plan} user={agent} setActiveTab={setActiveTab} />
-          )}
-
-          {/* ── Annonces ── */}
-
-          {/* ── Annonces ── */}
-          {activeTab === 'biens' && (
-            <>
-              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  <h2 className="page-title">Données de marché</h2>
-                  <p className="page-subtitle">{biens.length} transaction{biens.length > 1 ? 's' : ''} analysée{biens.length > 1 ? 's' : ''}</p>
-                </div>
-                <button className="btn btn-secondary" onClick={() => setActiveTab('scraper')}>Nouvelle analyse</button>
-              </div>
-              <div className="filter-row">
-                <input type="text" placeholder="Rechercher par ville, titre…" value={biensFilter.search} onChange={e => setBiensFilter({ ...biensFilter, search: e.target.value })} />
-                <select value={biensFilter.type} onChange={e => setBiensFilter({ ...biensFilter, type: e.target.value })}>
-                  {PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-              {filteredBiens.length === 0
-                ? <div className="empty"><strong>Aucune annonce</strong>Utilisez la recherche pour importer des biens</div>
-                : filteredBiens.map((bien, i) => (
-                  <div key={i} className="bien-card" onClick={() => router.push(`/biens/${bien.id}`)}>
-                    <div className="bien-top">
-                      <div style={{ flex: 1 }}>
-                        <div className="bien-title">{bien.titre || 'Sans titre'}</div>
-                        <div className="bien-meta">{bien.ville || bien.adresse || 'Localisation inconnue'}</div>
-                        {bien.description && <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>{bien.description.slice(0, 140)}{bien.description.length > 140 ? '…' : ''}</div>}
-                        <div className="bien-tags">
-                          <span className="badge badge-blue">{bien.type || 'autre'}</span>
-                          <span className="badge badge-neutral">{bien.source || 'import'}</span>
-                          {bien.surface && <span className="badge badge-neutral">{bien.surface} m²</span>}
-                          {bien.pieces && <span className="badge badge-neutral">{bien.pieces} pièces</span>}
-                        </div>
-                      </div>
-                      <div style={{ marginLeft: 20, textAlign: 'right', flexShrink: 0 }}>
-                        <div className="bien-price">{bien.prix ? bien.prix.toLocaleString('fr-FR') + ' €' : '—'}</div>
-                        <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>Voir le détail →</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(bien.created_at).toLocaleDateString('fr-FR')}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              }
-            </>
-          )}
-
-          {/* ── Acheteurs ── */}
-          {activeTab === 'acheteurs' && (
-            <>
-              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  <h2 className="page-title">Acheteurs</h2>
-                  <p className="page-subtitle">{acheteurs.length} profil{acheteurs.length > 1 ? 's' : ''} enregistré{acheteurs.length > 1 ? 's' : ''}</p>
-                </div>
-                <button className="btn btn-primary" onClick={() => setShowOnboardingAcheteur(true)}>+ Ajouter un acheteur</button>
-              </div>
-              {acheteurs.length === 0
-                ? (
-                  <div className="empty">
-                    <strong>Aucun acheteur</strong>
-                    Cliquez sur "Ajouter un acheteur" pour enregistrer votre premier profil
-                    <br /><br />
-                    <button className="btn btn-primary" onClick={() => setShowOnboardingAcheteur(true)}>+ Ajouter un acheteur</button>
-                  </div>
-                )
-                : acheteurs.map((a, i) => (
-                  <Link key={i} href={`/acheteurs/${a.id}`} className="acheteur-card">
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{a.nom} {a.prenom}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{a.email}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                        Budget : {a.budget_max ? a.budget_max.toLocaleString('fr-FR') + ' €' : '—'}
-                        {a.villes?.length ? ' · ' + (Array.isArray(a.villes) ? a.villes.join(', ') : a.villes) : ''}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className={`badge ${a.statut === 'actif' ? 'badge-green' : 'badge-neutral'}`}>{a.statut || 'actif'}</span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>→</span>
-                    </div>
-                  </Link>
-                ))
-              }
-            </>
-          )}
-
-          {/* ── Matches ── */}
-          {activeTab === 'matches' && (
-            <>
-              {!can('matchAuto') ? (
-                <UpgradeGate planRequired="pro" plan={plan} featureLabel="Correspondances automatiques" />
-              ) : (
-                <>
-                  <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                    <div>
-                      <h2 className="page-title">Correspondances</h2>
-                      <p className="page-subtitle">{matches.length} match{matches.length > 1 ? 's' : ''} trouvé{matches.length > 1 ? 's' : ''}</p>
-                    </div>
-                    <button className="btn btn-primary" onClick={handleMatchAuto} disabled={loading}>
-                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Calcul…</> : 'Recalculer les matchs'}
-                    </button>
-                  </div>
-                  {matches.length === 0
-                    ? <div className="empty"><strong>Aucune correspondance</strong>Ajoutez des acheteurs et cliquez sur "Recalculer les matchs"</div>
-                    : matches.map((m, i) => (
-                      <div key={i} className="match-card">
-                        <div className="match-top">
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{m.acheteur_nom}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{m.bien_reference} · {m.bien_adresse}</div>
-                            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
-                              {m.bien_prix ? m.bien_prix.toLocaleString('fr-FR') + ' €' : '—'}
-                              {m.bien_type && <span className="badge badge-neutral" style={{ marginLeft: 8 }}>{m.bien_type}</span>}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div className="match-score">{m.score}%</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>compatibilité</div>
-                          </div>
-                        </div>
-                        <div className="score-bar" style={{ marginTop: 14 }}>
-                          <div className="score-fill" style={{ width: `${m.score}%` }} />
-                        </div>
-                      </div>
-                    ))
-                  }
-                </>
-              )}
-            </>
-          )}
-
-          {/* ── Email ── */}
-          {activeTab === 'email' && (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">Envoi d'emails</h2>
-                <p className="page-subtitle">Sélectionnez des destinataires et rédigez votre message</p>
-              </div>
-              <div className="two-col" style={{ alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-                      {selectedProspects.length > 0 ? `${selectedProspects.length} sélectionné${selectedProspects.length > 1 ? 's' : ''}` : 'Sélectionnez des destinataires'}
-                    </span>
-                    <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => {
-                      const emails = acheteurs.filter(a => a.email).map(a => a.email);
-                      setSelectedProspects(selectedProspects.length === emails.length ? [] : emails);
-                    }}>
-                      {selectedProspects.length === acheteurs.filter(a => a.email).length ? 'Tout désélectionner' : 'Tout sélectionner'}
-                    </button>
-                  </div>
-                  {acheteurs.length === 0
-                    ? <div className="empty"><strong>Aucun acheteur</strong>Ajoutez d'abord des profils</div>
-                    : acheteurs.filter(a => a.email).map((a, i) => {
-                      const selected = selectedProspects.includes(a.email);
-                      return (
-                        <div key={i} className={`prospect-row ${selected ? 'selected' : ''}`} onClick={() => toggleProspect(a.email)}>
-                          <div className={`prospect-check ${selected ? 'checked' : ''}`} />
-                          <div>
-                            <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text)' }}>{a.nom} {a.prenom}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{a.email}</div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  }
-                </div>
-                <div className="card">
-                  <div className="card-title" style={{ marginBottom: 20 }}>Composer l'email</div>
-                  {emailStatus?.success && <div className="alert alert-success">{emailStatus.sent} email{emailStatus.sent > 1 ? 's' : ''} envoyé{emailStatus.sent > 1 ? 's' : ''}</div>}
-                  {emailStatus?.error && <div className="alert alert-error">{emailStatus.error}</div>}
-                  {selectedProspects.length === 0 && <div className="alert alert-warning">Sélectionnez au moins un destinataire</div>}
-                  <form onSubmit={handleSendEmail}>
-                    <div className="form-grid" style={{ marginBottom: 16 }}>
-                      <div><label>Nom expéditeur</label><input type="text" value={emailForm.senderName} onChange={e => setEmailForm({ ...emailForm, senderName: e.target.value })} required /></div>
-                      <div><label>Email expéditeur</label><input type="email" value={emailForm.senderEmail} onChange={e => setEmailForm({ ...emailForm, senderEmail: e.target.value })} required /></div>
-                    </div>
-                    <div className="form-group"><label>Sujet</label><input type="text" value={emailForm.subject} onChange={e => setEmailForm({ ...emailForm, subject: e.target.value })} placeholder="Objet de votre message" required /></div>
-                    <div className="form-group">
-                      <label>Message</label>
-                      <textarea value={emailForm.message} onChange={e => setEmailForm({ ...emailForm, message: e.target.value })} placeholder="Rédigez votre message ici…" rows={8} required />
-                    </div>
-                    <button type="submit" className="btn btn-primary btn-full" disabled={loading || selectedProspects.length === 0}>
-                      {loading ? <><span className="spinner" style={{ borderTopColor: '#0f0f11', borderColor: 'rgba(0,0,0,0.2)' }} /> Envoi…</> : `Envoyer à ${selectedProspects.length} destinataire${selectedProspects.length > 1 ? 's' : ''}`}
-                    </button>
-                  </form>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── Publication ── */}
-          {activeTab === 'publication' && (
-            can('publicationMultiSites')
-              ? <PublicationDashboard />
-              : <UpgradeGate planRequired="pro" plan={plan} featureLabel="Publication multi-sites & génération IA" />
-          )}
-
-          {/* ── Module B2B ── */}
-          {activeTab === 'b2b' && (
-            plan !== 'agence' ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-                <div style={{ textAlign: 'center', maxWidth: 440, padding: '0 24px' }}>
-                  <div style={{ fontSize: 48, marginBottom: 20 }}>🔒</div>
-                  <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 34, fontWeight: 300, color: '#f0f0f0', marginBottom: 14, letterSpacing: '-0.3px' }}>Module B2B</h2>
-                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.75, marginBottom: 24 }}>
-                    Prospection de contacts, envoi email groupé, chatbot de qualification et workflows automatisés — réservés au plan <strong style={{ color: '#d4a853' }}>Agence</strong>.
-                  </p>
-                  <div style={{ marginBottom: 28, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[
-                      { icon: '', t: 'Scraper web', d: 'Extraire des emails depuis des sites de promoteurs, notaires, agences' },
-                      { icon: '', t: 'Email groupé', d: 'Contacter en masse vos prospects B2B avec personnalisation' },
-                      { icon: '', t: 'Chatbot IA', d: 'Qualifier automatiquement les visiteurs de votre site' },
-                      { icon: '', t: 'Workflows', d: 'Automatiser le suivi : email de bienvenue + notification équipe' },
-                    ].map(f => (
-                      <div key={f.t} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
-                        <span style={{ fontSize: 18 }}>{f.icon}</span>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>{f.t}</div>
-                          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>{f.d}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={() => router.push('/upgrade')} style={{ background: 'linear-gradient(135deg, #8b6914, #d4a853)', border: 'none', borderRadius: 10, padding: '13px 32px', fontSize: 14, fontWeight: 700, color: '#0a0a0a', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.3px' }}>
-                    Passer au plan Agence — 169€/mois →
-                  </button>
-                  <div style={{ marginTop: 14 }}>
-                    <a href="/b2b-guide" style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 1, transition: 'color 0.2s' }}
-                      onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.6)'}
-                      onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.3)'}
-                    >
-                      Voir le guide complet du Module B2B
-                    </a>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* ── Dashboard header ── */}
-                <div className="page-header" style={{ marginBottom: 24 }}>
-                  <h2 className="page-title">Module B2B</h2>
-                  <p className="page-subtitle">Prospection, emails et automatisation</p>
-                </div>
-
-                {/* ── Stats rapides ── */}
-                {b2bSubTab === 'dashboard' && (
-                  <div className="stats-grid" style={{ marginBottom: 28 }}>
-                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('scraper')}>
-                      <div className="stat-label">Emails scrapés</div>
-                      <div className="stat-value">{b2bScraperResult?.count || 0}</div>
-                      <div className="stat-sub">dernière session</div>
-                    </div>
-                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('chatbot')}>
-                      <div className="stat-label">Chatbots actifs</div>
-                      <div className="stat-value">{chatbots.filter(b => b.status === 'active').length}</div>
-                      <div className="stat-sub">{conversations.length} conversation(s)</div>
-                    </div>
-                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('workflows')}>
-                      <div className="stat-label">Workflows</div>
-                      <div className="stat-value">{workflows.filter(w => w.active).length}</div>
-                      <div className="stat-sub">{workflows.length} au total</div>
-                    </div>
-                    <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setB2bSubTab('email')}>
-                      <div className="stat-label">Destinataires</div>
-                      <div className="stat-value">{b2bSelectedEmails.length}</div>
-                      <div className="stat-sub">prêts à contacter</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Navigation sous-parties en cards ── */}
-                {b2bSubTab === 'dashboard' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 32 }}>
-                    {[
-                      {
-                        id: 'scraper',
-                        title: 'Scraper web',
-                        desc: 'Extrayez des emails de contact depuis n\'importe quel site : agences concurrentes, promoteurs, notaires, syndics.',
-                        stat: b2bScraperResult ? `${b2bScraperResult.count} email(s) trouvé(s)` : 'Aucun scraping récent',
-                        statColor: b2bScraperResult ? '#d4a853' : 'rgba(255,255,255,0.2)',
-                        icon: (
-                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                          </svg>
-                        ),
-                      },
-                      {
-                        id: 'email',
-                        title: 'Email groupé',
-                        desc: 'Rédigez et envoyez des emails personnalisés à vos prospects B2B en quelques clics, depuis vos listes scrapées.',
-                        stat: b2bSelectedEmails.length > 0 ? `${b2bSelectedEmails.length} destinataire(s) sélectionné(s)` : 'Aucun destinataire sélectionné',
-                        statColor: b2bSelectedEmails.length > 0 ? '#3ecf8e' : 'rgba(255,255,255,0.2)',
-                        icon: (
-                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-                          </svg>
-                        ),
-                      },
-                      {
-                        id: 'chatbot',
-                        title: 'Chatbot IA',
-                        desc: 'Déployez un assistant conversationnel sur votre site pour qualifier automatiquement les visiteurs et capturer leurs coordonnées.',
-                        stat: chatbots.length > 0 ? `${chatbots.length} chatbot(s) · ${conversations.length} conversation(s)` : 'Aucun chatbot créé',
-                        statColor: chatbots.length > 0 ? '#d4a853' : 'rgba(255,255,255,0.2)',
-                        icon: (
-                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                          </svg>
-                        ),
-                      },
-                      {
-                        id: 'workflows',
-                        title: 'Workflows',
-                        desc: 'Automatisez votre suivi : email de bienvenue dès qu\'un prospect contacte votre chatbot, notification équipe, relances.',
-                        stat: workflows.length > 0 ? `${workflows.filter(w => w.active).length} actif(s) sur ${workflows.length}` : 'Aucun workflow créé',
-                        statColor: workflows.filter(w => w.active).length > 0 ? '#3ecf8e' : 'rgba(255,255,255,0.2)',
-                        icon: (
-                          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                          </svg>
-                        ),
-                      },
-                    ].map(card => (
-                      <div
-                        key={card.id}
-                        onClick={() => setB2bSubTab(card.id)}
-                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '22px 22px', cursor: 'pointer', transition: 'all 0.2s', position: 'relative', overflow: 'hidden' }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(212,168,83,0.35)'; e.currentTarget.style.background = 'rgba(212,168,83,0.03)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
-                      >
-                        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d4a853', marginBottom: 14 }}>
-                          {card.icon}
-                        </div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>{card.title}</div>
-                        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.65, marginBottom: 16 }}>{card.desc}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 11.5, color: card.statColor, fontWeight: 500 }}>{card.stat}</span>
-                          <span style={{ fontSize: 12, color: 'rgba(212,168,83,0.6)' }}>Ouvrir →</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── Sous-onglets (visible quand on est dans une sous-partie) ── */}
-                {b2bSubTab !== 'dashboard' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 28, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 0 }}>
-                    <button
-                      onClick={() => setB2bSubTab('dashboard')}
-                      style={{ padding: '9px 14px', background: 'none', border: 'none', borderBottom: '2px solid transparent', color: 'rgba(255,255,255,0.25)', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 5, marginBottom: -1 }}
-                    >
-                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-                      Vue d'ensemble
-                    </button>
-                    <span style={{ color: 'rgba(255,255,255,0.1)', fontSize: 16 }}>|</span>
-                    {[
-                      { id: 'scraper', label: 'Scraper web' },
-                      { id: 'email', label: 'Email groupé' },
-                      { id: 'chatbot', label: 'Chatbot' },
-                      { id: 'workflows', label: 'Workflows' },
-                    ].map(tab => (
-                      <button key={tab.id} onClick={() => setB2bSubTab(tab.id)} style={{ padding: '9px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${b2bSubTab === tab.id ? '#d4a853' : 'transparent'}`, color: b2bSubTab === tab.id ? '#d4a853' : 'rgba(255,255,255,0.35)', fontSize: 13, fontWeight: b2bSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s', marginBottom: -1 }}>
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── Scraper ── */}
-                {b2bSubTab === 'scraper' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                    <div className="card">
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 6 }}>Extraire des emails d\'un site</h3>
-                      <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginBottom: 20, lineHeight: 1.6 }}>
-                        Saisissez l\'URL d\'un site (promoteur, notaire, agence concurrente, syndic…) pour en extraire les emails de contact.
-                      </p>
-                      <div className="form-group">
-                        <label className="form-label">URL du site</label>
-                        <input
-                          type="url"
-                          className="form-input"
-                          value={b2bScraperUrl}
-                          onChange={e => setB2bScraperUrl(e.target.value)}
-                          placeholder="https://www.agence-exemple.fr/contact"
-                          onKeyDown={e => e.key === 'Enter' && handleB2BScrape()}
-                        />
-                      </div>
-                      <button className="btn btn-primary btn-full" onClick={handleB2BScrape} disabled={b2bScraperLoading || !b2bScraperUrl.trim()}>
-                        {b2bScraperLoading ? 'Analyse en cours…' : 'Lancer le scraping'}
-                      </button>
-                      {b2bScraperError && (
-                        <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(240,68,68,0.08)', border: '1px solid rgba(240,68,68,0.2)', borderRadius: 8, fontSize: 12.5, color: '#f04444' }}>
-                          {b2bScraperError}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="card">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>
-                          Résultats {b2bScraperResult && <span style={{ fontSize: 12, color: '#d4a853', fontWeight: 400 }}>— {b2bScraperResult.count} email(s)</span>}
-                        </h3>
-                        {b2bScraperResult && (b2bScraperResult.emails?.length ?? 0) > 0 && (
-                          <button onClick={() => setB2bSelectedEmails(b2bSelectedEmails.length === (b2bScraperResult.emails?.length ?? 0) ? [] : [...(b2bScraperResult.emails || [])])} style={{ fontSize: 11, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                            {b2bSelectedEmails.length === (b2bScraperResult.emails?.length ?? 0) ? 'Tout désélectionner' : 'Tout sélectionner'}
-                          </button>
-                        )}
-                      </div>
-                      {!b2bScraperResult ? (
-                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', paddingTop: 8 }}>Lance un scraping pour voir les résultats ici.</p>
-                      ) : (b2bScraperResult.emails?.length ?? 0) === 0 ? (
-                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucun email trouvé sur ce site.</p>
-                      ) : (
-                        <>
-                          <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
-                            {(b2bScraperResult.emails || []).map(email => (
-                              <div key={email} onClick={() => setB2bSelectedEmails(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email])} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${b2bSelectedEmails.includes(email) ? 'rgba(212,168,83,0.25)' : 'rgba(255,255,255,0.05)'}`, cursor: 'pointer', transition: 'all 0.15s' }}>
-                                <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${b2bSelectedEmails.includes(email) ? '#d4a853' : 'rgba(255,255,255,0.2)'}`, background: b2bSelectedEmails.includes(email) ? '#d4a853' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  {b2bSelectedEmails.includes(email) && <span style={{ fontSize: 9, color: '#000', fontWeight: 700 }}>✓</span>}
-                                </div>
-                                <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace' }}>{email}</span>
-                              </div>
-                            ))}
-                          </div>
-                          {b2bSelectedEmails.length > 0 && (
-                            <button onClick={() => setB2bSubTab('email')} className="btn btn-secondary btn-full">
-                              Envoyer un email à ces {b2bSelectedEmails.length} contact(s) →
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Email groupé ── */}
-                {b2bSubTab === 'email' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                    <div className="card">
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 18 }}>Rédiger l\'email</h3>
-                      <div className="form-group">
-                        <label className="form-label">Votre nom</label>
-                        <input type="text" className="form-input" value={b2bEmailForm.senderName} onChange={e => setB2bEmailForm(p => ({ ...p, senderName: e.target.value }))} placeholder="Jean Dupont — Agence Dupont Immobilier" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Votre email expéditeur</label>
-                        <input type="email" className="form-input" value={b2bEmailForm.senderEmail} onChange={e => setB2bEmailForm(p => ({ ...p, senderEmail: e.target.value }))} placeholder="jean@agence-dupont.fr" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Objet</label>
-                        <input type="text" className="form-input" value={b2bEmailForm.subject} onChange={e => setB2bEmailForm(p => ({ ...p, subject: e.target.value }))} placeholder="Collaboration — Opportunité immobilière" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Corps du message <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}>(utilisez {'{name}'} pour personnaliser)</span></label>
-                        <textarea className="form-input" value={b2bEmailForm.template} onChange={e => setB2bEmailForm(p => ({ ...p, template: e.target.value }))} placeholder="Bonjour {name}, je suis agent immobilier dans votre secteur…" rows={6} style={{ resize: 'vertical' }} />
-                      </div>
-                      <button className="btn btn-primary btn-full" onClick={handleB2BSendEmail} disabled={b2bEmailLoading || b2bSelectedEmails.length === 0 || !b2bEmailForm.subject || !b2bEmailForm.template}>
-                        {b2bEmailLoading ? 'Envoi en cours…' : b2bSelectedEmails.length === 0 ? 'Sélectionnez des destinataires' : `Envoyer à ${b2bSelectedEmails.length} contact(s)`}
-                      </button>
-                      {b2bEmailStatus && (
-                        <div style={{ marginTop: 12, padding: '10px 12px', background: b2bEmailStatus.success ? 'rgba(62,207,142,0.08)' : 'rgba(240,68,68,0.08)', border: `1px solid ${b2bEmailStatus.success ? 'rgba(62,207,142,0.2)' : 'rgba(240,68,68,0.2)'}`, borderRadius: 8, fontSize: 12.5, color: b2bEmailStatus.success ? '#3ecf8e' : '#f04444' }}>
-                          {b2bEmailStatus.success ? `${b2bEmailStatus.sent}/${b2bEmailStatus.total} email(s) envoyé(s)` : `${b2bEmailStatus.error}`}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="card">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Destinataires <span style={{ fontSize: 12, color: '#d4a853', fontWeight: 400 }}>{b2bSelectedEmails.length}</span></h3>
-                        {b2bSelectedEmails.length > 0 && (
-                          <button onClick={() => setB2bSelectedEmails([])} style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Vider la liste</button>
-                        )}
-                      </div>
-                      {b2bSelectedEmails.length === 0 ? (
-                        <div style={{ textAlign: 'center', paddingTop: 32 }}>
-                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', marginBottom: 12 }}>Aucun destinataire.</p>
-                          <button onClick={() => setB2bSubTab('scraper')} style={{ fontSize: 12.5, color: '#d4a853', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>← Scraper des emails d\'abord</button>
-                        </div>
-                      ) : (
-                        <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                          {b2bSelectedEmails.map(email => (
-                            <div key={email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 7, border: '1px solid rgba(255,255,255,0.05)' }}>
-                              <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>{email}</span>
-                              <button onClick={() => setB2bSelectedEmails(prev => prev.filter(e => e !== email))} style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Chatbot ── */}
-                {b2bSubTab === 'chatbot' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Mes chatbots</h3>
-                        <button className="btn btn-secondary" onClick={() => setChatbotShowForm(!chatbotShowForm)}>
-                          {chatbotShowForm ? '✕ Annuler' : '+ Nouveau chatbot'}
-                        </button>
-                      </div>
-                      {chatbotShowForm && (
-                        <div className="card" style={{ marginBottom: 14, background: 'rgba(212,168,83,0.04)', borderColor: 'rgba(212,168,83,0.15)' }}>
-                          <div className="form-group">
-                            <label className="form-label">Nom du chatbot</label>
-                            <input type="text" className="form-input" value={chatbotForm.name} onChange={e => setChatbotForm(p => ({ ...p, name: e.target.value }))} placeholder="Assistant Immobilier" />
-                          </div>
-                          <div className="form-group">
-                            <label className="form-label">Message de bienvenue</label>
-                            <textarea className="form-input" value={chatbotForm.welcomeMessage} onChange={e => setChatbotForm(p => ({ ...p, welcomeMessage: e.target.value }))} rows={3} style={{ resize: 'none' }} />
-                          </div>
-                          <button className="btn btn-primary btn-full" onClick={handleCreateChatbot} disabled={chatbotCreating || !chatbotForm.name}>
-                            {chatbotCreating ? 'Création…' : '✓ Créer le chatbot'}
-                          </button>
-                        </div>
-                      )}
-                      {chatbots.length === 0 ? (
-                        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-                          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
-                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez un chatbot pour qualifier les visiteurs de votre site.</p>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {chatbots.map(bot => (
-                            <div key={bot.id} className="card">
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <div>
-                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{bot.avatar} {bot.name}</div>
-                                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>{(bot.welcome_message || '').slice(0, 50)}…</div>
-                                </div>
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                                  <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 20, background: bot.status === 'active' ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: bot.status === 'active' ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${bot.status === 'active' ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
-                                    {bot.status === 'active' ? '● Actif' : '○ Inactif'}
-                                  </span>
-                                  <button onClick={() => handleDeleteChatbot(bot.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-                                </div>
-                              </div>
-                              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
-                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lien public du chatbot</div>
-                                <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'rgba(212,168,83,0.7)', wordBreak: 'break-all', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                  {`${origin}/chatbot/${bot.id}`}
-                                </div>
-                                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                  <button onClick={() => { navigator.clipboard.writeText(`${origin}/chatbot/${bot.id}`).then(() => { setChatbotCopied(bot.id); setTimeout(() => setChatbotCopied(null), 2000); }); }} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: chatbotCopied === bot.id ? 'rgba(62,207,142,0.1)' : 'rgba(212,168,83,0.08)', color: chatbotCopied === bot.id ? '#3ecf8e' : '#d4a853', border: `1px solid ${chatbotCopied === bot.id ? 'rgba(62,207,142,0.2)' : 'rgba(212,168,83,0.2)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                                    {chatbotCopied === bot.id ? '✓ Copié !' : 'Copier le lien'}
-                                  </button>
-                                  <button onClick={() => window.open(`/chatbot/${bot.id}`, '_blank')} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                                    Ouvrir
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 16 }}>
-                        Conversations récentes <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>{conversations.length}</span>
-                      </h3>
-                      {conversations.length === 0 ? (
-                        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Aucune conversation pour l\'instant.</p>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
-                          {conversations.slice(0, 20).map(conv => (
-                            <div key={conv.id} className="card" style={{ borderColor: conv.qualified ? 'rgba(62,207,142,0.15)' : undefined }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
-                                <div style={{ fontSize: 13, color: '#e8e8e8', fontWeight: 500 }}>{conv.visitor_email || 'Anonyme'}</div>
-                                <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: conv.qualified ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: conv.qualified ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${conv.qualified ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                  {conv.qualified ? '✓ Qualifié' : 'Non qualifié'}
-                                </span>
-                              </div>
-                              {conv.qualification_reason && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>💬 {conv.qualification_reason}</div>}
-                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>{new Date(conv.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Workflows ── */}
-                {b2bSubTab === 'workflows' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>Mes workflows</h3>
-                        <button className="btn btn-secondary" onClick={() => setWorkflowShowForm(!workflowShowForm)}>
-                          {workflowShowForm ? '✕ Annuler' : '+ Nouveau workflow'}
-                        </button>
-                      </div>
-                      {workflowShowForm && (
-                        <div className="card" style={{ marginBottom: 14, background: 'rgba(212,168,83,0.04)', borderColor: 'rgba(212,168,83,0.15)' }}>
-                          <div className="form-group">
-                            <label className="form-label">Nom du workflow</label>
-                            <input type="text" className="form-input" value={workflowForm.name} onChange={e => setWorkflowForm(p => ({ ...p, name: e.target.value }))} placeholder="Accueil nouveau prospect" />
-                          </div>
-                          <div className="form-group">
-                            <label className="form-label">Déclencheur</label>
-                            <select className="form-input" value={workflowForm.trigger} onChange={e => setWorkflowForm(p => ({ ...p, trigger: e.target.value }))}>
-                              <option value="new_prospect">Nouveau prospect (chatbot)</option>
-                              <option value="new_match">Nouveau match immobilier</option>
-                              <option value="manual">Déclenchement manuel</option>
-                            </select>
-                          </div>
-                          <p style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', marginBottom: 14, lineHeight: 1.5 }}>Actions : email de bienvenue automatique + notification à votre équipe.</p>
-                          <button className="btn btn-primary btn-full" onClick={handleCreateWorkflow} disabled={workflowCreating || !workflowForm.name}>
-                            {workflowCreating ? 'Création…' : '✓ Créer le workflow'}
-                          </button>
-                        </div>
-                      )}
-                      {workflowsLoading ? (
-                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', padding: 16 }}>Chargement…</p>
-                      ) : workflows.length === 0 ? (
-                        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-                          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
-                          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Créez un workflow pour automatiser votre suivi.</p>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {workflows.map(wf => (
-                            <div key={wf.id} className="card" style={{ borderColor: wf.active ? 'rgba(62,207,142,0.15)' : undefined }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{wf.name}</div>
-                                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
-                                    {wf.trigger === 'new_prospect' ? 'Nouveau prospect' : wf.trigger === 'new_match' ? 'Nouveau match' : 'Manuel'}
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                  <button onClick={() => handleToggleWorkflow(wf.id, wf.active)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: wf.active ? 'rgba(62,207,142,0.1)' : 'rgba(255,255,255,0.05)', color: wf.active ? '#3ecf8e' : 'rgba(255,255,255,0.3)', border: `1px solid ${wf.active ? 'rgba(62,207,142,0.2)' : 'rgba(255,255,255,0.07)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                                    {wf.active ? '● Actif' : '○ Inactif'}
-                                  </button>
-                                  <button onClick={() => handleDeleteWorkflow(wf.id)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="card">
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', marginBottom: 18 }}>Comment ça marche ?</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                        {[
-                          { n: '1', t: 'Un prospect contacte votre chatbot', d: 'Il laisse son email ou ses coordonnées en discutant avec votre bot.' },
-                          { n: '2', t: 'Le workflow se déclenche', d: 'NestLead détecte le nouveau contact et exécute les actions configurées.' },
-                          { n: '3', t: 'Email automatique envoyé', d: 'Le prospect reçoit un email de bienvenue, votre équipe est notifiée.' },
-                          { n: '4', t: 'Vous intervenez au bon moment', d: 'Vous ne rappelez qu\'un prospect déjà informé et engagé.' },
-                        ].map(item => (
-                          <div key={item.n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#d4a853', flexShrink: 0 }}>{item.n}</div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 3 }}>{item.t}</div>
-                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.55 }}>{item.d}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )
-          )}
-
-        </main>
       </div>
-
-      {/* Onboarding Agent */}
-      {showOnboardingAgent && (
-        <OnboardingAgent agentName={agent?.name || 'Agent'} onComplete={handleOnboardingAgentComplete} />
-      )}
-
-      {/* Onboarding Acheteur */}
-      {showOnboardingAcheteur && (
-        <OnboardingAcheteur onComplete={handleOnboardingAcheteurComplete} onClose={() => setShowOnboardingAcheteur(false)} />
-      )}
     </>
   );
 }
