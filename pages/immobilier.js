@@ -253,7 +253,7 @@ function B2BPanel() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.25)', color: '#16a34a' }}>Actif</span>
-                    <button onClick={() => deleteChatbot(bot.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14' }}>✕</button>
+                    <button onClick={() => deleteChatbot(bot.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14 }}>✕</button>
                   </div>
                 </div>
               ))}
