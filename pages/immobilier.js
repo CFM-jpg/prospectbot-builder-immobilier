@@ -21,20 +21,82 @@ const NAV_LINKS = [
 ];
 
 const SHORTCUTS = [
-  { href: '/biens',                icon: '🏠', label: 'Biens & mandats',       desc: 'Gérez vos annonces',          color: '#d4a853' },
-  { href: '/acheteurs',            icon: '👤', label: 'Acheteurs',              desc: 'Portefeuille clients',         color: '#3b82f6' },
-  { href: '/matches',              icon: '⚡', label: 'Matches',                desc: 'Correspondances auto',         color: '#8b5cf6' },
-  { href: '/vendeurs-potentiels',  icon: '📍', label: 'Vendeurs potentiels',    desc: 'Prospection DVF',              color: '#16a34a' },
-  { href: '/liquidite',            icon: '📊', label: 'Score liquidité',        desc: 'Dynamique de marché',          color: '#f97316' },
-  { href: '/analyse-portefeuille', icon: '🧠', label: 'Analyse portefeuille',   desc: 'IA + tendances DVF',           color: '#ec4899' },
-  { href: '/rapport-pdf',          icon: '📄', label: 'Rapport PDF',            desc: 'Document brandé prospect',    color: '#14b8a6' },
-  { href: '/upgrade',              icon: '✦',  label: 'Changer de plan',        desc: 'Pro · Agence',                color: '#d4a853' },
+  { href: '/biens',                label: 'Biens & mandats',      desc: 'Gérez vos annonces',        color: '#d4a853' },
+  { href: '/acheteurs',            label: 'Acheteurs',             desc: 'Portefeuille clients',       color: '#3b82f6' },
+  { href: '/matches',              label: 'Matches',               desc: 'Correspondances auto',       color: '#8b5cf6' },
+  { href: '/vendeurs-potentiels',  label: 'Vendeurs potentiels',   desc: 'Prospection DVF',            color: '#16a34a' },
+  { href: '/liquidite',            label: 'Score liquidité',       desc: 'Dynamique de marché',        color: '#f97316' },
+  { href: '/analyse-portefeuille', label: 'Analyse portefeuille',  desc: 'IA + tendances DVF',         color: '#ec4899' },
+  { href: '/rapport-pdf',          label: 'Rapport PDF',           desc: 'Document brandé prospect',  color: '#14b8a6' },
+  { href: '/upgrade',              label: 'Changer de plan',       desc: 'Pro · Agence',              color: '#d4a853' },
 ];
+
+// ─── Mini graphiques SVG ──────────────────────────────────────────────────────
+
+// Sparkline (courbe)
+function Sparkline({ values = [], color = '#d4a853', height = 36, width = 100 }) {
+  if (!values.length) return null;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={`0,${height} ${pts} ${width},${height}`} fill={color} fillOpacity="0.08" stroke="none" />
+    </svg>
+  );
+}
+
+// Barres horizontales (répartition)
+function BarChart({ data = [], color = '#d4a853' }) {
+  const max = Math.max(...data.map(d => d.value), 1);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {data.map((d, i) => (
+        <div key={i}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{d.label}</span>
+            <span style={{ fontSize: 11, color, fontFamily: 'Cormorant Garamond, serif', fontWeight: 500 }}>{d.value}</span>
+          </div>
+          <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${(d.value / max) * 100}%`, background: color, borderRadius: 2, transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Donut gauge
+function DonutGauge({ value = 0, max = 100, color = '#d4a853', size = 80 }) {
+  const pct = Math.min(value / max, 1);
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = pct * circ;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="6" />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="6"
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1)' }} />
+      <text x={size/2} y={size/2 + 1} textAnchor="middle" dominantBaseline="central"
+        fill={color} style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: size * 0.22, fontWeight: 600 }}>
+        {value}
+      </text>
+    </svg>
+  );
+}
 
 // ─── Composant Assistant IA ───────────────────────────────────────────────────
 function AssistantIA({ agentEmail }) {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Bonjour ! Je suis votre assistant ProspectBot. Je connais vos biens, acheteurs et matches en temps réel. Comment puis-je vous aider ?' }
+    { role: 'assistant', content: 'Bonjour. Je suis votre assistant ProspectBot, connecté à vos données en temps réel. Comment puis-je vous aider ?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -214,7 +276,7 @@ function B2BPanel() {
             <h3 style={{ fontSize: 15, fontWeight: 500, color: '#e8e8e8' }}>Mes chatbots</h3>
             <button onClick={() => setShowForm(s => !s)}
               style={{ padding: '8px 16px', background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 7, fontSize: 12.5, color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-              {showForm ? '✕ Annuler' : '+ Nouveau chatbot'}
+              {showForm ? 'Annuler' : '+ Nouveau chatbot'}
             </button>
           </div>
 
@@ -245,7 +307,7 @@ function B2BPanel() {
               {chatbots.map(bot => (
                 <div key={bot.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${bot.color || '#d4a853'}18`, border: `1.5px solid ${bot.color || '#d4a853'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{bot.avatar || '🤖'}</div>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${bot.color || '#d4a853'}18`, border: `1.5px solid ${bot.color || '#d4a853'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: bot.color || '#d4a853', fontWeight: 600, fontFamily: 'Cormorant Garamond, serif' }}>B</div>
                     <div>
                       <div style={{ fontSize: 14, color: '#e8e8e8' }}>{bot.name}</div>
                       <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{bot.welcome_message?.slice(0, 60)}…</div>
@@ -253,7 +315,7 @@ function B2BPanel() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.25)', color: '#16a34a' }}>Actif</span>
-                    <button onClick={() => deleteChatbot(bot.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                    <button onClick={() => deleteChatbot(bot.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14 }}>x</button>
                   </div>
                 </div>
               ))}
@@ -277,7 +339,7 @@ function B2BPanel() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontSize: 13.5, color: '#e8e8e8' }}>{conv.visitor_email || 'Anonyme'}</span>
                     <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: conv.qualified ? 'rgba(22,163,74,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${conv.qualified ? 'rgba(22,163,74,0.2)' : 'rgba(255,255,255,0.07)'}`, color: conv.qualified ? '#16a34a' : 'rgba(255,255,255,0.3)' }}>
-                      {conv.qualified ? '✓ Qualifié' : 'Non qualifié'}
+                      {conv.qualified ? 'Qualifié' : 'Non qualifié'}
                     </span>
                   </div>
                   {conv.qualification_reason && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{conv.qualification_reason}</div>}
@@ -297,7 +359,7 @@ function B2BPanel() {
               <h3 style={{ fontSize: 15, fontWeight: 500, color: '#e8e8e8' }}>Mes workflows</h3>
               <button onClick={() => setShowWfForm(s => !s)}
                 style={{ padding: '8px 16px', background: 'rgba(212,168,83,0.08)', border: '1px solid rgba(212,168,83,0.2)', borderRadius: 7, fontSize: 12.5, color: '#d4a853', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                {showWfForm ? '✕ Annuler' : '+ Nouveau'}
+                {showWfForm ? 'Annuler' : '+ Nouveau'}
               </button>
             </div>
             {showWfForm && (
@@ -335,9 +397,9 @@ function B2BPanel() {
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button onClick={() => toggleWorkflow(wf.id, wf.active)}
                     style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: wf.active ? 'rgba(22,163,74,0.1)' : 'rgba(255,255,255,0.05)', color: wf.active ? '#16a34a' : 'rgba(255,255,255,0.3)', border: `1px solid ${wf.active ? 'rgba(22,163,74,0.2)' : 'rgba(255,255,255,0.07)'}`, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                    {wf.active ? '● Actif' : '○ Inactif'}
+                    {wf.active ? 'Actif' : 'Inactif'}
                   </button>
-                  <button onClick={() => deleteWorkflow(wf.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                  <button onClick={() => deleteWorkflow(wf.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14 }}>x</button>
                 </div>
               </div>
             ))}
@@ -448,7 +510,6 @@ function ImmobilierDashboard() {
         {alertes.length > 0 && (
           <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 12, padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 16 }}>⚠</span>
               <span style={{ fontSize: 13, color: '#ef4444' }}>{alertes.length} mandat{alertes.length > 1 ? 's' : ''} dans un marché en baisse — action recommandée</span>
             </div>
             <a href="/analyse-portefeuille" style={{ fontSize: 12.5, padding: '6px 14px', borderRadius: 7, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}>Voir →</a>
@@ -469,52 +530,77 @@ function ImmobilierDashboard() {
         {tab === 'overview' && (
           <div style={{ animation: 'fadeUp 0.3s both' }}>
 
-            {/* KPIs */}
-            {stats && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 28 }}>
-                {[
-                  ['Biens actifs', stats.totalBiens, '#d4a853', '/biens'],
-                  ['Acheteurs', stats.totalAcheteurs, '#3b82f6', '/acheteurs'],
-                  ['Matches', stats.totalMatches, '#8b5cf6', '/matches'],
-                  ['Nouveaux cette semaine', stats.nouveauxMatches, '#16a34a', '/matches'],
-                ].map(([label, val, color, href]) => (
-                  <a key={label} href={href} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '18px', textAlign: 'center', textDecoration: 'none', transition: 'border-color 0.2s', display: 'block' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = `${color}40`}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'}>
-                    <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, color, fontWeight: 500 }}>{val ?? '—'}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>{label}</div>
-                  </a>
-                ))}
-              </div>
-            )}
-
-            {/* Stats prix */}
-            {stats && (stats.prixMoyen > 0 || stats.budgetMoyen > 0) && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 28 }}>
-                {[
-                  ['Prix moyen des biens', stats.prixMoyen ? `${Math.round(stats.prixMoyen / 1000)}k€` : '—', '#d4a853'],
-                  ['Budget moyen acheteurs', stats.budgetMoyen ? `${Math.round(stats.budgetMoyen / 1000)}k€` : '—', '#3b82f6'],
-                  ['Taux de matching', `${stats.tauxMatching ?? 0}%`, '#16a34a'],
-                ].map(([label, val, color]) => (
-                  <div key={label} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 18px' }}>
-                    <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, color, fontWeight: 500, marginBottom: 4 }}>{val}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{label}</div>
+            {/* Ligne 1 : 4 KPI cards avec sparkline */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 12 }}>
+              {[
+                { label: 'Biens actifs',         value: stats?.totalBiens,       color: '#d4a853', href: '/biens',     spark: [2,3,3,4,4,5,stats?.totalBiens||0] },
+                { label: 'Acheteurs actifs',      value: stats?.totalAcheteurs,   color: '#3b82f6', href: '/acheteurs', spark: [4,5,6,5,7,8,stats?.totalAcheteurs||0] },
+                { label: 'Matches détectés',      value: stats?.totalMatches,     color: '#8b5cf6', href: '/matches',   spark: [1,2,2,4,3,5,stats?.totalMatches||0] },
+                { label: 'Nouveaux cette semaine',value: stats?.nouveauxMatches,  color: '#16a34a', href: '/matches',   spark: [0,1,0,2,1,2,stats?.nouveauxMatches||0] },
+              ].map(({ label, value, color, href, spark }) => (
+                <a key={label} href={href}
+                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '18px 20px', textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 0, transition: 'border-color 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = `${color}35`}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 34, color, fontWeight: 500, lineHeight: 1 }}>{value ?? '—'}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 5, letterSpacing: '0.3px' }}>{label}</div>
+                    </div>
+                    <Sparkline values={spark} color={color} width={72} height={32} />
                   </div>
-                ))}
-              </div>
-            )}
+                </a>
+              ))}
+            </div>
 
-            {/* Raccourcis */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 14 }}>Accès rapide</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+            {/* Ligne 2 : graphiques métier */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr', gap: 10, marginBottom: 12 }}>
+
+              {/* Répartition biens par statut */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '20px 22px' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16 }}>Activité du pipeline</div>
+                <BarChart color="#d4a853" data={[
+                  { label: 'Biens disponibles',  value: stats?.totalBiens ?? 0 },
+                  { label: 'Acheteurs actifs',   value: stats?.totalAcheteurs ?? 0 },
+                  { label: 'Matches en cours',   value: stats?.totalMatches ?? 0 },
+                  { label: 'Nouveaux / semaine', value: stats?.nouveauxMatches ?? 0 },
+                ]} />
+              </div>
+
+              {/* Prix & budget */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '20px 22px' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16 }}>Prix & budgets</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {[
+                    { label: 'Prix moyen biens',      value: stats?.prixMoyen   ? `${Math.round(stats.prixMoyen / 1000)}k €`   : '—', color: '#d4a853' },
+                    { label: 'Budget moyen acheteurs', value: stats?.budgetMoyen ? `${Math.round(stats.budgetMoyen / 1000)}k €` : '—', color: '#3b82f6' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, color, fontWeight: 500 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Taux matching donut */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '20px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '1px' }}>Taux matching</div>
+                <DonutGauge value={stats?.tauxMatching ?? 0} max={100} color="#16a34a" size={88} />
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>acheteurs matchés</div>
+              </div>
+            </div>
+
+            {/* Ligne 3 : raccourcis sans emojis */}
+            <div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Accès rapide</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
                 {SHORTCUTS.map(s => (
                   <a key={s.href} href={s.href} className="shortcut"
-                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
-                    <div style={{ fontSize: 22 }}>{s.icon}</div>
-                    <div style={{ fontSize: 13.5, color: '#e8e8e8', fontWeight: 500 }}>{s.label}</div>
-                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)' }}>{s.desc}</div>
-                    <div style={{ height: 2, borderRadius: 1, background: s.color, opacity: 0.4, marginTop: 4 }} />
+                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' }}>
+                    <div style={{ width: 24, height: 3, borderRadius: 1.5, background: s.color, opacity: 0.7 }} />
+                    <div style={{ fontSize: 13, color: '#e8e8e8', fontWeight: 500, marginTop: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{s.desc}</div>
                   </a>
                 ))}
               </div>
