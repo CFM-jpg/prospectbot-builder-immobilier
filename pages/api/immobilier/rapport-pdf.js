@@ -217,16 +217,14 @@ async function generateWithPdfLib(htmlContent) {
 
 // ─── Moteur Puppeteer ─────────────────────────────────────────────────────────
 async function generateWithPuppeteer(htmlContent) {
-  // Sur Vercel, utiliser @sparticuz/chromium + puppeteer-core
   let chromium, puppeteer;
   try {
-    chromium = (await import('@sparticuz/chromium')).default;
+    chromium = (await import('@sparticuz/chromium-min')).default;
     puppeteer = (await import('puppeteer-core')).default;
   } catch {
-    throw new Error('puppeteer-core et @sparticuz/chromium requis. Installez-les avec : npm i puppeteer-core @sparticuz/chromium');
+    throw new Error('puppeteer-core et @sparticuz/chromium-min requis.');
   }
 
-  // Forcer le téléchargement du binaire Chromium depuis le CDN sparticuz
   const executablePath = await chromium.executablePath(
     'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
   );
@@ -239,6 +237,7 @@ async function generateWithPuppeteer(htmlContent) {
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--single-process',
+      '--no-zygote',
     ],
     defaultViewport: chromium.defaultViewport,
     executablePath,
