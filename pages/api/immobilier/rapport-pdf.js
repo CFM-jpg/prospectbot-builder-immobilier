@@ -227,10 +227,10 @@ async function generateWithPuppeteer(htmlContent) {
   }
 
   const browser = await puppeteer.launch({
-    args: chromium.args,
+    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
     defaultViewport: chromium.defaultViewport,
     executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
+    headless: chromium.headless ?? 'new',
   });
 
   const page = await browser.newPage();
@@ -340,17 +340,19 @@ Réponds UNIQUEMENT avec ce JSON :
         .from('rapports-marche')
         .upload(filename, pdfBuffer, { contentType: 'application/pdf', upsert: true });
 
-      if (!uploadError) {
-        const { data: signedUrl } = await supabaseAdmin.storage
-          .from('rapports-marche')
-          .createSignedUrl(filename, 60 * 60 * 24 * 7); // 7 jours
-
-        return res.status(200).json({
-          success: true,
-          url: signedUrl?.signedUrl,
-          filename,
-        });
+      if (uploadError) {
+        return res.status(500).json({ success: false, error: `Erreur upload Storage : ${uploadError.message}` });
       }
+
+      const { data: signedUrl } = await supabaseAdmin.storage
+        .from('rapports-marche')
+        .createSignedUrl(filename, 60 * 60 * 24 * 7); // 7 jours
+
+      return res.status(200).json({
+        success: true,
+        url: signedUrl?.signedUrl,
+        filename,
+      });
     }
 
     // Retourner le PDF directement

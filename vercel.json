@@ -1,6 +1,12 @@
 {
   "buildCommand": "npm run build",
   "framework": "nextjs",
+  "functions": {
+    "pages/api/immobilier/rapport-pdf.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/email-cron",
