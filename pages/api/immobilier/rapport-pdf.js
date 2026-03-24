@@ -217,44 +217,32 @@ async function generateWithPdfLib(htmlContent) {
 
 // ─── Moteur Puppeteer ─────────────────────────────────────────────────────────
 async function generateWithPuppeteer(htmlContent) {
-  let chromium, puppeteer;
-  try {
-    chromium = (await import('@sparticuz/chromium-min')).default;
-    puppeteer = (await import('puppeteer-core')).default;
-  } catch {
-    throw new Error('puppeteer-core et @sparticuz/chromium-min requis.');
+  // Utilise PDFShift — pas de Puppeteer/Chromium, fonctionne sur Vercel
+  const apiKey = process.env.PDFSHIFT_API_KEY;
+  if (!apiKey) throw new Error("PDFSHIFT_API_KEY manquante dans les variables d'environnement Vercel");
+
+  const response = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Basic ' + Buffer.from('api:' + apiKey).toString('base64'),
+    },
+    body: JSON.stringify({
+      source: htmlContent,
+      format: 'A4',
+      margin: { top: 0, bottom: 0, left: 0, right: 0 },
+      print_background: true,
+      landscape: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error('PDFShift erreur ' + response.status + ' : ' + err);
   }
 
-  const executablePath = await chromium.executablePath(
-    'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
-  );
-
-  const browser = await puppeteer.launch({
-    args: [
-      ...chromium.args,
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
-    ],
-    defaultViewport: chromium.defaultViewport,
-    executablePath,
-    headless: true,
-  });
-
-  const page = await browser.newPage();
-  await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-
-  const pdf = await page.pdf({
-    format: 'A4',
-    printBackground: true,
-    margin: { top: '0', bottom: '0', left: '0', right: '0' },
-  });
-
-  await browser.close();
-  return pdf;
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
 // ─── Handler principal ────────────────────────────────────────────────────────
