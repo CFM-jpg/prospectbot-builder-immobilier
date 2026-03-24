@@ -225,13 +225,13 @@ async function generateWithPuppeteer(htmlContent) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Basic ' + Buffer.from('api:' + apiKey).toString('base64'),
+      'X-API-Key': apiKey,
     },
     body: JSON.stringify({
       source: htmlContent,
       format: 'A4',
-      margin: { top: 0, bottom: 0, left: 0, right: 0 },
-      background: true,
+      margin: { top: '0', bottom: '0', left: '0', right: '0' },
+      disable_backgrounds: false,
       landscape: false,
     }),
   });
