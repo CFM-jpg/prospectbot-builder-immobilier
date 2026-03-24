@@ -335,7 +335,9 @@ Réponds UNIQUEMENT avec ce JSON :
     // Option : sauvegarder dans Supabase Storage et retourner une URL signée
     const saveToStorage = req.body.saveToStorage === true;
     if (saveToStorage) {
-      const filename = `rapports/${session.email}/${zone.ville}_${Date.now()}.pdf`;
+      const safeEmail = session.email.replace(/[^a-zA-Z0-9]/g, '_');
+      const safeVille = zone.ville.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `rapports/${safeEmail}/${safeVille}_${Date.now()}.pdf`;
       const { error: uploadError } = await supabaseAdmin.storage
         .from('rapports-marche')
         .upload(filename, pdfBuffer, { contentType: 'application/pdf', upsert: true });
