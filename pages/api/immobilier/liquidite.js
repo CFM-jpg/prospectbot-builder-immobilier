@@ -8,6 +8,37 @@ import { getSession } from '../../../lib/auth';
 
 const CACHE_DURATION_HOURS = 24;
 
+// ─── Résolution automatique ville → code_commune ─────────────────────────────
+async function resolveCodeCommune(ville, codePostal = null) {
+  try {
+    // 1. Essai avec code postal si fourni (plus précis)
+    if (codePostal) {
+      const res = await fetch(
+        `https://geo.api.gouv.fr/communes?codePostal=${codePostal}&fields=code,nom&limit=1`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.[0]?.code) return { code: data[0].code, nom: data[0].nom };
+      }
+    }
+
+    // 2. Recherche par nom de ville
+    const nomEncode = encodeURIComponent(ville.trim());
+    const res = await fetch(
+      `https://geo.api.gouv.fr/communes?nom=${nomEncode}&fields=code,nom,codesPostaux&boost=population&limit=1`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.[0]?.code) return { code: data[0].code, nom: data[0].nom };
+    }
+  } catch (e) {
+    console.warn('[Liquidité] resolveCodeCommune erreur:', e.message);
+  }
+  return null;
+}
+
 // ─── Endpoints DVF (même stratégie fallback que le scraper existant) ──────────
 const DVF_ENDPOINTS = [
   (codeCommune, limit) =>
@@ -130,12 +161,27 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Non authentifié' });
 
-  const { code_commune, ville } = req.query;
+  const { code_commune, ville, code_postal } = req.query;
   if (!code_commune && !ville) {
-    return res.status(400).json({ error: 'code_commune ou ville requis' });
+    return res.status(400).json({ error: 'ville requis' });
   }
 
-  const cacheKey = code_commune || ville.toLowerCase().replace(/\s+/g, '_');
+  // Résolution automatique du code commune depuis la ville
+  let resolvedCode = code_commune;
+  let resolvedVille = ville;
+  if (!resolvedCode && ville) {
+    const resolved = await resolveCodeCommune(ville, code_postal);
+    if (resolved) {
+      resolvedCode = resolved.code;
+      resolvedVille = resolved.nom;
+    } else {
+      return res.status(400).json({
+        error: `Ville introuvable : "${ville}". Vérifiez l'orthographe.`,
+      });
+    }
+  }
+
+  const cacheKey = resolvedCode;
 
   try {
     // 1. Vérifier le cache Supabase
@@ -158,7 +204,7 @@ export default async function handler(req, res) {
     }
 
     // 2. Fetch DVF
-    const transactions = await fetchDVFTransactions(code_commune || cacheKey, 300);
+    const transactions = await fetchDVFTransactions(resolvedCode, 300);
 
     if (!transactions.length) {
       return res.status(200).json({
@@ -177,7 +223,7 @@ export default async function handler(req, res) {
     // 4. Mettre en cache
     const cacheData = {
       code_commune: cacheKey,
-      ville: ville || null,
+      ville: resolvedVille || null,
       data: result,
       updated_at: new Date().toISOString(),
     };
@@ -189,7 +235,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       fromCache: false,
-      code_commune: cacheKey,
+      code_commune: resolvedCode,
+      ville: resolvedVille,
       ...result,
     });
   } catch (error) {
