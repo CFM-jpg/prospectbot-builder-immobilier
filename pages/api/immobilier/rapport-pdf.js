@@ -226,11 +226,23 @@ async function generateWithPuppeteer(htmlContent) {
     throw new Error('puppeteer-core et @sparticuz/chromium requis. Installez-les avec : npm i puppeteer-core @sparticuz/chromium');
   }
 
+  // Forcer le téléchargement du binaire Chromium depuis le CDN sparticuz
+  const executablePath = await chromium.executablePath(
+    'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
+  );
+
   const browser = await puppeteer.launch({
-    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+    args: [
+      ...chromium.args,
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+    ],
     defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless ?? 'new',
+    executablePath,
+    headless: true,
   });
 
   const page = await browser.newPage();
